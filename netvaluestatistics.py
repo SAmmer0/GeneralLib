@@ -71,7 +71,7 @@ def ret_stats(retValues, columnName=None, displayHist=False):
             'min': retValues.min(), 'kurtosis': retValues.kurtosis(), 
             'skew': retValues.skew()}
 
-def info_ratio(retValues, columnName=None, benchMark=0):
+def info_ratio(retValues, columnName=None, benchMark=.0):
     '''
     计算策略的信息比率：
         info_ratio = (mean(ret) - banckMark)/std(ret)
@@ -85,6 +85,9 @@ def info_ratio(retValues, columnName=None, benchMark=0):
     '''
     if not (isinstance(retValues, pd.DataFrame) or isinstance(retValues, pd.Series)):
         retValues = pd.Series(retValues)
+    if not isinstance(benchMark, float):
+        assert hasattr(benchMark, '__len__'), ValueError('given benchMark should be series object, eg: list, pd.DataFrame, etc...')
+        assert len(benchMark) == len(retValues), ValueError('given benchMark should have the same length as retValues')
     if isinstance(retValues, pd.DataFrame):
         if 'retValues' in retValues.columns:
             retValues = pd.Series(retValues['retValues'].values)
@@ -93,4 +96,5 @@ def info_ratio(retValues, columnName=None, benchMark=0):
                 raise KeyError('optional parameter \'columnName\' should be provided by user')
             else:
                 retValues = pd.Series(retValues[columnName].values)
-    return (np.mean(retValues)-benchMark)/np.std(retValues)
+    excessRet = retValues - np.array(benchMark)
+    return np.mean(excessRet)/np.std(excessRet)
