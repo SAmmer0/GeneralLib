@@ -22,6 +22,7 @@ def max_drawn_down(netValues, columnName=None):
                 raise KeyError('optional parameter \'columnName\' must be provided')
     if isinstance(netValues, pd.Series):
         netValues = netValues.values
+    assert len(netValues) > 0, ValueError('length of netValues should be greater than 0')
     localMax = netValues[0]
     startIdx = 0
     endIdx = 0
