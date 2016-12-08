@@ -11,15 +11,21 @@ __version__ = 1.0
 修改日期：2016年12月6日
 修改内容：
      初始化，添加基本的获取数据函数get_data
-'''
 
+__version__ = 1.1
+修改日期：2016年12月8日
+修改内容：
+    添加数据存储到文件的函数和从文件中读取pd数据的函数
+'''
+__version__ = 1.1
 
 from WindPy import w
+import pandas as pd
 import pickle
 
 
 def get_data(code, field, startDate, endDate, highFreq=False, highFreqBarSize='barSize=5',
-             priceAdj=False, write2File=None):
+             priceAdj=False):
     '''
     从wind中获取数据，可以获取高频率（1天及以上）和低频率（1分钟-1天内）的数据，数据以字典的形式返回
     @param:
@@ -35,8 +41,6 @@ def get_data(code, field, startDate, endDate, highFreq=False, highFreqBarSize='b
         highFreqBarSize: 提取的高频率数据的频率设定，默认为5分钟线，即barSize=5，其他设置可以类似，
             但是要求必须为字符串，形式只能为barSize=n，n为需要的数据的频率
         priceAdj: 是否需要复权，默认不需要，bool型，只能对有复权选项的证券使用，否则返回的数据会有错误
-        write2File: 是否需要把数据写入文件供以后使用方便，默认为None，即不写入，如果需要写入，则需要
-            提供写入的文件路径（字符串形式），目前只能把文件写到pickle文件中，方便提取
     @return:
         data: 字典类型数据，形式为{field: data}，其中另外会添加time列，记录时间
     '''
@@ -54,7 +58,69 @@ def get_data(code, field, startDate, endDate, highFreq=False, highFreqBarSize='b
             rawData = w.wsd(code, field, startDate, endDate)
     data = dict(zip(field, rawData.Data))
     data['time'] = rawData.Times
-    if write2File:
-        with open(write2File, 'wb') as f:
-            pickle.dump(data, f)
+    return data
+
+
+def data2file(data, filePath, toPd=False, readable=False):
+    '''
+    将数据写入文件保存，存储分为两种功能，一种就是单纯的存储，另外一种就是将数据存到一些文件（例如csv）
+    方便导出查看。
+    @param:
+        data: 即为原始数据
+        filePath: 为保存文件的路径，包括文件所在的文件夹和文件名以及后缀
+        toPd: 是否保存为pandas的形式，默认为False。为False时，文件将被保存为pickle的形式；当为True时，
+            将把文件先转换为pd.DataFrame的形式，具体存储形式需要根据后面的readable来设定。
+        readable: 只有当toPd为True时，才会考虑该选项。若为True，则将数据保存为csv的格式，此时需要要求
+            文件后缀为.csv，方便可以使用外部软件查看。若为False，则将数据保存为pickle的格式，此时对后缀
+            无要求
+    @return:
+        succeed: bool型，如果保存成功则为True，反之则为False
+    '''
+    if toPd:
+        try:
+            writeData = pd.DataFrame(data)
+        except TypeError:
+            print('Data can not be write as pandas, a binary file is saved')
+            with open(filePath, 'wb') as f:
+                pickle.dump(data, filePath)
+            return True
+        if readable:
+            suffix = filePath.split('.')[-1]
+            assert suffix == 'csv', TypeError('unsupported readable file')
+            writeData.to_csv(filePath)
+            return True
+        else:
+            writeData.to_pickle(filePath)
+            return True
+    else:
+        with open(filePath, 'wb') as f:
+            pickle.dump(data, filePath)
+        return True
+
+
+def read_pdFile(filePath, timeColName='time', startTime=None, endTime=None, sep=','):
+    '''
+    用于从文件中读取金融数据，要求文件必须以pd.DataFrame的形式组织，返回pd.DataFrame的形式
+    @param:
+        filePath: 文件路径，包含文件所在的文件夹和文件名以及后缀。函数自行判断存储文件的格式，若后缀
+            为csv，则可以提供sep参数来读取其他形式的csv文件；若后缀为其他形式，则按照pickle格式读取
+        timeColName: 时间所在列的列名，默认为time，即表明时间列的列名为time
+        startTime: 金融数据的开始时间，默认为None，即返回所有时间段的数据
+        endTime: 金融数据的结束时间，默认为None，即返回所有时间段的数据
+        sep: 当filePath的后缀为csv时启用，默认为逗号，即读取的文件为常规csv格式（以逗号为分割），若为
+            其他形式的分隔符，需要自行提供
+    @return:
+        resData: pd.DataFrame格式，按照时间升序（由远到近）排序
+    '''
+    suffix = filePath.split('.')[-1]
+    if suffix == 'csv':
+        data = pd.read_csv(filePath, sep=sep)
+    else:
+        data = pd.read_pickle(filePath)
+    if startTime is None:     # 表示当开始时间未给定时，采用数据中的开始时间
+        startTime = data[timeColName].iloc[0]
+    if endTime is None:
+        endTime = data[timeColName].iloc[-1]
+    data = data.loc[(data[timeColName] <= endTime) & (data[timeColName] >= startTime), :]
+    data = data.sort_values(timeColName)
     return data
