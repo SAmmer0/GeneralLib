@@ -3,10 +3,25 @@
 Created on Tue Sep  6 17:03:08 2016
 
 @author: hao
+修改日志：
+修改日期：2016年10月20日
+修改内容：
+    1. 添加函数extendNetValue，用于将净值扩展到期间的交易日，即对应策略期间每一个
+       交易日，都有一个净值（目前考虑删除 2016年11月4日）
+    2. 添加计算sharp比率的函数
+
+修改日期：2016年12月1日
+修改内容：
+    在ret_stats函数中加入代码，使函数能够返回数据个数
+
+修改日期：2016年12月13日
+修改内容：
+    在ret_stats函数中加入计算盈亏比的代码
 """
 import pandas as pd
 import numpy as np
 import matplotlib.pylab as plt
+
 
 def max_drawn_down(netValues, columnName=None):
     '''
@@ -64,18 +79,22 @@ def ret_stats(retValues, columnName=None, displayHist=False):
                 raise KeyError('optional parameter \'columnName\' should be provided by user')
             else:
                 retValues = pd.Series(retValues[columnName].values)
-    winProb = np.sum(retValues>0)/len(retValues)
+    winProb = np.sum(retValues > 0)/len(retValues)
+    count = len(retValues)
     if displayHist:
         plt.hist(retValues, bins=int(len(retValues/30)))
-    return {'winProb':winProb, 'mean': retValues.mean(), 
+    plRatio = (retValues[retValues > 0].sum()/abs(retValues[retValues <= 0].sum())
+               if np.sum(retValues < 0) > 0 else float('inf'))
+    return {'winProb': winProb, 'PLRatio': plRatio, 'mean': retValues.mean(),
             'median': retValues.median(), 'max': retValues.max(),
-            'min': retValues.min(), 'kurtosis': retValues.kurtosis(), 
-            'skew': retValues.skew()}
+            'min': retValues.min(), 'kurtosis': retValues.kurtosis(),
+            'skew': retValues.skew(), 'count': count}
+
 
 def info_ratio(retValues, columnName=None, benchMark=.0):
     '''
     计算策略的信息比率：
-        info_ratio = (mean(ret) - banckMark)/std(ret)
+        info_ratio = mean(ret - benchMark)/std(ret-benchMark)
     @param:
         retValues 收益率序列数据，要求为序列或者pd.DataFrame或者pd.Series类型
         columnName 若提供的数据类型为pd.DataFrame，默认为None表明retValues中
@@ -87,15 +106,34 @@ def info_ratio(retValues, columnName=None, benchMark=.0):
     if not (isinstance(retValues, pd.DataFrame) or isinstance(retValues, pd.Series)):
         retValues = pd.Series(retValues)
     if not isinstance(benchMark, float):
-        assert hasattr(benchMark, '__len__'), ValueError('given benchMark should be series object, eg: list, pd.DataFrame, etc...')
-        assert len(benchMark) == len(retValues), ValueError('given benchMark should have the same length as retValues')
+        assert hasattr(benchMark, '__len__'), ValueError(
+            'given benchMark should be series object, eg: list, pd.DataFrame, etc...')
+        assert len(benchMark) == len(retValues), ValueError(
+            'given benchMark should have the same length as retValues')
+    else:
+        benchMark = [benchMark]*len(retValues)
     if isinstance(retValues, pd.DataFrame):
         if 'retValues' in retValues.columns:
-            retValues = pd.Series(retValues['retValues'].values)
+            retValues = retValues['retValues']
         else:
             if columnName is None:
                 raise KeyError('optional parameter \'columnName\' should be provided by user')
             else:
-                retValues = pd.Series(retValues[columnName].values)
+                retValues = retValues[columnName]
     excessRet = retValues - np.array(benchMark)
     return np.mean(excessRet)/np.std(excessRet)
+
+
+def sharp_ratio(retValues, columnName=None, riskFreeRate=0):
+    '''
+    计算策略的夏普比率：
+        sharp_ratio = (mean(ret) - riskFreeRate)/std(ret)
+    注：要求ret与riskFreeRate的频率是相同的，比如都为年化的；由于夏普比率是信息比率的一种特殊情况，因此该函数通过调用信息比率函数计算
+    @param:
+        retValues 收益率序列数据，要求为序列或者pd.DataFrame或者pd.Series类型
+        columnName 若提供的数据类型为pd.DataFrame，默认为None表明retValues中有retValues这列数据，否则需要通过columnName来传入
+        riskFreeRate 无风险利率，默认为0
+    @return:
+        sharpRatio 即根据上述公式计算的夏普比率
+    '''
+    return info_ratio(retValues, columnName, riskFreeRate)
