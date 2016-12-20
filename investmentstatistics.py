@@ -26,15 +26,17 @@ import matplotlib.pylab as plt
 def max_drawn_down(netValues, columnName=None):
     '''
     计算净值序列的最大回撤：maxDrawndDown = max(1-D_i/D_j) i > j
-    @param: netValues 净值序列，可以是pd.DataFrame,pd.Series和np.array,list类型
-    @return: (maxDrawnDown, startTime(index), endTime(index))
+    @param:
+        netValues 净值序列，可以是pd.DataFrame,pd.Series和np.array,list类型，如果时pd.DataFrame的类型，
+            则默认净值所在的列列名为netValue，如果为其他列名，则需要自行通过columnName参数提供
+    @return:
+        (maxDrawnDown, startTime(index), endTime(index))
     '''
     if isinstance(netValues, pd.DataFrame):
-        if 'netValue' in netValues.columns:
-            netValues = netValues['netValue'].values
+        if columnName is None:
+            netValues = netValues['netValues']
         else:
-            if columnName is None:
-                raise KeyError('optional parameter \'columnName\' must be provided')
+            netValues = netValues[columnName]
     if isinstance(netValues, pd.Series):
         netValues = netValues.values
     assert len(netValues) > 0, ValueError('length of netValues should be greater than 0')
@@ -105,7 +107,7 @@ def info_ratio(retValues, columnName=None, benchMark=.0):
     '''
     if not (isinstance(retValues, pd.DataFrame) or isinstance(retValues, pd.Series)):
         retValues = pd.Series(retValues)
-    if not isinstance(benchMark, float):
+    if not isinstance(benchMark, (float, int)):
         assert hasattr(benchMark, '__len__'), ValueError(
             'given benchMark should be series object, eg: list, pd.DataFrame, etc...')
         assert len(benchMark) == len(retValues), ValueError(
@@ -124,7 +126,7 @@ def info_ratio(retValues, columnName=None, benchMark=.0):
     return np.mean(excessRet)/np.std(excessRet)
 
 
-def sharp_ratio(retValues, columnName=None, riskFreeRate=0):
+def sharp_ratio(retValues, columnName=None, riskFreeRate=.0):
     '''
     计算策略的夏普比率：
         sharp_ratio = (mean(ret) - riskFreeRate)/std(ret)
@@ -132,7 +134,7 @@ def sharp_ratio(retValues, columnName=None, riskFreeRate=0):
     @param:
         retValues 收益率序列数据，要求为序列或者pd.DataFrame或者pd.Series类型
         columnName 若提供的数据类型为pd.DataFrame，默认为None表明retValues中有retValues这列数据，否则需要通过columnName来传入
-        riskFreeRate 无风险利率，默认为0
+        riskFreeRate 无风险利率，默认为.0
     @return:
         sharpRatio 即根据上述公式计算的夏普比率
     '''

@@ -16,8 +16,14 @@ __version__ = 1.1
 修改日期：2016年12月8日
 修改内容：
     添加数据存储到文件的函数和从文件中读取pd数据的函数
+
+__version__ = 1.2
+修改日期：2016年12月20日
+修改内容：
+    1. 添加获取指数成分的函数 get_index_constituent
+    2. 添加获取区间交易日的函数get_tds
 '''
-__version__ = 1.1
+__version__ = 1.2
 
 from WindPy import w
 import pandas as pd
@@ -56,19 +62,20 @@ def get_data(code, field, startDate, endDate, highFreq=False, highFreqBarSize='b
             rawData = w.wsd(code, field, startDate, endDate, 'PriceAdj=F')
         else:
             rawData = w.wsd(code, field, startDate, endDate)
+    assert rawData.ErrorCode == 0, rawData.Data[0][0]
     data = dict(zip(field, rawData.Data))
     data['time'] = rawData.Times
     return data
 
 
-def data2file(data, filePath, toPd=False, readable=False):
+def data2file(data, filePath, toPd=True, readable=False):
     '''
     将数据写入文件保存，存储分为两种功能，一种就是单纯的存储，另外一种就是将数据存到一些文件（例如csv）
     方便导出查看。
     @param:
         data: 即为原始数据
         filePath: 为保存文件的路径，包括文件所在的文件夹和文件名以及后缀
-        toPd: 是否保存为pandas的形式，默认为False。为False时，文件将被保存为pickle的形式；当为True时，
+        toPd: 是否保存为pandas的形式，默认为True。为False时，文件将被保存为pickle的形式；当为True时，
             将把文件先转换为pd.DataFrame的形式，具体存储形式需要根据后面的readable来设定。
         readable: 只有当toPd为True时，才会考虑该选项。若为True，则将数据保存为csv的格式，此时需要要求
             文件后缀为.csv，方便可以使用外部软件查看。若为False，则将数据保存为pickle的格式，此时对后缀
@@ -124,3 +131,36 @@ def read_pdFile(filePath, timeColName='time', startTime=None, endTime=None, sep=
     data = data.loc[(data[timeColName] <= endTime) & (data[timeColName] >= startTime), :]
     data = data.sort_values(timeColName)
     return data
+
+
+def get_index_constituent(index, date):
+    '''
+    用于从Wind中获取指数的成分
+    @param:
+        index: 需要获取成分的指数代码
+        date: 获取指数成分的日期
+    @return:
+        indexConstituent: 字典，键为成分的代码，值为成分股的中文名称
+    '''
+    if not w.isconnected():
+        w.start()
+    data = w.wset('sectorconstituent', 'date='+date.strftime('%Y-%m-%d')+';windcode='+indexCode)
+    assert data.ErrorCode == 0, data.Data[0][0]
+    indexConstituent = dict(zip(data.Data[1], data.Data[2]))
+    return indexConstituent
+
+
+def get_tds(startTime, endTime, colName='td'):
+    '''
+    从Wind中获取交易日
+    @param:
+        startTime: 交易日的起始日期，要求为dt.datetime格式或者YYYY-MM-DD格式
+        endTime: 交易日的终止日期，同上述要求
+        colName: 提供的交易日序列的列名，默认为td
+    @return:
+        tds: 字典{'td': 交易日序列}
+    '''
+    if not w.isconnected():
+        w.start()
+    tds = w.tdays(startTime, endTime)
+    return {colName: tds.Data[0]}
