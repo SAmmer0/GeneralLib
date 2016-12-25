@@ -22,12 +22,19 @@ __version__ = 1.2
 修改内容：
     1. 添加获取指数成分的函数 get_index_constituent
     2. 添加获取区间交易日的函数get_tds
+
+__version__ = 1.3
+修改日期：2016年12月25日
+修改内容：
+    1. 重构了get_tds，减少对Wind的依赖
+    2. 添加了get_tds_wind从Wind中获取交易日的数据
 '''
-__version__ = 1.2
+__version__ = 1.3
 
 from WindPy import w
 import pandas as pd
 import pickle
+import datetime as dt
 
 
 def get_data(code, field, startDate, endDate, highFreq=False, highFreqBarSize='barSize=5',
@@ -150,17 +157,60 @@ def get_index_constituent(index, date):
     return indexConstituent
 
 
-def get_tds(startTime, endTime, colName='td'):
+def get_tds(startTime, endTime, fileName="F:\\GeneralLib\\CONST_DATAS\\tradingDays.pickle"):
     '''
-    从Wind中获取交易日
+    获取给定时间区间内的交易日，该函数会先检测是否有公用文件，如果有会从文件中读取交易日的数据，读取之后会将
+    所读取的日期与给定的日期做比较，然后返回需要的交易日，如果所需要的交易日超过了文件的范围，则会从
+    Wind中下载时间区间为(min(startTime, fileStartTime), max(endTime, fileEndTime))的交易日数据，并写入
+    文件数据
     @param:
         startTime: 交易日的起始日期，要求为dt.datetime格式或者YYYY-MM-DD格式
         endTime: 交易日的终止日期，同上述要求
-        colName: 提供的交易日序列的列名，默认为td
+        fileName="F:\GeneralLib\CONST_DATAS\tradingDays.pickle": 从文件中读取交易日数据，默认在公用路径中
     @return:
-        tds: 字典{'td': 交易日序列}
+        tds: 交易日列表
+    备注：
+        若startTime, endTime均为交易日，则二者均被包含到结果中，且microsecond=5000
+    '''
+    try:
+        with open(fileName, 'rb') as f:
+            rawTDs = pickle.load(f)
+    except FileNotFoundError:
+        tds = get_tds_wind(startTime, endTime)
+        with open(fileName, 'wb') as f:
+            pickle.dump(tds, f)
+        return tds
+
+    def str2dt(dtStr):    # 用于将字符串转换为dt.datetime
+        return dt.datetime.strptime(dtStr, '%Y-%m-%d')
+    if isinstance(startTime, str):
+        startTime = str2dt(startTime)
+    if isinstance(endTime, str):
+        endTime = str2dt(endTime)
+    fileStartTime = rawTDs[0]
+    fileEndTime = rawTDs[-1]
+    if (fileStartTime > startTime or
+            fileEndTime < endTime):     # 当前时间区间超过了文件中的范围
+        tds = get_tds_wind(min(fileStartTime, startTime), max(fileEndTime, endTime))
+        with open(fileName, 'wb') as f:
+            pickle.dump(tds, f)
+        return tds
+    else:
+        rawTDs = pd.Series(rawTDs)
+        tds = rawTDs[(rawTDs >= startTime) & (rawTDs <= endTime)].tolist()
+        return tds
+
+
+def get_tds_wind(startTime, endTime):
+    '''
+    从Wind中获取交易日序列
+    @param:
+        startTime: 交易日的起始日期，要求为dt.datetime格式或者YYYY-MM-DD格式
+        endTime: 交易日的终止日期，同上述要求
+    @return:
+        tds: 交易日列表
     '''
     if not w.isconnected():
         w.start()
     tds = w.tdays(startTime, endTime)
-    return {colName: tds.Data[0]}
+    return tds.Data[0]
