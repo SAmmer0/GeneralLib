@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 
 import dateshandle
+import processingdata as psd
 
 
 class FDHBaseError(Exception):
@@ -60,24 +61,6 @@ def clean_data(raw_data, col_names, replacer=None):
         cleaned_data = [replacer(d) for d in col]
         res.append(dict(zip(col_names, cleaned_data)))
     return pd.DataFrame(res)
-
-
-def get_config(sql, cols, period, handle, code, start_time, end_time):
-    '''
-    用于构造参数的辅助函数
-    @param:
-        sql: 符合Config类标准的SQL语句
-        cols: 数据列列名
-        period: 数据的期限
-        handle: {col: func}的形式或者None
-        code: 证券代码
-        start_time: 获取数据的报告期开始时间
-        end_time: 最新的更新时间
-    @return:
-        字典形式的配置好的参数，可直接用于SQLWrapper的get_data函数
-    '''
-    config = Config(sql, cols, period, handle)
-    return {'config': config, 'code': code, 'start_time': start_time, 'end_time': end_time}
 
 
 class Processor(object):
@@ -182,7 +165,8 @@ class Processor(object):
                 cal_res = func(data)
             res.append(cal_res)
         res = pd.DataFrame(res)
-        res.index = [npd[0] for npd in self._nperiod_data]
+        # res.index = [npd[0] for npd in self._nperiod_data]
+        res['time'] = [npd[0] for npd in self._nperiod_data]
         return res
 
 
@@ -221,6 +205,7 @@ class Config(object):
         self.handle[col] = func
 
     def format_sql(self, code, start_time, end_time):
+        code = psd.drop_suffix(code)
         return self.sql.format(code=code, start_time=start_time, end_time=end_time)
 
 
@@ -237,4 +222,4 @@ class SQLWrapper(object):
         sql = config.format_sql(code, start_time, end_time)
         data = self.cursor.fetchall(sql)
         data_cleaned = clean_data(data, config.cols)
-        return data
+        return data_cleaned
