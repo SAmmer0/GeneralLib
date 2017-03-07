@@ -28,6 +28,10 @@ class EmptyDataError(FDHBaseError):
     pass
 
 
+class InvalidColumnError(FDHBaseError):
+    pass
+
+
 def clean_data(raw_data, col_names, replacer=None):
     '''
     用于将数据库中的数据转换为python中常用的数据格式
@@ -56,6 +60,24 @@ def clean_data(raw_data, col_names, replacer=None):
         cleaned_data = [replacer(d) for d in col]
         res.append(dict(zip(col_names, cleaned_data)))
     return pd.DataFrame(res)
+
+
+def get_config(sql, cols, period, handle, code, start_time, end_time):
+    '''
+    用于构造参数的辅助函数
+    @param:
+        sql: 符合Config类标准的SQL语句
+        cols: 数据列列名
+        period: 数据的期限
+        handle: {col: func}的形式或者None
+        code: 证券代码
+        start_time: 获取数据的报告期开始时间
+        end_time: 最新的更新时间
+    @return:
+        字典形式的配置好的参数，可直接用于SQLWrapper的get_data函数
+    '''
+    config = Config(sql, cols, period, handle)
+    return {'config': config, 'code': code, 'start_time': start_time, 'end_time': end_time}
 
 
 class Processor(object):
@@ -107,7 +129,7 @@ class Processor(object):
             self.data[col] = self.data[col].apply(func)
 
     def _cal_newest_data(self, date):
-        valid_data = self.data.loc[self.data[self.update_col] < date, :]
+        valid_data = self.data.loc[self.data[self.update_col] <= date]
         grouped_valid_data = valid_data.groupby(self.rpt_col)
         res = grouped_valid_data.apply(lambda x: x.iloc[-1])
         return res
@@ -162,3 +184,57 @@ class Processor(object):
         res = pd.DataFrame(res)
         res.index = [npd[0] for npd in self._nperiod_data]
         return res
+
+
+class Config(object):
+
+    '''
+    用于设置获取数据库基本面数据的配置，目前只支持获取单个SQL的数据
+    要求sql有类似于示例中的格式：
+        SELECT C.FinancialExpense, C.IncomeTaxCost, C.TotalProfit, C.InfoPublDate, C.EndDate
+        FROM SecuMain M, LC_QIncomeStatementNew C
+        WHERE M.CompanyCode = C.CompanyCode AND
+            M.SecuCode = \'{code}\' AND
+            M.SecuMarket in (83, 90) AND
+            M.SecuCategory = 1 AND
+            C.EndDate >= CAST(\'{start_time}\' AS datetime) AND
+            C.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
+    '''
+
+    def __init__(self, sql, cols, period=1, handle=None):
+        self.sql = sql
+        self.cols = cols
+        self.period = period
+        self.handle = handle
+
+    def is_valid_col(self, col):
+        if col not in self.cols:
+            raise InvalidColumnError('{c} is not in {cols}'.format(c=col, cols=self.cols))
+
+    def add_handle(self, col, func):
+        '''
+        用于添加处理函数
+        '''
+        if self.handle is None:
+            self.handle = dict()
+        self.is_valid_col(col)
+        self.handle[col] = func
+
+    def format_sql(self, code, start_time, end_time):
+        return self.sql.format(code=code, start_time=start_time, end_time=end_time)
+
+
+class SQLWrapper(object):
+
+    '''
+    直接与SQL进行连接和获取数据，目前只支持获取单个SQL的数据
+    '''
+
+    def __init__(self, cursor):
+        self.cursor = cursor
+
+    def get_data(self, config, code, start_time, end_time):
+        sql = config.format_sql(code, start_time, end_time)
+        data = self.cursor.fetchall(sql)
+        data_cleaned = clean_data(data, config.cols)
+        return data
