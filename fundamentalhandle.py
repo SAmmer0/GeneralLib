@@ -6,8 +6,10 @@
 # @Version : $Id$
 
 from decimal import Decimal
+import datetime as dt
 import pandas as pd
 import numpy as np
+
 
 import dateshandle
 import processingdata as psd
@@ -63,6 +65,26 @@ def clean_data(raw_data, col_names, replacer=None):
     return pd.DataFrame(res)
 
 
+def _get_latest(df, date, col):
+    '''
+    内部函数，用来从分组后的df中获取某个日期能观测到的最新数据
+    @param:
+        df: 按照报告期进行分组后的数据
+        date: 给定的观测日
+        col: 观测日所在的列
+    @return:
+        给定观测日的最新数据，Series形式，如果没有符合条件的数据，则对应的列都返回np.nan
+    '''
+    data = df.loc[df[col] <= date]
+    if len(data) < 1:
+        return gen_nan_series(df.columns)
+    return data.iloc[-1]
+
+
+def gen_nan_series(cols):
+    return pd.Series(dict(zip(cols, [np.nan] * len(cols))))
+
+
 class Processor(object):
 
     '''
@@ -82,10 +104,12 @@ class Processor(object):
         self.update_col = update_col
         self.data = data
         self.parameter_checker()
-        self.newest_datas = None
         self.convertor(funcs)
+        self.newest_datas = None
+        self._grouped = self.data.groupby(self.rpt_col)
         self._nperiod_data = None
-        self._data_cols = set(self.data.columns).difference(set([self.update_col, self.rpt_col]))
+        self._data_cols = [col for col in self.data.columns
+                           if col not in [self.update_col, self.rpt_col]]
 
     def parameter_checker(self):
         '''
@@ -124,21 +148,23 @@ class Processor(object):
         update_time = self.data[self.update_col]
         if self.newest_datas is None:
             self.newest_datas = dict()
-        for udt in update_time:
-            self.newest_datas[udt] = self._cal_newest_data(udt)
+            for udt in update_time:
+                tmp = self._grouped.apply(_get_latest, date=udt, col=self.update_col)
+                tmp = tmp.dropna()
+                self.newest_datas[udt] = tmp
 
     def _get_nperiod_data(self, period_num=1):
         '''
         获取最新的给定期数的数据，以(update_time, newest_data)形式返回
+        每次调用该函数后都会重新计算最新的值
         @param:
             period_num: 给定的期数
         '''
-        if self._nperiod_data is None:
-            self._nperiod_data = list()
-            for udt in sorted(self.newest_datas):
-                tmp = self.newest_datas[udt].iloc[-period_num:]
-                tmp = tmp.reset_index(drop=True)
-                self._nperiod_data.append((udt, tmp))
+        self._nperiod_data = dict()
+        for udt in sorted(self.newest_datas):
+            self._nperiod_data[udt] = self.newest_datas[udt].iloc[-period_num:]
+            # 此处将reset_index删除，因为在操作过程中并没有用到索引或者需要对齐
+            # tmp = tmp.reset_index(drop=True)
 
     def output_data(self, period_num=1, func=np.sum):
         '''
@@ -155,18 +181,21 @@ class Processor(object):
         self.get_newest_data()
         self._get_nperiod_data(period_num=period_num)
         res = list()
-        for udt, data in self._nperiod_data:
+        times = list()
+        for udt, data in self._nperiod_data.items():
             # 数据不够，或者报告期不连续
             if (len(data) < period_num or
                     not dateshandle.is_continuous_rptd(data[self.rpt_col].tolist())):
-                cal_res = pd.Series(dict(zip(self._data_cols, [np.nan]*len(self._data_cols))))
+                cal_res = gen_nan_series(self._data_cols)
             else:
-                data = data.loc[:, list(self._data_cols)]
+                data = data.loc[:, self._data_cols]
                 cal_res = func(data)
             res.append(cal_res)
+            times.append(udt)
         res = pd.DataFrame(res)
         # res.index = [npd[0] for npd in self._nperiod_data]
-        res['time'] = [npd[0] for npd in self._nperiod_data]
+        res['time'] = times
+        res = res.sort_values('time')
         return res
 
 
@@ -197,7 +226,7 @@ class Config(object):
 
     def add_handle(self, col, func):
         '''
-        用于添加处理函数
+        用于添加处理函数，也可以用于覆盖当前的函数
         '''
         if self.handle is None:
             self.handle = dict()
@@ -205,8 +234,15 @@ class Config(object):
         self.handle[col] = func
 
     def format_sql(self, code, start_time, end_time):
+        if not isinstance(start_time, str):
+            start_time = start_time.strftime('%Y-%m-%d')
+        if not isinstance(end_time, str):
+            end_time = end_time.strftime('%Y-%m-%d')
         code = psd.drop_suffix(code)
         return self.sql.format(code=code, start_time=start_time, end_time=end_time)
+
+    def change_period(self, period):
+        self.period = period
 
 
 class SQLWrapper(object):
@@ -223,3 +259,31 @@ class SQLWrapper(object):
         data = self.cursor.fetchall(sql)
         data_cleaned = clean_data(data, config.cols)
         return data_cleaned
+
+
+def test():
+    cols = ['data', 'rpt_date', 'update_time']
+    rpt_dates = dateshandle.get_latest_report_dates('2016-12-31', 20)
+
+    def gen_dates(r_dates):
+        rpt_res = list()
+        update_res = list()
+        repeat_num = 2
+        for date in r_dates:
+            for rn in range(repeat_num):
+                rpt_res.append(date)
+                if rn == 0:
+                    update_res.append(date + dt.timedelta(60))
+                else:
+                    update_res.append(date + dt.timedelta(360))
+        return rpt_res, update_res
+    rpt_dates, update_dates = gen_dates(rpt_dates)
+    data = np.random.randint(len(rpt_dates), size=(len(rpt_dates),))
+    df = dict(zip(cols, [data, rpt_dates, update_dates]))
+    df = pd.DataFrame(df)
+    process_obj = Processor(df, rpt_col='rpt_date', update_col='update_time')
+    res = process_obj.output_data()
+    return res
+
+if __name__ == '__main__':
+    res = test()
