@@ -112,19 +112,22 @@ def cal_newest_data(data, period=1, rpt_col='rpt_date', update_col='update_time'
         kwargs: 用于向agg_handle中添加其他参数
     @return:
         返回df形式数据，包含数据列和update_col列，按照update_col列升序排列
+    注：测试发现，还是以前代码的运行速度更快一些
     '''
     df = data.sort_values(update_col).reset_index(drop=True)    # 获取一个拷贝，避免修改原数据
     if pre_handle is not None:
         for col, fun in pre_handle:
             df[col] = fun(df[col])
     data_cols = col_filter(df.columns, [rpt_col, update_col])
-    by_rdt = df.groupby(rpt_col)
+    # by_rdt = df.groupby(rpt_col)
     udt_list = list()
     data_list = list()
     for udt in sorted(df[update_col].unique()):
         udt_list.append(udt)
-        tmp = by_rdt.apply(_get_latest, date=udt, col=update_col)   # 获取当前更新日最新数据
-        tmp = tmp.dropna(subset=data_cols, how='all')
+        # tmp = by_rdt.apply(_get_latest, date=udt, col=update_col)   # 获取当前更新日最新数据
+        # tmp = tmp.dropna(subset=data_cols, how='all')
+        tmp = df[df[update_col] <= udt]
+        tmp = tmp.groupby(rpt_col).apply(lambda x: x.iloc[-1])
         tmp = tmp.iloc[-period:]
         if (len(tmp) < period or not dateshandle.is_continuous_rptd(tmp[rpt_col])):
             cal_res = gen_nan_series(data_cols)
@@ -136,120 +139,6 @@ def cal_newest_data(data, period=1, rpt_col='rpt_date', update_col='update_time'
     res[update_col] = udt_list
     res = res.sort_values(update_col).reset_index(drop=True)
     return res
-
-
-class Processor(object):
-
-    '''
-    原始数据由外部传入，然后计算更新日的最新数据列，然后根据要求返回所需要的数据
-    '''
-
-    def __init__(self, data, rpt_col='rpt_date', update_col='update_time', funcs=None):
-        '''
-        @param:
-            data: 原始数据，要求为pd.DataFrame格式，且需要有rpt_col以及update_col这些参数提供的列
-            rpt_col: 报告期所在列的列名
-            update_col: 报告更新期所在列的列名
-            funcs: 用于对原始数据进行进一步加工的函数，默认为None，即不需要加工，可提供的格式为字典，
-                内容为{col: handle}
-        '''
-        self.rpt_col = rpt_col
-        self.update_col = update_col
-        self.data = data
-        self.parameter_checker()
-        self.convertor(funcs)
-        self.newest_datas = None
-        self._grouped = self.data.groupby(self.rpt_col)
-        self._nperiod_data = None
-        self._data_cols = [col for col in self.data.columns
-                           if col not in [self.update_col, self.rpt_col]]
-
-    def parameter_checker(self):
-        '''
-        检查参数是否合法，当传入的数据为空时，会引起EmptyDataError，其他都为InvalidParameterError
-        '''
-        if not isinstance(self.data, pd.DataFrame):
-            raise InvalidParameterError('only pd.DataFrame is valid')
-        if len(self.data) == 0:
-            raise EmptyDataError('Input data is empty')
-        for col_name in (self.rpt_col, self.update_col):
-            if col_name not in self.data.columns:
-                raise InvalidParameterError('%s not in data columns' % col_name)
-        self.data = self.data.sort_values(self.update_col).reset_index(drop=True)
-
-    def convertor(self, funcs):
-        '''
-        按照给定的方式转换数据
-        @param:
-            funcs: 字典形式，{col: handle}
-        '''
-        if funcs is None:
-            return
-        for col, func in funcs.items():
-            self.data[col] = self.data[col].apply(func)
-
-    def _cal_newest_data(self, date):
-        valid_data = self.data.loc[self.data[self.update_col] <= date]
-        grouped_valid_data = valid_data.groupby(self.rpt_col)
-        res = grouped_valid_data.apply(lambda x: x.iloc[-1])
-        return res
-
-    def get_newest_data(self):
-        '''
-        计算所有更新日期对应的过去的最新的数据
-        '''
-        update_time = self.data[self.update_col]
-        if self.newest_datas is None:
-            self.newest_datas = dict()
-            for udt in update_time:
-                tmp = self._grouped.apply(_get_latest, date=udt, col=self.update_col)
-                tmp = tmp.dropna(subset=self._data_cols, how='all')
-                self.newest_datas[udt] = tmp
-
-    def _get_nperiod_data(self, period_num=1):
-        '''
-        获取最新的给定期数的数据，以(update_time, newest_data)形式返回
-        每次调用该函数后都会重新计算最新的值
-        @param:
-            period_num: 给定的期数
-        '''
-        self._nperiod_data = dict()
-        for udt in sorted(self.newest_datas):
-            self._nperiod_data[udt] = self.newest_datas[udt].iloc[-period_num:]
-            # 此处将reset_index删除，因为在操作过程中并没有用到索引或者需要对齐
-            # tmp = tmp.reset_index(drop=True)
-
-    def output_data(self, period_num=1, func=np.sum):
-        '''
-        返回使用给定期数的数据计算的数据
-        @param:
-            period_num: 给定期数
-            func: 使用给定期数计算出所需要数据的函数，默认为np.sum，要求函数形式为func(DataFrame)->
-                Series
-        @return:
-            每个更新期对应的计算结果，其中以更新日期作为index
-        注：
-            如果报告期不连续，则那一期的数据结果为np.nan
-        '''
-        self.get_newest_data()
-        self._get_nperiod_data(period_num=period_num)
-        res = list()
-        times = list()
-        for udt, data in self._nperiod_data.items():
-            # 数据不够，或者报告期不连续
-            if (len(data) < period_num or
-                    not dateshandle.is_continuous_rptd(data[self.rpt_col].tolist())):
-                cal_res = gen_nan_series(self._data_cols)
-            else:
-                data = data.loc[:, self._data_cols]
-                cal_res = func(data)
-            res.append(cal_res)
-            times.append(udt)
-        res = pd.DataFrame(res)
-        # res.index = [npd[0] for npd in self._nperiod_data]
-        res['time'] = times
-        res = res.sort_values('time').reset_index(drop=True)
-        return res
 
 
 class Config(object):
