@@ -85,6 +85,59 @@ def gen_nan_series(cols):
     return pd.Series(dict(zip(cols, [np.nan] * len(cols))))
 
 
+def col_filter(raw_cols, tobe_filtered):
+    '''
+    去除一些不需要被包含的列
+    @param:
+        raw_cols: 原始列，可迭代类型
+        tobe_filtered: 需要被去除的列，可迭代类型（注：此处并不会检查这些需要被去除的列是否全在
+            原始列之中）
+    @return:
+        过滤之后的列
+    '''
+    res = [x for x in raw_cols if x not in tobe_filtered]
+    return res
+
+
+def cal_newest_data(data, period=1, rpt_col='rpt_date', update_col='update_time', pre_handle=None,
+                    agg_handle=np.sum, **kwargs):
+    '''
+    用于计算给定数据在每个更新日期对应的最新数据
+    @param:
+        data: 原始数据，为df格式，要求必须包含rpt_col和update_col提供的列
+        rpt_col: 报告期对应的列
+        update_col: 更新日期对应的列
+        pre_handle: 对数据进行预处理的函数，为字典类型，形式为{col: func}，默认为None，即不做预处理
+        agg_handle: 对当前更新时间对应的最新数据做处理的函数
+        kwargs: 用于向agg_handle中添加其他参数
+    @return:
+        返回df形式数据，包含数据列和update_col列，按照update_col列升序排列
+    '''
+    df = data.sort_values(update_col).reset_index(drop=True)    # 获取一个拷贝，避免修改原数据
+    if pre_handle is not None:
+        for col, fun in pre_handle:
+            df[col] = fun(df[col])
+    data_cols = col_filter(df.columns, [rpt_col, update_col])
+    by_rdt = df.groupby(rpt_col)
+    udt_list = list()
+    data_list = list()
+    for udt in sorted(df[update_col].unique()):
+        udt_list.append(udt)
+        tmp = by_rdt.apply(_get_latest, date=udt, col=update_col)   # 获取当前更新日最新数据
+        tmp = tmp.dropna(subset=data_cols, how='all')
+        tmp = tmp.iloc[-period:]
+        if (len(tmp) < period or not dateshandle.is_continuous_rptd(tmp[rpt_col])):
+            cal_res = gen_nan_series(data_cols)
+        else:
+            cal_data = tmp.loc[:, data_cols]
+            cal_res = agg_handle(cal_data, **kwargs)
+        data_list.append(cal_res)
+    res = pd.DataFrame(data_list)
+    res[update_col] = udt_list
+    res = res.sort_values(update_col).reset_index(drop=True)
+    return res
+
+
 class Processor(object):
 
     '''
@@ -150,7 +203,7 @@ class Processor(object):
             self.newest_datas = dict()
             for udt in update_time:
                 tmp = self._grouped.apply(_get_latest, date=udt, col=self.update_col)
-                tmp = tmp.dropna()
+                tmp = tmp.dropna(subset=self._data_cols, how='all')
                 self.newest_datas[udt] = tmp
 
     def _get_nperiod_data(self, period_num=1):
@@ -195,7 +248,7 @@ class Processor(object):
         res = pd.DataFrame(res)
         # res.index = [npd[0] for npd in self._nperiod_data]
         res['time'] = times
-        res = res.sort_values('time')
+        res = res.sort_values('time').reset_index(drop=True)
         return res
 
 
@@ -283,7 +336,9 @@ def test():
     df = pd.DataFrame(df)
     process_obj = Processor(df, rpt_col='rpt_date', update_col='update_time')
     res = process_obj.output_data()
-    return res
+    res2 = cal_newest_data(df, rpt_col='rpt_date', update_col='update_time')
+    return res, res2
+
 
 if __name__ == '__main__':
-    res = test()
+    res, res2 = test()
