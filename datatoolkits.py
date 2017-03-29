@@ -37,11 +37,14 @@ __version__ = 1.4
 修改内容：
     1. 从processsingdata中转移而来
     2. 添加retfreq_trans函数
+    3. 添加annualize_std函数
 '''
 __version__ = 1.4
-import pandas as pd
+
 import datetime as dt
+from math import sqrt
 import numpy as np
+import pandas as pd
 import pickle
 # import six
 
@@ -178,19 +181,33 @@ def dump_pickle(data, path):
         pickle.dump(data, f)
 
 
-def retfreq_trans(init_ret, init_freq, new_freq):
+def retfreq_trans(init_ret, new_freq):
     '''
     将收益的频率进行转换，例如将日收益率转化为年化或者将年化收益率转化为日收益率
     计算方法如下：
     new_ret = (1 + init_ret)**(new_freq/init_freq) - 1
     @param:
         init_ret: 初始的需要转换的收益率
-        init_freq: 初始收益率的频率
-        new_freq: 最终收益率的频率
+        new_freq: 最终收益率的频率，例如，月度数据年化则设为12
     @return:
         转换频率后的收益率
     '''
-    return (1 + init_ret)**(new_freq / init_freq) - 1
+    return (1 + init_ret)**new_freq - 1
+
+
+def annualize_std(init_std, init_ret, period_num):
+    '''
+    计算年化的波动率
+    计算方法如下：
+    new_std = sqrt((init_std**2 + (1+init_ret)**2)**period_num - (1+init_ret)**(2*period_num))
+    @param:
+        init_std: 初始需要转换的波动率
+        init_ret: 初始频率的平均收益率
+        period_num: 一年的区间数（例如，12表示月度数据年化）
+    @return:
+        按照上述方法计算的年化波动率
+    '''
+    return sqrt((init_std**2 + (1 + init_ret)**2)**period_num - (1 + init_ret)**(2 * period_num))
 
 
 if __name__ == '__main__':
