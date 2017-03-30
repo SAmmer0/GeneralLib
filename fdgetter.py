@@ -15,6 +15,7 @@ __version__ = 1.0
 
 import datatoolkits
 from decimal import Decimal
+import functools
 import numpy as np
 import pandas as pd
 import SQLserver
@@ -261,3 +262,16 @@ def get_db_data(sql, code, start_time, end_time, cols, db=jydb, add_stockcode=Tr
     if add_stockcode:
         data_cleaned['code'] = len(data_cleaned) * [code]
     return data_cleaned
+
+
+def combine(datas, on, how='outer'):
+    '''
+    将同一支股票的其他数据合并到一个DataFrame中
+    @param:
+        datas: 需要合并的数据，要求为可迭代类型，内容为DataFrame，且均包含on参数中提供的列
+        on: 合并的主键
+        how: 合并方式，默认为'outer'，其他参数与pd.merge相同
+    @return:
+        合并后的数据，DataFrame形式
+    '''
+    return functools.reduce(lambda x, y: pd.merge(x, y, on=on, how=how), datas)
