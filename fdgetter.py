@@ -108,9 +108,34 @@ SN_SQL = '''
         S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
         S.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
     '''
+# 分红
+DIV_SQL = '''
+    SELECT %s
+    FROM SecuMain M, LC_DividendProgress D
+    WHERE
+        M.InnerCode = D.InnerCode AND
+        M.SecuCode = \'{code}\' AND
+        M.SecuMarket in (83, 90) AND
+        M.SecuCategory = 1 AND
+        D.InfoPubType = 40 AND
+        D.Process = 3131 AND
+        D.EndDate > CAST(\'{start_time}\' AS datetime) AND
+        D.InfopubDate < CAST(\'{end_time}\' AS datetime)
+    '''
+# 指数成分
+INDEX_SQL = '''
+    SELECT  M2.SecuCode, S.EndDate
+    FROM SecuMain M, LC_IndexComponentsWeight S, SecuMain M2
+    WHERE M.InnerCode = S.IndexCode AND
+        M2.InnerCode = S.InnerCode AND
+        M.SecuCode = \'{code}\' AND
+        M.SecuCategory = 4 AND
+        S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
+        S.EndDate <= CAST(\'{end_time}\' AS datetime)
+    '''
 # 集合现有的所有基础SQL
 BASIC_SQLs = {'QIS': QIS_SQL, 'YIS': YIS_SQL, 'QCFS': QCFS_SQL, 'YCFS': YCFS_SQL,
-              'BSS': BSS_SQL, 'SN': SN_SQL}
+              'BSS': BSS_SQL, 'SN': SN_SQL, 'INDEX_CONSTITUENTS': INDEX_SQL, 'DIV': DIV_SQL}
 # 添加SQL模板的其他操作
 SQLFILE_PATH = r"F:\GeneralLib\CONST_DATAS\sql_templates.pickle"
 # 获取当前的SQL模板
@@ -274,4 +299,17 @@ def combine(datas, on, how='outer'):
     @return:
         合并后的数据，DataFrame形式
     '''
-    return functools.reduce(lambda x, y: pd.merge(x, y, on=on, how=how), datas)
+    res = functools.reduce(lambda x, y: pd.merge(x, y, on=on, how=how), datas)
+    return res
+
+if __name__ == '__main__':
+    qis_sql = gen_sql_cols({'NetProfit': 'ni', 'EndDate': 'rpt_date',
+                            'InfoPublDate': 'update_time'}, 'QIS')
+    bss_sql = gen_sql_cols({'TotalAssets': 'total_asset', 'ShortTermLoan': 'ST_loan',
+                            'EndDate': 'rpt_date', 'InfoPublDate': 'update_time'}, 'BSS')
+    code = '000001.SZ'
+    data = list()
+    for sql, col in (qis_sql, bss_sql):
+        tmp_data = get_db_data(sql, code, '2009-01-01', '2016-01-01', col)
+        data.append(tmp_data)
+    data = combine(data, on=('code', 'rpt_date', 'update_time'))
