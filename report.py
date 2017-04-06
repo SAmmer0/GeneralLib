@@ -33,7 +33,7 @@ __version__ = 1.2
     2. 将部分函数的参数由收益率序列改为净值序列
     3. 添加将净值序列转换为收益率序列的函数
 """
-__version__ = 1.1
+__version__ = 1.2
 import pandas as pd
 import numpy as np
 import matplotlib.pylab as plt
@@ -199,11 +199,35 @@ def cal_rawalpha(net_value, benchMark, freq, riskFreeRate=0.):
         alpha值
     '''
     rets = cal_ret(net_value)
-    benchMark = cal_ret(benchMark)
+    benchmark_ret = cal_ret(benchMark)
     annualized_ret = datatoolkits.annualize_ret(rets, freq)
-    annualized_benchMark = datatoolkits.annualize_ret(benchMark, freq)
-    beta = cal_rawbeta(rets, benchMark)
+    annualized_benchMark = datatoolkits.annualize_ret(benchmark_ret, freq)
+    beta = cal_rawbeta(net_value, benchMark)
     return annualized_ret - riskFreeRate - beta * (annualized_benchMark - riskFreeRate)
+
+
+def brief_report(net_value, benchmark, riskfree_rate, freq):
+    '''
+    输入策略的净值等数据，对策略的基本状况做一个简报
+    内容包含:
+        粗略alpha，粗略beta，最大回撤，最大回撤起始期，夏普比率，信息比率
+    @param:
+        net_value: 策略净值数据，要求为pd.Series格式
+        benchmark: 对比基准净值数据，要求为pd.Series格式
+        riskfree_rate: 无风险利率
+        freq: 数据的频率，例如日净值数据对应250，月净值数据对应12
+    '''
+    assert len(net_value) == len(
+        benchmark), '\'net_value\' should have the same length as \'benchmark\''
+    nav_ret = cal_ret(net_value)
+    benchmark_ret = cal_ret(benchmark)
+    alpha = cal_rawalpha(net_value, benchmark, freq, riskfree_rate)
+    beta = cal_rawbeta(net_value, benchmark)
+    mdd, mdd_start, mdd_end = max_drawn_down(net_value)
+    sharp = sharp_ratio(nav_ret, freq, riskFreeRate=riskfree_rate)
+    info = info_ratio(nav_ret, freq, benchMark=benchmark_ret)
+    return pd.Series({'alpha': alpha, 'beta': beta, 'mdd': mdd, 'mdd_start': mdd_start,
+                      'mdd_end': mdd_end, 'sharp_ratio': sharp, 'info_ratio': info})
 
 # 方便写Markdown报告的表格工具
 
