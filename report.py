@@ -25,6 +25,11 @@ __version__ = 1.1
     2. 重构了信息比率和夏普比率计算函数
     3. 添加了计算简单beta和简单alpha的函数
     4. 添加了DataFrame转化为html表格的类
+
+__version__ = 1.2
+修改日期：2017-04-06
+修改内容：
+    在HTMLTable中添加clear函数
 """
 __version__ = 1.1
 import pandas as pd
@@ -200,6 +205,12 @@ class HTMLTable(object):
     '''
 
     def __init__(self):
+        self.table = '<table>\n{content}</table>'
+        self.row = '<tr>{content}</tr>'
+        self.col = '<td>{content}</td>'
+        self.row_lists = list()
+
+    def clear(self):
         self.table = '<table>\n{content}</table>'
         self.row = '<tr>{content}</tr>'
         self.col = '<td>{content}</td>'
