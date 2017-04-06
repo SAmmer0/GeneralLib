@@ -109,15 +109,18 @@ def holding_filter(holding, threshold=1):
     过滤掉没有持仓的交易日
     @param:
         holding: 持仓，要求为OrderDict的类型，键为交易日，值为持仓列表[[code1, code2, ...], ...]
-        threshold: 持仓股票数要求，即至少需要大于或者等于该数才被认为是有效的持仓，默认为1
+        threshold: 持仓股票数要求，即至少需要持仓中的每个组合的持有股票数大于或者等于该数才被认为
+            是有效的持仓，默认为1
     @return:
         过滤后的持仓，同样为OrderDict类型
     '''
     res = OrderedDict()
-    for k, v in holding:
-        if len(v) < threshold:
-            continue
-        res[k] = v
+    for t, groups in holding.items():
+        for g in groups:
+            if len(g) < threshold:
+                break
+        else:
+            res[t] = groups
     return res
 
 
