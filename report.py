@@ -29,13 +29,26 @@ __version__ = 1.1
 __version__ = 1.2
 修改日期：2017-04-06
 修改内容：
-    在HTMLTable中添加clear函数
+    1. 在HTMLTable中添加clear函数
+    2. 将部分函数的参数由收益率序列改为净值序列
+    3. 添加将净值序列转换为收益率序列的函数
 """
 __version__ = 1.1
 import pandas as pd
 import numpy as np
 import matplotlib.pylab as plt
 import datatoolkits
+
+
+def cal_ret(net_value, period=1):
+    '''
+    将净值数据转换为收益率数据
+    @param:
+        net_value: 净值数据序列，要求为pd.Series类型
+    @return:
+        转换后的收益率序列，为pd.Series类型
+    '''
+    return net_value.pct_change(period).dropna()
 
 
 def max_drawn_down(netValues, columnName=None):
@@ -64,27 +77,28 @@ def max_drawn_down(netValues, columnName=None):
     return mdd, mddStartTime, mddEndTime
 
 
-def ret_stats(retValues, columnName=None, displayHist=False):
+def ret_stats(net_value, columnName=None, displayHist=False):
     '''
     计算策略交易收益的统计数据，包含胜率、均值、中位数、最大值、最小值、峰度、偏度
     @param:
-        retValues 收益率序列数据，要求为序列或者pd.DataFrame或者pd.Series类型
+        net_value 净值序列数据，要求为序列或者pd.DataFrame或者pd.Series类型
         columnName 若提供的数据类型为pd.DataFrame，默认为None表明retValues中
-                   有retValues这列数据，否则则需要通过columnName来传入
+                   有net_value这列数据，否则则需要通过columnName来传入
         displayHist 若为True，则依照收益率序列画出直方图
     @return:
         [winProb, retMean, retMed, retMax, retMin, retKurtosis, retSkew]
     '''
-    if not (isinstance(retValues, pd.DataFrame) or isinstance(retValues, pd.Series)):
-        retValues = pd.Series(retValues)
-    if isinstance(retValues, pd.DataFrame):
-        if 'retValues' in retValues.columns:
-            retValues = pd.Series(retValues['retValues'].values)
+    if not (isinstance(net_value, (pd.DataFrame, pd.Series))):
+        net_value = pd.Series(net_value)
+    if isinstance(net_value, pd.DataFrame):
+        if 'net_value' in net_value.columns:
+            net_value = pd.Series(net_value['net_value'].values)
         else:
             if columnName is None:
                 raise KeyError('optional parameter \'columnName\' should be provided by user')
             else:
-                retValues = pd.Series(retValues[columnName].values)
+                net_value = pd.Series(net_value[columnName].values)
+    retValues = cal_ret(net_value)
     winProb = np.sum(retValues > 0) / len(retValues)
     count = len(retValues)
     if displayHist:
@@ -155,33 +169,37 @@ def sharp_ratio(retValues, retFreq, riskFreeRate=.0, columnName=None):
     return info_ratio(retValues, retFreq, riskFreeRate, columnName)
 
 
-def cal_rawbeta(rets, benchMark):
+def cal_rawbeta(net_value, benchMark):
     '''
     计算收益的简单beta
     计算方法如下：
         beta = cov(rets, benchMark)/var(benchMark)
     @param:
-        rets: 需要评估的收益率序列，要求为pd.Series格式
-        benchMark: 基准收益率序列，要求为pd.Series格式
+        net_value: 需要评估的净值序列，要求为pd.Series格式
+        benchMark: 基准净值序列，要求为pd.Series格式
     @return:
         beta值
     '''
+    rets = cal_ret(net_value)
+    benchMark = cal_ret(benchMark)
     return rets.cov(benchMark) / benchMark.var()
 
 
-def cal_rawalpha(rets, benchMark, freq, riskFreeRate=0.):
+def cal_rawalpha(net_value, benchMark, freq, riskFreeRate=0.):
     '''
     计算收益的简单alpha
     计算方法如下：
         alpha = annualized_ret - riskFreeRate - beta*(annualized_benchMark - riskFreeRate)
     @param:
-        rets: 收益率序列，要求为pd.Series格式
-        benchMark: 收益率序列，要求为pd.Series格式
+        net_value: 净值序列，要求为pd.Series格式
+        benchMark: 净值序列，要求为pd.Series格式
         freq: 转换频率，例如，日收益率序列对应250，月收益率序列对应12
         riskFreeRate: 无风险利率，年化
     @return:
         alpha值
     '''
+    rets = cal_ret(net_value)
+    benchMark = cal_ret(benchMark)
     annualized_ret = datatoolkits.annualize_ret(rets, freq)
     annualized_benchMark = datatoolkits.annualize_ret(benchMark, freq)
     beta = cal_rawbeta(rets, benchMark)
