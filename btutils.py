@@ -11,8 +11,13 @@ __version__ = 1.0
 修改日期：2017-03-30
 修改内容：
     初始化
+
+__version__ = 1.1
+修改日期：2017-04-06
+修改内容：
+    添加过滤持仓的函数
 '''
-__version__ = 1.0
+__version__ = 1.1
 
 from collections import OrderedDict
 import dateshandle
@@ -97,6 +102,23 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
             except KeyError:
                 next_holding = None
     return td_holdings
+
+
+def holding_filter(holding, threshold=1):
+    '''
+    过滤掉没有持仓的交易日
+    @param:
+        holding: 持仓，要求为OrderDict的类型，键为交易日，值为持仓列表[[code1, code2, ...], ...]
+        threshold: 持仓股票数要求，即至少需要大于或者等于该数才被认为是有效的持仓，默认为1
+    @return:
+        过滤后的持仓，同样为OrderDict类型
+    '''
+    res = OrderedDict()
+    for k, v in holding:
+        if len(v) < threshold:
+            continue
+        res[k] = v
+    return res
 
 
 # 暂时添加计算日频收益率的程序，直接使用long_short_factortest中的函数，日后优化后添加
