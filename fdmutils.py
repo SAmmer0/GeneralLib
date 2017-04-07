@@ -4,7 +4,14 @@
 # @Author  : Li Hao (howardlee_h@outlook.com)
 # @Link    : https://github.com/SAmmer0
 # @Version : $Id$
-
+'''
+用于辅助处理基本面数据的函数库
+__version__ = 1.0
+修改日期：2017-04-07
+修改日期：
+    1. 添加说明
+    2. 添加cal_season函数
+'''
 import datatoolkits
 # import dateshandle
 # import datetime as dt
@@ -26,8 +33,10 @@ def handle_combine_na(data, code_col, rpt_col, update_col, showprogress=True):
     @return:
         处理NA值后的数据，同时还会在处理前将全部为NA值和重复列的项都删除
     '''
-    # 去除全部为NA的项和重复项
-    data = data.loc[~np.all(pd.isnull(data), axis=1)]
+    # 去除数据列全部为NA的项和重复项
+    data = data.dropna(subset=[rpt_col, update_col], how='any')
+    data_cols = data.columns.difference([rpt_col, update_col, code_col])
+    data = data.dropna(subset=data_cols, how='all')
     data = data.drop_duplicates()
     # 按照股票代码、报告期、更新日期排序
     data = data.sort_values([code_col, rpt_col, update_col])
@@ -89,7 +98,7 @@ def cal_ttm(df, col_name, nperiod=4, rename=None):
     data = df.loc[:, col_name]
     res = data.tail(nperiod)
     if len(res) < nperiod:
-        res = datatoolkits.gen_nan_series(col_name)
+        res = datatoolkits.gen_series(col_name)
     else:
         res = res.sum(axis=0)   # sum会忽视NA值
     if rename is not None:
@@ -114,7 +123,32 @@ def cal_yr(df, col_name, rpt_col='rpt_date', offset=1, rename=None):
     data = df.loc[df[rpt_col].map(lambda x: x.strftime('%m-%d') == '12-31'), col_name]
     res = data.tail(offset)
     if len(res) < offset:
-        res = datatoolkits.gen_nan_series(col_name)
+        res = datatoolkits.gen_series(col_name)
+    else:
+        res = res.head(1).iloc[0]   # 将df转换为Series
+    if rename is not None:
+        res = res.rename(rename)
+    return res
+
+
+def cal_season(df, col_name, rpt_col='rpt_date', offset, rename=None):
+    '''
+    计算最近季度的数据，即当前观察日往前推offset个季报发布日的数据
+    例如，当前观察日能看到2013-12-31、2013-09-30、2013-06-30、2013-03-31的数据，offset=1表明使用
+    2013-12-31的数据，offset=2表明使用2013-09-30的数据，以此类推
+    @param:
+        df: 单个股票数据的单个观测日数据，要求按照报告期进行排序，DataFrame格式
+        col_name: 列名，可以为列表，即多个列一起计算，也可以为字符串，即单个列
+        rpt_col: 报告期列名
+        offset: 往前推的季度数
+        rename: 重命名，默认为None，即不进行重命名，需要使用时，提供的格式为{old_name: new_name,...}
+    '''
+    if isinstance(col_name, str):
+        col_name = [col_name]
+    data = df.loc[:, col_name]
+    res = data.tail(offset)
+    if len(res) < offset:
+        res = datatoolkits.gen_series(col_name)
     else:
         res = res.head(1).iloc[0]   # 将df转换为Series
     if rename is not None:
