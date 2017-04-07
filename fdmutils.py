@@ -131,7 +131,7 @@ def cal_yr(df, col_name, rpt_col='rpt_date', offset=1, rename=None):
     return res
 
 
-def cal_season(df, col_name, rpt_col='rpt_date', offset, rename=None):
+def cal_season(df, col_name, rpt_col='rpt_date', offset=1, rename=None):
     '''
     计算最近季度的数据，即当前观察日往前推offset个季报发布日的数据
     例如，当前观察日能看到2013-12-31、2013-09-30、2013-06-30、2013-03-31的数据，offset=1表明使用
