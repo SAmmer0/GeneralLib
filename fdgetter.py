@@ -10,8 +10,15 @@ __version__ = 1.0
 修改日期：2017-03-29
 修改内容：
     初始化
+
+__version__ 1.1
+修改日期：2017-04-09
+修改内容：
+    1. 添加获取日级别行情数据和复权因子的SQL
+    2. 为format_sql添加默认起始时间值
+    3. 添加连接数据库的异常处理
 '''
-__version__ = 1.0
+__version__ = 1.2
 
 import datatoolkits
 from decimal import Decimal
@@ -130,7 +137,8 @@ DIV_SQL = '''
 INDEX_SQL = '''
     SELECT  M2.SecuCode, S.EndDate
     FROM SecuMain M, LC_IndexComponentsWeight S, SecuMain M2
-    WHERE M.InnerCode = S.IndexCode AND
+    WHERE
+        M.InnerCode = S.IndexCode AND
         M2.InnerCode = S.InnerCode AND
         M.SecuCode = \'{code}\' AND
         M.SecuCategory = 4 AND
@@ -141,19 +149,30 @@ INDEX_SQL = '''
 QUOTE_SQL = '''
     SELECT %s
     FROM QT_DailyQuote S, SecuMain M
-    WHERE S.InnerCode = M.InnerCode AND
-    M.SecuCode = \'{code}\' AND
-    M.SecuMarket in (83, 90) AND
-    S.TradingDay < CAST(\'{start_time}\' as datetime) AND
-    S.TradingDay >= CAST(\'{end_time}\' as datetime) AND
-    M.SecuCategory = 1
+    WHERE
+        S.InnerCode = M.InnerCode AND
+        M.SecuCode = \'{code}\' AND
+        M.SecuMarket in (83, 90) AND
+        S.TradingDay < CAST(\'{start_time}\' as datetime) AND
+        S.TradingDay >= CAST(\'{end_time}\' as datetime) AND
+        M.SecuCategory = 1
     ORDER BY S.TradingDay ASC
+'''
+# 获取复权因子
+ADJFACTOR_SQL = '''
+    SELECT A.ExDiviDate, A.RatioAdjustingFactor
+    FROM QT_AdjustingFactor A, SecuMain M
+    WHERE
+        A.InnerCode = M.InnerCode AND
+        M.SecuCode = \'{code}\' AND
+        M.secuMarket in (83, 90)
+    ORDER BY A.ExDiviDate ASC
 '''
 
 # 集合现有的所有基础SQL
 BASIC_SQLs = {'QIS': QIS_SQL, 'YIS': YIS_SQL, 'QCFS': QCFS_SQL, 'YCFS': YCFS_SQL,
               'BSS': BSS_SQL, 'SN': SN_SQL, 'INDEX_CONSTITUENTS': INDEX_SQL, 'DIV': DIV_SQL,
-              'QUOTE': QUOTE_SQL}
+              'QUOTE': QUOTE_SQL, 'ADJ_FACTOR': ADJFACTOR_SQL}
 # 添加SQL模板的其他操作
 SQLFILE_PATH = r"F:\GeneralLib\CONST_DATAS\sql_templates.pickle"
 # 获取当前的SQL模板
@@ -164,6 +183,7 @@ def get_sql_template(path=SQLFILE_PATH):
         res = datatoolkits.load_pickle(path)
     except FileNotFoundError:
         res = BASIC_SQLs
+        datatoolkits.dump_pickle(res, path)
     return res
 
 # 向模板中添加其他模板，并存储到文件中
@@ -266,14 +286,16 @@ def gen_sql_cols(cols, sql_type):
     return sql, df_cols
 
 
-def format_sql(sql, code, start_time, end_time):
+def format_sql(sql, code, start_time=pd.to_datetime('1990-01-01'),
+               end_time=pd.to_datetime('1990-01-01')):
     '''
     对应的股票和时间区间生成SQL
     @param:
         sql: SQL模板
         code: 股票代码
-        start_time: 时间区间起点，可以为datetime或者str格式
-        end_time: 时间区间终点，格式同上
+        start_time: 时间区间起点，可以为datetime或者str格式，添加默认值，考虑到有些SQL不需要提供
+            起始的时间，而str.format对于字符串中没有提供的参数不会报错，添加默认值可以提高通用性
+        end_time: 时间区间终点，格式同上，原因同上
     @return:
         代入参数的sql
     '''
