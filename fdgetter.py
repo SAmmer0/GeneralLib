@@ -22,7 +22,11 @@ import SQLserver
 
 # --------------------------------------------------------------------------------------------------
 # 设置数据库常量
-jydb = SQLserver.SQLserver(DATABASE='jydb', SERVER='128.6.5.18', UID='jydb', PWD='jydb')
+try:
+    jydb = SQLserver.SQLserver(DATABASE='jydb', SERVER='128.6.5.18', UID='jydb', PWD='jydb')
+except Exception as e:  # 当前环境下没有连接数据库
+    jydb = None
+    print(e)
 
 # --------------------------------------------------------------------------------------------------
 # 设置常用的sql
@@ -39,7 +43,7 @@ QIS_SQL = '''
         S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
         S.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
     '''
-# 年度利润表
+# 年度利润表（利润分配表）
 YIS_SQL = '''
     SELECT %s
     FROM LC_IncomeStatementAll S, SecuMain M
@@ -111,16 +115,16 @@ SN_SQL = '''
 # 分红
 DIV_SQL = '''
     SELECT %s
-    FROM SecuMain M, LC_DividendProgress D
+    FROM SecuMain M, LC_DividendProgress S
     WHERE
-        M.InnerCode = D.InnerCode AND
+        M.InnerCode = S.InnerCode AND
         M.SecuCode = \'{code}\' AND
         M.SecuMarket in (83, 90) AND
         M.SecuCategory = 1 AND
-        D.InfoPubType = 40 AND
-        D.Process = 3131 AND
-        D.EndDate > CAST(\'{start_time}\' AS datetime) AND
-        D.InfopubDate < CAST(\'{end_time}\' AS datetime)
+        S.InfoPubType = 40 AND
+        S.Process = 3131 AND
+        S.EndDate > CAST(\'{start_time}\' AS datetime) AND
+        S.InfopubDate < CAST(\'{end_time}\' AS datetime)
     '''
 # 指数成分
 INDEX_SQL = '''
@@ -133,9 +137,23 @@ INDEX_SQL = '''
         S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
         S.EndDate <= CAST(\'{end_time}\' AS datetime)
     '''
+# 获取股票行情
+QUOTE_SQL = '''
+    SELECT %s
+    FROM QT_DailyQuote S, SecuMain M
+    WHERE S.InnerCode = M.InnerCode AND
+    M.SecuCode = \'{code}\' AND
+    M.SecuMarket in (83, 90) AND
+    S.TradingDay < CAST(\'{start_time}\' as datetime) AND
+    S.TradingDay >= CAST(\'{end_time}\' as datetime) AND
+    M.SecuCategory = 1
+    ORDER BY S.TradingDay ASC
+'''
+
 # 集合现有的所有基础SQL
 BASIC_SQLs = {'QIS': QIS_SQL, 'YIS': YIS_SQL, 'QCFS': QCFS_SQL, 'YCFS': YCFS_SQL,
-              'BSS': BSS_SQL, 'SN': SN_SQL, 'INDEX_CONSTITUENTS': INDEX_SQL, 'DIV': DIV_SQL}
+              'BSS': BSS_SQL, 'SN': SN_SQL, 'INDEX_CONSTITUENTS': INDEX_SQL, 'DIV': DIV_SQL,
+              'QUOTE': QUOTE_SQL}
 # 添加SQL模板的其他操作
 SQLFILE_PATH = r"F:\GeneralLib\CONST_DATAS\sql_templates.pickle"
 # 获取当前的SQL模板
@@ -301,6 +319,7 @@ def combine(datas, on, how='outer'):
     '''
     res = functools.reduce(lambda x, y: pd.merge(x, y, on=on, how=how), datas)
     return res
+
 
 if __name__ == '__main__':
     qis_sql = gen_sql_cols({'NetProfit': 'ni', 'EndDate': 'rpt_date',
