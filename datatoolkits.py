@@ -38,6 +38,16 @@ __version__ = 1.4
     1. 从processsingdata中转移而来
     2. 添加retfreq_trans函数
     3. 添加annualize_std函数
+
+__version__ = 1.5
+修改日期：2017-03-31
+修改内容：
+    修改了map_data，添加了一些排序过程
+
+__version__ = 1.6
+修改日期：2017-04-10
+修改内容：
+    在map_data中添加了重置索引，使得返回的数据没有索引
 '''
 __version__ = 1.4
 
@@ -138,7 +148,8 @@ def map_data(rawData, days, timeCols='time', fromNowOn=False):
     '''
     if not isinstance(days, list):
         days = list(days)
-    time_col = rawData[timeCols].tolist()
+    days = sorted(days)
+    time_col = sorted(rawData[timeCols].tolist())
     time_col = [t for t in time_col if t < days[0]] + days
     data = rawData.set_index(timeCols)
     data = data.sort_index()
@@ -146,6 +157,7 @@ def map_data(rawData, days, timeCols='time', fromNowOn=False):
     if not fromNowOn:
         data = data.shift(1)
     data = data.reindex(days)
+    data = data.reset_index()
     return data
 
 
@@ -184,6 +196,7 @@ def dump_pickle(data, path):
 def retfreq_trans(init_ret, new_freq):
     '''
     将收益的频率进行转换，例如将日收益率转化为年化或者将年化收益率转化为日收益率
+    该函数只支持标量转换
     计算方法如下：
     new_ret = (1 + init_ret)**(new_freq/init_freq) - 1
     @param:
@@ -195,19 +208,72 @@ def retfreq_trans(init_ret, new_freq):
     return (1 + init_ret)**new_freq - 1
 
 
-def annualize_std(init_std, init_ret, period_num):
+def avg_compunded_ret(rets):
+    '''
+    计算复合平均收益率
+    计算方法如下：
+    avg_ret = cumprod(1 + rets)**(1/len(rets)) - 1
+    @param:
+        rets: 收益率序列，要求为pd.Series类型
+    @return:
+        复合平均收益率
+    '''
+    return (1 + rets).cumprod().iloc[-1]**(1 / len(rets)) - 1
+
+
+def annualize_ret(rets, ret_freq):
+    '''
+    通过收益率序列计算年化收益率
+    计算方法如下：
+    annualize_ret = cumprod(1+rets)**(ret_freq/len(rets)) - 1
+    @param:
+        rets: 收益率序列，为pd.Series类型
+        ret_freq: 转换频率，例如，月度数据年化为12，日数据年化为250
+    @return:
+        年化后的收益率
+    '''
+    return (1 + avg_compunded_ret(rets))**ret_freq - 1
+
+
+def annualize_std(rets, ret_freq):
     '''
     计算年化的波动率
     计算方法如下：
-    new_std = sqrt((init_std**2 + (1+init_ret)**2)**period_num - (1+init_ret)**(2*period_num))
+    new_std = sqrt((init_std**2 + (1+init_ret)**2)**ret_freq - (1+init_ret)**(2*ret_freq))
+    init_std和init_ret使用样本标准差和样本均值计算
     @param:
-        init_std: 初始需要转换的波动率
-        init_ret: 初始频率的平均收益率
-        period_num: 一年的区间数（例如，12表示月度数据年化）
+        rets: 需要计算年化波动率的收益率序列，为pd.Series类型
+        ret_freq: 一年的区间数（例如，12表示月度数据年化，250表示日数据年化）
     @return:
         按照上述方法计算的年化波动率
     '''
-    return sqrt((init_std**2 + (1 + init_ret)**2)**period_num - (1 + init_ret)**(2 * period_num))
+    init_std = rets.std()
+    init_ret = rets.mean()
+    return sqrt((init_std**2 + (1 + init_ret)**2)**ret_freq - (1 + init_ret)**(2 * ret_freq))
+
+
+def gen_series(cols, fill=np.nan):
+    '''
+    生成给定数据填充的Series
+    @param:
+        cols: 对应index，要求为可迭代类型
+        fill: 默认为np.nan，也可定义，为填充数据
+    @return:
+        index给定，数据为fill的一列Series
+    '''
+    return pd.Series(dict(zip(cols, [fill] * len(cols))))
+
+
+def gen_df(cols, fill=np.nan):
+    '''
+    生成给定数据填充的DataFrame
+    @param:
+        cols: 对应index，要求为可迭代类型
+        fill: 默认为np.nan，也可定义，为填充数据
+    @return:
+        index给定，数据为fill的只有一行数据的DataFrame
+    '''
+    return pd.DataFrame(dict(zip(cols, [[fill]] * len(cols))))
 
 
 if __name__ == '__main__':
