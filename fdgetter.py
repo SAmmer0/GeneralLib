@@ -17,6 +17,12 @@ __version__ 1.1
     1. 添加获取日级别行情数据和复权因子的SQL
     2. 为format_sql添加默认起始时间值
     3. 添加连接数据库的异常处理
+
+__version__ 1.2
+修改日期：2017-04-12
+修改内容：
+    1. 添加了获取A股所有成分的SQL
+    2. 为get_db_data和format_sql添加新的默认参数
 '''
 __version__ = 1.2
 
@@ -157,7 +163,7 @@ QUOTE_SQL = '''
         S.TradingDay >= CAST(\'{end_time}\' as datetime) AND
         M.SecuCategory = 1
     ORDER BY S.TradingDay ASC
-'''
+    '''
 # 获取复权因子
 ADJFACTOR_SQL = '''
     SELECT A.ExDiviDate, A.RatioAdjustingFactor
@@ -167,12 +173,22 @@ ADJFACTOR_SQL = '''
         M.SecuCode = \'{code}\' AND
         M.secuMarket in (83, 90)
     ORDER BY A.ExDiviDate ASC
-'''
+    '''
+# 获取所有A股成份
+AUNIVERSE_SQL = '''
+    SELECT SecuCode
+    FROM SecuMain
+    WHERE
+        SecuCategory = 1 AND
+        SecuMarket in (83, 90) AND
+        ListedState != 9
+    '''
+
 
 # 集合现有的所有基础SQL
 BASIC_SQLs = {'QIS': QIS_SQL, 'YIS': YIS_SQL, 'QCFS': QCFS_SQL, 'YCFS': YCFS_SQL,
               'BSS': BSS_SQL, 'SN': SN_SQL, 'INDEX_CONSTITUENTS': INDEX_SQL, 'DIV': DIV_SQL,
-              'QUOTE': QUOTE_SQL, 'ADJ_FACTOR': ADJFACTOR_SQL}
+              'QUOTE': QUOTE_SQL, 'ADJ_FACTOR': ADJFACTOR_SQL, 'A_UNIVERSE': AUNIVERSE_SQL}
 # 添加SQL模板的其他操作
 SQLFILE_PATH = r"F:\GeneralLib\CONST_DATAS\sql_templates.pickle"
 # 获取当前的SQL模板
@@ -286,7 +302,7 @@ def gen_sql_cols(cols, sql_type):
     return sql, df_cols
 
 
-def format_sql(sql, code, start_time=pd.to_datetime('1990-01-01'),
+def format_sql(sql, code='', start_time=pd.to_datetime('1990-01-01'),
                end_time=pd.to_datetime('1990-01-01')):
     '''
     对应的股票和时间区间生成SQL
@@ -307,11 +323,12 @@ def format_sql(sql, code, start_time=pd.to_datetime('1990-01-01'),
     return sql.format(code=code, start_time=start_time, end_time=end_time)
 
 
-def get_db_data(sql, code, start_time, end_time, cols, db=jydb, add_stockcode=True):
+def get_db_data(sql, code='', start_time=pd.to_datetime('1990-01-01'),
+                end_time=pd.to_datetime('1990-01-01'), cols=('',), db=jydb, add_stockcode=True):
     '''
     从数据库中取出数据
     @param:
-        sql: SQL模板，即数据列已经填充完毕后的SQL模板
+        sql: SQL模板，即数据列已经填充完毕后的SQL模板或者其他自定义的sql
         code: 股票代码
         start_time: 时间区间起点，可以为datetime或者str格式
         end_time: 时间区间终点，格式同上
