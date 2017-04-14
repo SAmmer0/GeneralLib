@@ -16,11 +16,18 @@ __version__ = 1.1
 修改日期：2017-04-06
 修改内容：
     添加过滤持仓的函数
+
+__version__ = 1.2
+修改日期：2017-04-14
+修改内容：
+    1. 删除过滤持仓函数
+    2. 重构计算持仓的函数
+    3. 实现计算净值的函数，并添加其他辅助函数
 '''
-__version__ = 1.1
+__version__ = 1.2
 # --------------------------------------------------------------------------------------------------
 # import
-from collections import namedtuple, OrderedDict
+from collections import namedtuple
 # import datatoolkits
 import dateshandle
 # from enum import Enum
@@ -65,26 +72,26 @@ class Portfolio(object):
     具体的数据包含了：组合代码、对应的数量、现金、换仓日期
     '''
 
-    def __init__(self, pos, cash, change_date):
+    def __init__(self, pos, cash):
         '''
         @param:
             pos: df的形式，包含有code和num列
             cash: 现金，数值形式
-            change_date: 换仓日，datetime形式
         '''
         self.pos = pos
         self.cash = cash
-        self.change_date = change_date
 
     def mkt_value(self, quote, price_type='close'):
         '''
-        计算当前市值的函数
+        计算当前市值的函数，若当前为空仓，则直接返回现金
         @param:
             quote: 给定交易日的行情数据，应当包含有price_type列
             price_type: 计算市值所使用的数据，默认为close，即使用收盘价计算
         @return:
             给定行情下的市值
         '''
+        if len(self.pos) == 0:
+            return self.cash
         tmp_quote = pd.merge(self.pos, quote, on='code', how='left')
         stock_value = (tmp_quote.num * tmp_quote[price_type]).sum()
         total = stock_value + self.cash
@@ -124,7 +131,8 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
             的股票为[[code1, code2, ...], [codex1, codex2, ...], ...]
         rebalance_dates: 再平衡日，即在该日期计算下个时期的股票池，然后在下个最近的交易日换仓
     @return:
-        换仓日的持仓，格式为OrderedDict，字典值为PositionGroup类型
+        换仓日的持仓，格式为字典类型，字典值为PositionGroup类型，因此需要注意返回的持仓并没有时间
+        顺序，需要先对键进行排序
     注：
         对于每个再平衡日，计算指标，筛选股票，然后在下个交易日换仓，随后的交易日的持仓都与该
         新的持仓相同，直至到下个新的在平衡日
@@ -141,7 +149,7 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
     key_dates = list(zip(rebalance_dates[:-1], chg_dates))
 
     # 初始化
-    holdings = OrderedDict()
+    holdings = dict()
     stockpool_bydate = stock_pool.groupby('time')
 
     # 计算换仓日的股票组合
@@ -166,27 +174,63 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
     return holdings
 
 
-def holding_filter(holding, threshold=1):
+def cal_nav(holdings, end_date, quotes, **kwargs):
     '''
-    过滤掉没有持仓的交易日
+    根据持仓状况计算策略的净值
     @param:
-        holding: 持仓，要求为OrderDict的类型，键为交易日，值为持仓列表[[code1, code2, ...], ...]
-        threshold: 持仓股票数要求，即至少需要持仓中的每个组合的持有股票数大于或者等于该数才被认为
-            是有效的持仓，默认为1
+        holdings: 由get_daily_holding返回的每个换仓日的持仓，或者为OrderDict类型，键为换仓日日期，
+            值为对应的持仓（为PositionGroup类型）
+        end_date: 最后一个换仓记录的结束时间，可以为pd.to_datetime可以解析的任何类型
+        quotes: 行情数据
+        kwargs: 一些其他的参数，用于传入build_pos函数
     @return:
-        过滤后的持仓，同样为OrderDict类型
-    注：目前来说该函数没有作用，因为如果将中间的交易日剔除会导致计算出的净值有很大的问题，应该废弃
+        df类型，索引为时间，列名为group_i，其中i为分组次序
     '''
-    res = OrderedDict()
-    for t, groups in holding.items():
-        for g in groups:
-            if len(g) < threshold:
-                break
-        else:
-            res[t] = groups
+    # 对交易日与换仓日之间的关系进行映射
+    start_date = min(holdings.keys())
+    tds = dateshandle.wind_time_standardlization(dateshandle.get_tds(start_date, end_date))
+    tds_df = pd.DataFrame({'chg_date': list(holdings.keys())})
+    tds_df['tds'] = tds_df['chg_date']
+    tds_df = tds_df.set_index('tds')
+    tds_df = tds_df.reindex(tds, method='ffill')
+    tds_map = dict(zip(tds_df.index, tds_df.chg_date))
+    # 交易日循环
+    for td, tq_idx in zip(sorted(tds_map), tqdm(tds_map)):
+        pass
+
+
+def build_pos(pos, cash, quotes, price_col='open', buildpos_type='money_weighted'):
+    '''
+    建仓函数
+    @param:
+        pos: 建仓的股票组合，为Position类型
+        cash: 建仓可用的资金
+        quotes: 建仓日的股票价格
+        price_col: 建仓使用的价格，默认为开盘价
+        buildpos_type: 建仓方式，默认为money_weighted，即资金等权建仓，每只股票分配等量的资金，目前
+            不支持其他建仓方式，后续会慢慢添加
+    @reutrn:
+        建仓结果为Portfolio类型的对象
+    内部实现为：
+    按照股票数量平均分配资金，然后根据资金和价格以及买卖乘数（100）计算股票数量，多余的资金放入
+    现金中
+    如果没有持仓，则Portfolio中pos属性为空的df，所有价值按照现金计算
+    '''
+    # 目前没有实现其他权重计算方式
+    if buildpos_type != 'money-weighted':
+        raise NotImplementedError
+
+    # 计算资金分配
+    try:
+        cash_alloc = cash / len(pos.pos)
+    except ZeroDivisionError:
+        return Portfolio(pd.DataFrame(), cash)
+
+    # 计算每只股票的购买数量
+    multiple = 100
+    data = quotes.loc[quotes.code.isin(pos.pos), ['code', price_col]]
+    data['num'] = cash_alloc / data[price_col]
+    data['num'] = data['num'].apply(lambda x: int(x / multiple) * multiple)
+    residual_cash = cash - (data['num'] * data[price_col]).sum()
+    res = Portfolio(data.loc[:, ['code', 'num']], residual_cash)
     return res
-
-
-# 暂时添加计算日频收益率的程序，直接使用long_short_factortest中的函数，日后优化后添加
-def cal_nav():
-    raise NotImplementedError
