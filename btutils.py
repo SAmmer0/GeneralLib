@@ -81,21 +81,35 @@ class Portfolio(object):
         self.pos = pos
         self.cash = cash
 
-    def mkt_value(self, quote, price_type='close'):
+    def mkt_value(self, quote, date, price_type='close'):
         '''
         计算当前市值的函数，若当前为空仓，则直接返回现金
         @param:
             quote: 给定交易日的行情数据，应当包含有price_type列
+            date: 交易日的日期
             price_type: 计算市值所使用的数据，默认为close，即使用收盘价计算
         @return:
             给定行情下的市值
         '''
         if len(self.pos) == 0:
             return self.cash
-        tmp_quote = pd.merge(self.pos, quote, on='code', how='left')
+        tmp_quote = pd.merge(self.pos, quote, on='code', how='inner')
         stock_value = (tmp_quote.num * tmp_quote[price_type]).sum()
         total = stock_value + self.cash
         return total
+
+    def delist_value(self, delist_codes, quotes):
+        '''
+        处理出现退市相关的情况时净值的计算
+        目前的方案如下：
+            当出现退市时，即行情和pos在inner merge以后的结果长度小于pos的长度，对于多余出来的股票
+            按照其最后一个可交易的交易日的收盘价计算其当天卖出的价格，然后直接将其转为现金持有，并
+            在pos中将其剔除
+        @param:
+            delist_codes: 需要进行退市处理的股票，要求为可迭代类型
+            quotes: 行情数据
+        '''
+
 # --------------------------------------------------------------------------------------------------
 # 函数
 
