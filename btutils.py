@@ -50,6 +50,7 @@ class PositionGroup(object):
         要求groups为列表的列表，即形式为[[code1, code2, ...], ...]
         即选股函数返回的结果
         '''
+        # self.groups中的数据存储为(pos1, pos2, ...)
         self.groups = self._groups_transformer(groups)
 
     def _groups_transformer(self, groups):
@@ -65,6 +66,9 @@ class PositionGroup(object):
     def __len__(self):
         return len(self.groups)
 
+    def __iter__(self):
+        return iter(self.groups)
+
 
 class Portfolio(object):
     '''
@@ -75,7 +79,7 @@ class Portfolio(object):
     def __init__(self, pos, cash):
         '''
         @param:
-            pos: df的形式，包含有code和num列
+            pos: df的形式，包含有code和num列，可以为空
             cash: 现金，数值形式
         '''
         self.pos = pos
@@ -93,12 +97,16 @@ class Portfolio(object):
         '''
         if len(self.pos) == 0:
             return self.cash
-        tmp_quote = pd.merge(self.pos, quote, on='code', how='inner')
+        quote_cs = quote.loc[quote.time == date]    # 获取横截面行情数据
+        if not set(self.pos.code).issubset(quote_cs.code):  # 出现退市的情况
+            delist_codes = set(self.pos.code).difference(quote_cs.code)
+            self.delist_value(delist_codes, quote)
+        tmp_quote = pd.merge(self.pos, quote, on='code', how='left')
         stock_value = (tmp_quote.num * tmp_quote[price_type]).sum()
         total = stock_value + self.cash
         return total
 
-    def delist_value(self, delist_codes, quotes):
+    def delist_value(self, delist_codes, quotes, price_type='close'):
         '''
         处理出现退市相关的情况时净值的计算
         目前的方案如下：
@@ -108,7 +116,14 @@ class Portfolio(object):
         @param:
             delist_codes: 需要进行退市处理的股票，要求为可迭代类型
             quotes: 行情数据
+            price_type: 计算退市价格的类型，默认为close
         '''
+        for code in delist_codes:
+            delist_price = quotes.loc[(quotes.code == code) & quotes.tradeable, price_type].iloc[-1]
+            delist_value = delist_price * self.pos.loc[self.pos == code, 'num'].iloc[0]
+            self.cash += delist_value
+        self.pos = self.pos.loc[~self.pos.code.isin(delist_codes)].reset_index(drop=True)
+
 
 # --------------------------------------------------------------------------------------------------
 # 函数
@@ -172,7 +187,7 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
         constituent = get_constituent(stockpool_bydate, chg_dt)
         # 获取再平衡日的行业分类
         ind_cls = industry_cls.loc[industry_cls.time == reb_dt]
-        # 过滤不能交易的股票
+        # 过滤不能交易的股票，此处会自动将建仓日不存在数据的股票过滤
         tradeable_stocks = quotes_data.loc[(quotes_data.time == chg_dt) & (quotes_data.STTag == 0) &
                                            quotes_data.tradeable, 'code'].tolist()
         tradeable_stocks = set(tradeable_stocks).intersection(constituent)
@@ -188,38 +203,75 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
     return holdings
 
 
-def cal_nav(holdings, end_date, quotes, **kwargs):
+def cal_nav(holdings, end_date, quotes, ini_capital=10e10, normalize=True, **kwargs):
     '''
-    根据持仓状况计算策略的净值
+    根据持仓状况计算策略的净值（以每个交易日的收盘价计算）
     @param:
         holdings: 由get_daily_holding返回的每个换仓日的持仓，或者为OrderDict类型，键为换仓日日期，
             值为对应的持仓（为PositionGroup类型）
-        end_date: 最后一个换仓记录的结束时间，可以为pd.to_datetime可以解析的任何类型
+        end_date: 最后一个换仓记录的结束时间，一般情况下，应该设置为最后一个在平衡日，可以为
+            pd.to_datetime可以解析的任何类型
         quotes: 行情数据
+        ini_capital: 初始资本，默认为10亿人民币，避免数额过小导致在整数约束下很多股票的数量为0
+        normalize: 是否将组合的价值由金额转换为净值（转换方法为组合市场价值除以初始资本），
+            默认为True，即需要转换
         kwargs: 一些其他的参数，用于传入build_pos函数
     @return:
         df类型，索引为时间，列名为group_i，其中i为分组次序
     '''
     # 对交易日与换仓日之间的关系进行映射
-    start_date = min(holdings.keys())
+    start_date = min(holdings.keys())   # 开始日一定为换仓日，且换仓日一定为交易日
     tds = dateshandle.wind_time_standardlization(dateshandle.get_tds(start_date, end_date))
     tds_df = pd.DataFrame({'chg_date': list(holdings.keys())})
     tds_df['tds'] = tds_df['chg_date']
     tds_df = tds_df.set_index('tds')
     tds_df = tds_df.reindex(tds, method='ffill')
     tds_map = dict(zip(tds_df.index, tds_df.chg_date))
+
+    # 初始化
+    portfolio_record = None     # 组合记录
+    nav = list()    # 净值结果
+    cols = ['time'] + ['group_%d' % i for i in range(len(holdings[start_date]))]    # 结果列名
     # 交易日循环
     for td, tq_idx in zip(sorted(tds_map), tqdm(tds_map)):
-        pass
+        # 当前为换仓日，第一个建仓日一定为换仓日
+        if tds_map[td] == td:
+            cur_pos = holdings[td]
+            if portfolio_record is None:    # 第一次建仓
+                portfolio_record = [Portfolio(pd.DataFrame(), ini_capital)]
+            tmp_portrecord = list()
+            for port_idx, pos in enumerate(cur_pos):
+                # 此处建仓实际上假设之前的股票都在今天开盘卖出，然后再按照开盘价买入新的仓位
+                # 虽然这种假设不合理，但是如果使用上个交易日的数据会带来一些复杂性，且一个交易日的
+                # 收盘价和随后一天的开盘价的差值一般不会太大，故忽略这方面的影响
+                tmp_port = build_pos(pos, portfolio_record[port_idx].mkt_value(quotes, td, 'open'),
+                                     quotes, td)
+                tmp_portrecord.append(tmp_port)
+            portfolio_record = tmp_portrecord   # 更新portfolio_record
+        # 计算每个组合的收盘市场价值
+        tmp_mktvalue = list()
+        for port in portfolio_record:
+            mkt_value = port.mkt_value(quotes, td)
+            tmp_mktvalue.append(mkt_value)
+        tmp_mktvalue.insert(0, td)
+        nav.append(dict(zip(cols), tmp_mktvalue))
+    nav = pd.DataFrame(nav)
+    if normalize:
+        for i in range(len(holdings[start_date])):
+            nav['group_%d' % i] = nav['group_%d' % i] / ini_capital
+    return nav
 
 
-def build_pos(pos, cash, quotes, price_col='open', buildpos_type='money_weighted'):
+def build_pos(pos, cash, quotes, date, price_col='open', buildpos_type='money_weighted'):
     '''
     建仓函数
     @param:
-        pos: 建仓的股票组合，为Position类型
+        pos: 建仓的股票组合，为Position类型，要求在建仓日股票没有退市
         cash: 建仓可用的资金
-        quotes: 建仓日的股票价格
+        quotes: 股票行情数据
+        date: 建仓日期（加入建仓日期参数是为了避免在程序中需要多维护一个临时参数，现在直接将所有行情
+            数据在程序间传送即可，因为Python的参数传递机制是引用传递的，即使数据量比较大的行情数据也
+            不会导致程序速度减慢）
         price_col: 建仓使用的价格，默认为开盘价
         buildpos_type: 建仓方式，默认为money_weighted，即资金等权建仓，每只股票分配等量的资金，目前
             不支持其他建仓方式，后续会慢慢添加
@@ -242,7 +294,9 @@ def build_pos(pos, cash, quotes, price_col='open', buildpos_type='money_weighted
 
     # 计算每只股票的购买数量
     multiple = 100
-    data = quotes.loc[quotes.code.isin(pos.pos), ['code', price_col]]
+    # 此处行情数据使用方法会自动剔除建仓日退市的股票，但是如果存在退市的公司，则会导致每只
+    # 股票分配的资金相对比较少，问题不需要考虑，因为当天没有数据的股票会被过滤掉
+    data = quotes.loc[quotes.code.isin(pos.pos) & (quotes.time == date), ['code', price_col]]
     data['num'] = cash_alloc / data[price_col]
     data['num'] = data['num'].apply(lambda x: int(x / multiple) * multiple)
     residual_cash = cash - (data['num'] * data[price_col]).sum()
