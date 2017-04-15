@@ -256,6 +256,7 @@ def cal_nav(holdings, end_date, quotes, ini_capital=10e10, normalize=True, **kwa
         tmp_mktvalue.insert(0, td)
         nav.append(dict(zip(cols), tmp_mktvalue))
     nav = pd.DataFrame(nav)
+    nav = nav.set_index('time')
     if normalize:
         for i in range(len(holdings[start_date])):
             nav['group_%d' % i] = nav['group_%d' % i] / ini_capital
