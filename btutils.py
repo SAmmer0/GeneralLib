@@ -101,7 +101,7 @@ class Portfolio(object):
         if not set(self.pos.code).issubset(quote_cs.code):  # 出现退市的情况
             delist_codes = set(self.pos.code).difference(quote_cs.code)
             self.delist_value(delist_codes, quote)
-        tmp_quote = pd.merge(self.pos, quote, on='code', how='left')
+        tmp_quote = pd.merge(self.pos, quote_cs, on='code', how='left')
         stock_value = (tmp_quote.num * tmp_quote[price_type]).sum()
         total = stock_value + self.cash
         return total
@@ -203,7 +203,7 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
     return holdings
 
 
-def cal_nav(holdings, end_date, quotes, ini_capital=10e10, normalize=True, **kwargs):
+def cal_nav(holdings, end_date, quotes, ini_capital=1e9, normalize=True, **kwargs):
     '''
     根据持仓状况计算策略的净值（以每个交易日的收盘价计算）
     @param:
@@ -224,14 +224,14 @@ def cal_nav(holdings, end_date, quotes, ini_capital=10e10, normalize=True, **kwa
     tds = dateshandle.wind_time_standardlization(dateshandle.get_tds(start_date, end_date))
     tds_df = pd.DataFrame({'chg_date': list(holdings.keys())})
     tds_df['tds'] = tds_df['chg_date']
-    tds_df = tds_df.set_index('tds')
+    tds_df = tds_df.set_index('tds').sort_index()
     tds_df = tds_df.reindex(tds, method='ffill')
     tds_map = dict(zip(tds_df.index, tds_df.chg_date))
 
     # 初始化
     portfolio_record = None     # 组合记录
     nav = list()    # 净值结果
-    cols = ['time'] + ['group_%d' % i for i in range(len(holdings[start_date]))]    # 结果列名
+    cols = ['time'] + ['group_%d' % i for i in range(1, len(holdings[start_date]) + 1)]    # 结果列名
     # 交易日循环
     for td, tq_idx in zip(sorted(tds_map), tqdm(tds_map)):
         # 当前为换仓日，第一个建仓日一定为换仓日
@@ -254,16 +254,16 @@ def cal_nav(holdings, end_date, quotes, ini_capital=10e10, normalize=True, **kwa
             mkt_value = port.mkt_value(quotes, td)
             tmp_mktvalue.append(mkt_value)
         tmp_mktvalue.insert(0, td)
-        nav.append(dict(zip(cols), tmp_mktvalue))
+        nav.append(dict(zip(cols, tmp_mktvalue)))
     nav = pd.DataFrame(nav)
     nav = nav.set_index('time')
     if normalize:
-        for i in range(len(holdings[start_date])):
+        for i in range(1, len(holdings[start_date]) + 1):
             nav['group_%d' % i] = nav['group_%d' % i] / ini_capital
     return nav
 
 
-def build_pos(pos, cash, quotes, date, price_col='open', buildpos_type='money_weighted'):
+def build_pos(pos, cash, quotes, date, price_col='open', buildpos_type='money-weighted'):
     '''
     建仓函数
     @param:
