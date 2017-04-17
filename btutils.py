@@ -27,7 +27,7 @@ __version__ = 1.2
 __version__ = 1.3
 修改日期：2017-04-17
 修改内容：
-    为PositionGroup添加__str__方法
+    为PositionGroup添加__str__和__repr__方法
 '''
 __version__ = 1.3
 # --------------------------------------------------------------------------------------------------
@@ -76,6 +76,9 @@ class PositionGroup(object):
 
     def __str__(self):
         return str(self.groups)
+
+    def __repr__(self):
+        return repr(self.groups)
 
 
 class Portfolio(object):
