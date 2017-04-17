@@ -23,8 +23,13 @@ __version__ = 1.2
     1. 删除过滤持仓函数
     2. 重构计算持仓的函数
     3. 实现计算净值的函数，并添加其他辅助函数
+
+__version__ = 1.3
+修改日期：2017-04-17
+修改内容：
+    为PositionGroup添加__str__方法
 '''
-__version__ = 1.2
+__version__ = 1.3
 # --------------------------------------------------------------------------------------------------
 # import
 from collections import namedtuple
@@ -68,6 +73,9 @@ class PositionGroup(object):
 
     def __iter__(self):
         return iter(self.groups)
+
+    def __str__(self):
+        return str(self.groups)
 
 
 class Portfolio(object):
