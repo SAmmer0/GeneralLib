@@ -48,8 +48,13 @@ __version__ = 1.6
 修改日期：2017-04-10
 修改内容：
     在map_data中添加了重置索引，使得返回的数据没有索引
+
+__version__ = 1.7
+修改日期：2017-04-19
+修改内容：
+    添加quantile_filter
 '''
-__version__ = 1.4
+__version__ = 1.7
 
 import datetime as dt
 from math import sqrt
@@ -276,5 +281,21 @@ def gen_df(cols, fill=np.nan):
     return pd.DataFrame(dict(zip(cols, [[fill]] * len(cols))))
 
 
+def quantile_filter(data, cols, qtls, sub=np.nan):
+    '''
+    将超过分位数的数据进行替换
+    @param:
+        data: df
+        cols: 需要剔除异常数据的列，可迭代类型
+        qtls: 分位数标准，格式为(min_qtl, max_qtl)
+        sub: 替代的数据，默认为np.nan
+    @return:
+        df，分位数定义的异常值均被sub提供的数据替代
+    '''
+    df = data.copy()
+    for col in cols:
+        qtl1, qtl2 = df[col].quantile(qtls)
+        df.loc[(df[col] < qtl1) | (df[col] > qtl2), col] = sub
+    return df
 if __name__ == '__main__':
     pass
