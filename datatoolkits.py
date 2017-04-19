@@ -286,7 +286,7 @@ def quantile_filter(data, cols, qtls, sub=np.nan):
     将超过分位数的数据进行替换
     @param:
         data: df
-        cols: 需要剔除异常数据的列，可迭代类型
+        cols: 需要替换异常数据的列，可迭代类型
         qtls: 分位数标准，格式为(min_qtl, max_qtl)
         sub: 替代的数据，默认为np.nan
     @return:
@@ -297,5 +297,7 @@ def quantile_filter(data, cols, qtls, sub=np.nan):
         qtl1, qtl2 = df[col].quantile(qtls)
         df.loc[(df[col] < qtl1) | (df[col] > qtl2), col] = sub
     return df
+
+
 if __name__ == '__main__':
     pass
