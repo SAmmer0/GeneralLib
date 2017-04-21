@@ -126,12 +126,12 @@ class Portfolio(object):
             在pos中将其剔除
         @param:
             delist_codes: 需要进行退市处理的股票，要求为可迭代类型
-            quotes: 行情数据
+            quotes: 行情数据，需要按照时间进行了升序排列
             price_type: 计算退市价格的类型，默认为close
         '''
         for code in delist_codes:
             delist_price = quotes.loc[(quotes.code == code) & quotes.tradeable, price_type].iloc[-1]
-            delist_value = delist_price * self.pos.loc[self.pos == code, 'num'].iloc[0]
+            delist_value = delist_price * self.pos.loc[self.pos.code == code, 'num'].iloc[0]
             self.cash += delist_value
         self.pos = self.pos.loc[~self.pos.code.isin(delist_codes)].reset_index(drop=True)
 
