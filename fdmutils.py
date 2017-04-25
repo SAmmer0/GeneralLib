@@ -8,16 +8,63 @@
 用于辅助处理基本面数据的函数库
 __version__ = 1.0
 修改日期：2017-04-07
-修改日期：
+修改内容：
     1. 添加说明
     2. 添加cal_season函数
+
+__version__ = 1.01
+修改日期：2017-04-25
+修改内容：
+    1. 添加isvalid_rptdate
+    2. 添加get_latest_rptdate
+    3. 修改计算ttm的函数
 '''
 import datatoolkits
-# import dateshandle
+import dateshandle
 # import datetime as dt
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+
+
+def isvalid_rptdate(date):
+    '''
+    验证是否为合法的报告期
+    合法的报告期的日月应该在['03-31', '06-30', '09-30', '12-31']内
+    @param:
+        date: 需要验证的报告期，要求为pd.to_datetime可以解析的形式
+    @return:
+        返回True如果合法
+    '''
+    valid_rptdates = ['03-31', '06-30', '09-30', '12-31']
+    date = pd.to_datetime(date).strftime('%m-%d')
+    return date in valid_rptdates
+
+
+def get_latest_rptdate(dates, ascending=True):
+    '''
+    获取最近的合法报告期
+    @param:
+        dates: 报告期序列，为pd.Series格式，要求数据已经排列
+        ascending: 报告期序列的排序方法，默认为报告期序列已经按照升序排列
+    @return:
+        最近的合法报告期，如果没有则返回None
+    '''
+    if ascending:
+        start_idx = -1
+        step = -1
+    else:
+        start_idx = 0
+        step = 1
+    while True:
+        try:
+            tmp = dates.iloc[start_idx]
+        except IndexError:
+            # 表明已经越界，没有合法报告期
+            return None
+        if isvalid_rptdate(tmp):
+            return tmp
+        start_idx += step
 
 
 def handle_combine_na(data, code_col, rpt_col, update_col, showprogress=True):
@@ -80,7 +127,7 @@ def get_observabel_data(df, rpt_col='rpt_date', update_col='update_time'):
     return res
 
 
-def cal_ttm(df, col_name, nperiod=4, rename=None):
+def cal_ttm(df, col_name, rpt_col='rpt_date', nperiod=4, rename=None):
     '''
     计算ttm
     @param:
@@ -94,13 +141,14 @@ def cal_ttm(df, col_name, nperiod=4, rename=None):
     # 将其转换为列表
     if isinstance(col_name, str):
         col_name = [col_name]
+    ltst_rptdate = get_latest_rptdate(df['rpt_date'])
+    begin_rptdate = dateshandle.get_latest_report_dates(ltst_rptdate, nperiod)[-1]
     # 得到df格式的data
-    data = df.loc[:, col_name]
-    res = data.tail(nperiod)
-    if len(res) < nperiod:
+    data = df.loc[df[rpt_col] >= begin_rptdate, col_name]
+    if len(data) < nperiod:
         res = datatoolkits.gen_series(col_name)
     else:
-        res = res.sum(axis=0)   # sum会忽视NA值
+        res = data.sum(axis=0)   # sum会忽视NA值
     if rename is not None:
         res = res.rename(rename)
     return res
@@ -145,12 +193,21 @@ def cal_season(df, col_name, rpt_col='rpt_date', offset=1, rename=None):
     '''
     if isinstance(col_name, str):
         col_name = [col_name]
-    data = df.loc[:, col_name]
-    res = data.tail(offset)
-    if len(res) < offset:
+    ltst_rptdate = get_latest_rptdate(df['rpt_date'])
+    begin_rptdate = dateshandle.get_latest_report_dates(ltst_rptdate, offset)[-1]
+    data = df.loc[df[rpt_col] >= begin_rptdate, col_name]
+    if len(data) < offset:
         res = datatoolkits.gen_series(col_name)
     else:
-        res = res.head(1).iloc[0]   # 将df转换为Series
+        res = data.head(1).iloc[0]   # 将df转换为Series
     if rename is not None:
         res = res.rename(rename)
     return res
+
+if __name__ == '__main__':
+    dates = [pd.to_datetime('2011-03-31'), pd.to_datetime('2011-06-30'),
+             pd.to_datetime('2011-09-30'), pd.to_datetime('2011-12-31'),
+             pd.to_datetime('2012-03-31'), pd.to_datetime('2012-04-30')]
+    test_data = pd.DataFrame({'rpt_date': dates, 'data': range(len(dates))})
+    res = cal_ttm(test_data, 'data', nperiod=3)
+    res2 = cal_season(test_data, 'data', offset=7)
