@@ -28,6 +28,11 @@ __version__ = 1.3
 修改日期：2017-04-17
 修改内容：
     为PositionGroup添加__str__和__repr__方法
+
+__version__ = 1.31
+修改日期：2017-04-26
+修改内容：
+    修改了get_daily_holdings的股票筛选逻辑，将指数成份过滤放在根据指标筛选股票前
 '''
 __version__ = 1.3
 # --------------------------------------------------------------------------------------------------
@@ -204,12 +209,13 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
         tradeable_stocks = set(tradeable_stocks).intersection(constituent)
 
         # 获取当前信号数据
-        reb_sig_data = signal_data.loc[signal_data['time'] == reb_dt]
+        reb_sig_data = signal_data.loc[(signal_data['time'] == reb_dt) &
+                                       (signal_data['code'].isin(tradeable_stocks))]
 
         # 根据信号函数计算当前的股票组
         valid_stocks = stock_filter(reb_sig_data, ind_cls)
-        valid_stocks = [[c for c in group if c in tradeable_stocks]
-                        for group in valid_stocks]
+        # valid_stocks = [[c for c in group if c in tradeable_stocks]
+        #                 for group in valid_stocks]
         holdings[chg_dt] = PositionGroup(valid_stocks)
     return holdings
 
@@ -314,3 +320,15 @@ def build_pos(pos, cash, quotes, date, price_col='open', buildpos_type='money-we
     residual_cash = cash - (data['num'] * data[price_col]).sum()
     res = Portfolio(data.loc[:, ['code', 'num']], residual_cash)
     return res
+
+
+def holding2df(holding):
+    '''
+    将持仓转化为df的格式：
+    包含了time和group_i列，其中，group_i有多少列视持仓分组的数量而定，time进行排列
+    @param:
+        holding: get_daily_holding返回的结果，即字典类型{time: PositionGroup}
+    @return:
+        转化后的df
+    '''
+    raise NotImplementedError
