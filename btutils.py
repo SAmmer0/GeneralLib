@@ -248,7 +248,7 @@ def cal_nav(holdings, end_date, quotes, ini_capital=1e9, normalize=True, **kwarg
     # 初始化
     portfolio_record = None     # 组合记录
     nav = list()    # 净值结果
-    cols = ['time'] + ['group_%d' % i for i in range(1, len(holdings[start_date]) + 1)]    # 结果列名
+    cols = ['time'] + ['group_%02d' % i for i in range(1, len(holdings[start_date]) + 1)]    # 结果列名
     # 交易日循环
     for td, tq_idx in zip(sorted(tds_map), tqdm(tds_map)):
         # 当前为换仓日，第一个建仓日一定为换仓日
@@ -277,7 +277,7 @@ def cal_nav(holdings, end_date, quotes, ini_capital=1e9, normalize=True, **kwarg
     nav = nav.set_index('time')
     if normalize:
         for i in range(1, len(holdings[start_date]) + 1):
-            nav['group_%d' % i] = nav['group_%d' % i] / ini_capital
+            nav['group_%02d' % i] = nav['group_%02d' % i] / ini_capital
     return nav
 
 
