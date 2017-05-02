@@ -208,7 +208,7 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
                                            quotes_data.tradeable, 'code'].tolist()
         tradeable_stocks = set(tradeable_stocks).intersection(constituent)
 
-        # 获取当前信号数据
+        # 获取当前信号数据，加入指数成份过滤
         reb_sig_data = signal_data.loc[(signal_data['time'] == reb_dt) &
                                        (signal_data['code'].isin(tradeable_stocks))]
 
@@ -255,7 +255,8 @@ def cal_nav(holdings, end_date, quotes, ini_capital=1e9, normalize=True, **kwarg
         if tds_map[td] == td:
             cur_pos = holdings[td]
             if portfolio_record is None:    # 第一次建仓
-                portfolio_record = [Portfolio(pd.DataFrame(), ini_capital)]
+                portfolio_record = [Portfolio(pd.DataFrame(), ini_capital)
+                                    for i in range(len(cur_pos))]
             tmp_portrecord = list()
             for port_idx, pos in enumerate(cur_pos):
                 # 此处建仓实际上假设之前的股票都在今天开盘卖出，然后再按照开盘价买入新的仓位
