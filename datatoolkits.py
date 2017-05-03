@@ -52,7 +52,12 @@ __version__ = 1.6
 __version__ = 1.7
 修改日期：2017-04-19
 修改内容：
-    添加quantile_filter
+    添加quantile_sub
+
+__version__ = 1.7.1
+修改日期：2017-05-03
+修改内容：
+    map_data添加填充NA值的选项
 '''
 __version__ = 1.7
 
@@ -131,7 +136,7 @@ def drop_suffix(code, suffixLen=3, suffix=('.SH', '.SZ')):
     return code[:-suffixLen]
 
 
-def map_data(rawData, days, timeCols='time', fromNowOn=False):
+def map_data(rawData, days, timeCols='time', fromNowOn=False, fillna=None):
     '''
     将给定一串时点的数据映射到给定的连续时间上，映射规则如下：
     若fromNowOn为True时，则在rawData中给定时点以及该时点后的时间的值等于该时点的值，因此第一个日期无论
@@ -148,6 +153,8 @@ def map_data(rawData, days, timeCols='time', fromNowOn=False):
         days: 所需要映射的日期序列，要求为列表或者其他可迭代类型（注：要求时间格式均为datetime.datetime）
         timeCols: 时间列的列名，默认为time
         fromNowOn: 默认为False，即在给定日期之后的序列的值才等于该值
+        fillna: 填充缺省值，默认为None，即不做任何填充，填充方式为{col: func}，func接受rawData为参数，
+            返回一个值，作为填充
     @return:
         pd.DataFrame格式的处理后的数据，数据长度与参数days相同，且时间列为索引
     '''
@@ -163,6 +170,11 @@ def map_data(rawData, days, timeCols='time', fromNowOn=False):
         data = data.shift(1)
     data = data.reindex(days)
     data = data.reset_index()
+    if fillna:
+        for col in fillna:
+            func = fillna[col]
+            fill_value = func(rawData)
+            data.loc[:, col] = data[col].fillna(fill_value)
     return data
 
 
@@ -281,7 +293,7 @@ def gen_df(cols, fill=np.nan):
     return pd.DataFrame(dict(zip(cols, [[fill]] * len(cols))))
 
 
-def quantile_filter(data, cols, qtls, sub=np.nan):
+def quantile_sub(data, cols, qtls, sub=np.nan):
     '''
     将超过分位数的数据进行替换
     @param:
