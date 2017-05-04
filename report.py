@@ -37,6 +37,7 @@ __version__ = 1.2
 import pandas as pd
 import numpy as np
 import matplotlib.pylab as plt
+from math import sqrt
 import datatoolkits
 
 
@@ -142,7 +143,7 @@ def info_ratio(retValues, retFreq, benchMark=.0, columnName=None):
             'given benchMark should have the same length as retValues')
         if isinstance(benchMark, list):
             benchMark = pd.Series(benchMark, index=retValues.index)
-    else:   # 现将基准转化为年化
+    else:   # 先将年化的基准转化为适当地频率
         benchMark = pd.Series([datatoolkits.retfreq_trans(benchMark, 1 / retFreq)] * len(retValues),
                               index=retValues.index)
     excessRet = retValues - benchMark
@@ -229,6 +230,28 @@ def brief_report(net_value, benchmark, riskfree_rate, freq):
     return pd.Series({'alpha': alpha, 'beta': beta, 'mdd': mdd, 'mdd_start': mdd_start,
                       'mdd_end': mdd_end, 'sharp_ratio': sharp, 'info_ratio': info})
 
+
+def sortino_ratio(daily_ret, riskfree_rate):
+    '''
+    计算sortino ratio，只支持使用日频率收益率计算
+    @param:
+        daily_ret: 日频率的收益率序列，可以为pd.Series或者其他可迭代类型（例如，list或者tuple）
+        riskfree_rate: 无风险利率，标量，同时也是计算比率的目标收益率，要求必须是年化的
+    @return:
+        sortino ratio
+    sr = mean(daily_ret - r) / sqrt(250/n * sum(min(0, ret_i - r)**2))
+    r为日频率的无风险收益率
+    '''
+    if not isinstance(daily_ret, pd.Series):
+        daily_ret = pd.Series(daily_ret)
+    annu_ret = datatoolkits.annualize_ret(daily_ret, 250)
+    r = datatoolkits.retfreq_trans(riskfree_rate, 1/250)
+    valid_r = (daily_ret - r).apply(lambda x: min(0, x))
+    sr = (annu_ret - r) / sqrt(250 / len(daily_ret) * (valid_r**2).sum())
+    return sr
+
+
+# --------------------------------------------------------------------------------------------------
 # 方便写Markdown报告的表格工具
 
 
@@ -324,6 +347,7 @@ class HTMLTable(object):
             self.add_row(df_str.iloc[idx].tolist())
         res_str = ''.join(self.row_lists)
         res_str = self.table.format(content=res_str)
+        self.clear()
         return res_str
 
 
@@ -357,8 +381,11 @@ formater = ColFormater()
 table_convertor = HTMLTable()
 
 if __name__ == '__main__':
-    test_data = datatoolkits.load_pickle(r"F:\GeneralLib\CONST_DATAS\htmltable.pickle")
-    res = table_convertor.format_df(test_data.reset_index(),
-                                    formater={'nav': formater.get_modformater('pctnp', 3),
-                                              'CSI700': formater.get_modformater('pctnp', 2)},
-                                    order=['nav', 'index', 'CSI700'])
+    # test_data = datatoolkits.load_pickle(r"F:\GeneralLib\CONST_DATAS\htmltable.pickle")
+    # res = table_convertor.format_df(test_data.reset_index(),
+    #                                 formater={'nav': formater.get_modformater('pctnp', 3),
+    #                                           'CSI700': formater.get_modformater('pctnp', 2)},
+    #                                 order=['nav', 'index', 'CSI700'])
+    ret = datatoolkits.load_pickle(r"F:\GeneralLib\CONST_DATAS\sample_ret.pickle")
+    sr = sortino_ratio(ret.group_05.pct_change().dropna(), 0.04)
+    print(sr)
