@@ -32,6 +32,11 @@ __version__ = 1.2
     1. 在HTMLTable中添加clear函数
     2. 将部分函数的参数由收益率序列改为净值序列
     3. 添加将净值序列转换为收益率序列的函数
+
+__version__ = 1.3
+修改日期：2017-05-04
+修改内容：
+    添加sortino比率
 """
 __version__ = 1.2
 import pandas as pd
