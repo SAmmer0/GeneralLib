@@ -33,6 +33,11 @@ __version__ = 1.31
 修改日期：2017-04-26
 修改内容：
     修改了get_daily_holdings的股票筛选逻辑，将指数成份过滤放在根据指标筛选股票前
+
+__version__ = 1.4
+修改日期：2017-05-04
+修改内容：
+    添加计算IC的函数
 '''
 __version__ = 1.3
 # --------------------------------------------------------------------------------------------------
@@ -333,3 +338,35 @@ def holding2df(holding):
         转化后的df
     '''
     raise NotImplementedError
+
+
+def cal_IC(factor_data, quotes, factor_col, rebalance_dates, price_type='close',
+           warning_threshold=10):
+    '''
+    计算IC值
+    即，在rebalance day计算因子值，计算当前因子值和下一期股票收益的相关性
+    @param:
+        factor_data: df格式，因子值，必须包含['time', 'code', factor_col]列
+        quotes: 行情数据
+        factor_col: 因子值所在的列
+        rebalance_dates: 因子计算的日期序列，为股票的收益也会是在相隔两个rebalance day之间的收益，
+        price_type: 计算收益的价格类型，默认为close
+        warning_threshold: 触发警告的数量阈值，因为有些股票会在月中退市，在计算时会将这些股票直接
+            剔除，但是为了检查剔除的数量是否合理，设置警告的阈值，当剔除的数量超过这个阈值会触发
+            警告信息
+    @return:
+        IC值的时间序列，pd.Series格式，索引为rebalance_dates（剔除了最后一个日期）
+    假设未来一个月会退市的股票直接被提出，不参与计算IC
+    '''
+    factor_data = factor_data.loc[factor_data.time.isin(rebalance_dates)]
+    quotes = quotes.loc[quotes.time.isin(rebalance_dates), ['time', 'code', price_type]]
+    quotes = quotes.sort_values(['code', 'time']).reset_index(drop=True)
+    by_code = quotes.groupby('code')
+    quotes['ret'] = by_code[price_type].transform(lambda x: x.pct_change().shift(-1))
+    quotes = quotes.dropna()
+    data = pd.merge(factor_data, quotes, on=['code', 'time'], how='right')
+    if len(data) < len(factor_data) - warning_threshold:
+        print('Warning: %d stocks have been removed' % (len(factor_data) - len(data)))
+    by_time = data.groupby('time')
+    ICs = by_time.apply(lambda x: x[factor_col].corr(x.ret))
+    return ICs.sort_index()
