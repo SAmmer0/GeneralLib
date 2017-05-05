@@ -29,6 +29,7 @@ __version__ = 1.2.1
 修改内容：
     修改了获取股票股份的方式，将其获取的数据固定下来，获取流通股份
     将gen_sql_cols的返回的结果设置为TempRes(namedTuple类型)
+    添加获取中信行业分类的SQL
 '''
 __version__ = '1.2.1'
 
@@ -201,11 +202,22 @@ ST_SQL = '''
         M.SecuMarket in (83, 90)
     '''
 
+# 获取中信行业分类
+ZXIND_SQL = '''
+    SELECT S.FirstIndustryName, S.InfoPublDate, M.SecuCode
+    FROM LC_exgIndustry S, SecuMain M
+    WHERE S.CompanyCOde = M.CompanyCode AND
+        S.Standard = 3 AND
+        M.SecuCategory = 1 AND
+        M.SecuMarket in (90, 83)
+    ORDER BY M.Secucode, S.Standard, S.InfoPublDate ASC
+    '''
+
 # 集合现有的所有基础SQL
 BASIC_SQLs = {'QIS': QIS_SQL, 'YIS': YIS_SQL, 'QCFS': QCFS_SQL, 'YCFS': YCFS_SQL,
               'BSS': BSS_SQL, 'SN': SN_SQL, 'INDEX_CONSTITUENTS': INDEX_SQL, 'DIV': DIV_SQL,
               'QUOTE': QUOTE_SQL, 'ADJ_FACTOR': ADJFACTOR_SQL, 'A_UNIVERSE': AUNIVERSE_SQL,
-              'ST_TAG': ST_SQL}
+              'ST_TAG': ST_SQL, 'ZX_IND': ZXIND_SQL}
 # 添加SQL模板的其他操作
 SQLFILE_PATH = r"F:\GeneralLib\CONST_DATAS\sql_templates.pickle"
 # 获取当前的SQL模板
