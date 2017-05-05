@@ -38,6 +38,11 @@ __version__ = 1.4
 修改日期：2017-05-04
 修改内容：
     添加计算IC的函数
+
+__version__ = 1.4.1
+修改日期：2017-05-05
+修改内容：
+    实现holding2df
 '''
 __version__ = 1.4
 # --------------------------------------------------------------------------------------------------
@@ -328,18 +333,6 @@ def build_pos(pos, cash, quotes, date, price_col='open', buildpos_type='money-we
     return res
 
 
-def holding2df(holding):
-    '''
-    将持仓转化为df的格式：
-    包含了time和group_i列，其中，group_i有多少列视持仓分组的数量而定，time进行排列
-    @param:
-        holding: get_daily_holding返回的结果，即字典类型{time: PositionGroup}
-    @return:
-        转化后的df
-    '''
-    raise NotImplementedError
-
-
 def cal_IC(factor_data, quotes, factor_col, rebalance_dates, price_type='close',
            warning_threshold=10):
     '''
@@ -370,3 +363,34 @@ def cal_IC(factor_data, quotes, factor_col, rebalance_dates, price_type='close',
     by_time = data.groupby('time')
     ICs = by_time.apply(lambda x: x[factor_col].corr(x.ret))
     return ICs.sort_index()
+
+
+# --------------------------------------------------------------------------------------------------
+# 持仓分析模块
+def holding2df(holding, fill=''):
+    '''
+    将持仓转化为df的格式：
+    包含了time和group_i列，其中，group_i有多少列视持仓分组的数量而定，按照time进行排列
+    @param:
+        holding: get_daily_holding返回的结果，即字典类型{time: PositionGroup}
+        fill: 不同组别股票数量不一致，为了对齐需要进行填充，默认填充''(空字符串)
+    @return:
+        转化后的df，对于不同的组别股票数量可能不一致，需要进行填充，以股票数量最多的组为标杆，
+        其他组数量达不到则填充fill参数
+    '''
+    res = pd.DataFrame()
+    for td in holding:
+        group = holding[td]
+        max_stocknum = max([len(g.pos) for g in group])
+        tmp = dict()
+        for idx, g in enumerate(group):
+            tmp['group_%02d' % (idx + 1)] = list(g.pos) + (max_stocknum - len(g.pos)) * [fill]
+        tmp = pd.DataFrame(tmp)
+        tmp['time'] = td
+        res = res.append(tmp)
+    res = res.sort_values(['time']).reset_index(drop=True)
+    return res
+
+
+if __name__ == '__main__':
+    pass
