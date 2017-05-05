@@ -28,9 +28,11 @@ __version__ = 1.2.1
 修改日期：2017-05-05
 修改内容：
     修改了获取股票股份的方式，将其获取的数据固定下来，获取流通股份
+    将gen_sql_cols的返回的结果设置为TempRes(namedTuple类型)
 '''
-__version__ = 1.2.1
+__version__ = '1.2.1'
 
+from collections import namedtuple
 import datatoolkits
 from decimal import Decimal
 import functools
@@ -314,7 +316,9 @@ def gen_sql_cols(cols, sql_type):
     assert sql_type in SQLs, 'Error, valid sql types are {}'.format(list(SQLs.keys()))
     sql = SQLs[sql_type]
     sql = sql % sql_cols
-    return sql, df_cols
+    TempRes = namedtuple('TempRes', 'sql cols')
+    res = TempRes(sql=sql, cols=df_cols)
+    return res
 
 
 def format_sql(sql, code='', start_time=pd.to_datetime('1990-01-01'),
