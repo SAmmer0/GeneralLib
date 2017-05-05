@@ -11,20 +11,25 @@ __version__ = 1.0
 修改内容：
     初始化
 
-__version__ 1.1
+__version__ = 1.1
 修改日期：2017-04-09
 修改内容：
     1. 添加获取日级别行情数据和复权因子的SQL
     2. 为format_sql添加默认起始时间值
     3. 添加连接数据库的异常处理
 
-__version__ 1.2
+__version__ = 1.2
 修改日期：2017-04-12
 修改内容：
     1. 添加了获取A股所有成分的SQL
     2. 为get_db_data和format_sql添加新的默认参数
+
+__version__ = 1.2.1
+修改日期：2017-05-05
+修改内容：
+    修改了获取股票股份的方式，将其获取的数据固定下来，获取流通股份
 '''
-__version__ = 1.2
+__version__ = 1.2.1
 
 import datatoolkits
 from decimal import Decimal
@@ -114,9 +119,9 @@ YCFS_SQL = '''
         S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
         S.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
     '''
-# 股本数据
+# 股本数据，获取流通股本
 SN_SQL = '''
-    SELECT %s
+    SELECT S.NonRestrictedShares, S.EndDate
     FROM SecuMain M, LC_ShareStru S
     WHERE M.CompanyCode = S.CompanyCode AND
         M.SecuCode = \'{code}\' AND
@@ -125,7 +130,7 @@ SN_SQL = '''
         S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
         S.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
     '''
-# 分红
+# 分红进度表
 DIV_SQL = '''
     SELECT %s
     FROM SecuMain M, LC_DividendProgress S
@@ -136,8 +141,8 @@ DIV_SQL = '''
         M.SecuCategory = 1 AND
         S.InfoPubType = 40 AND
         S.Process = 3131 AND
-        S.EndDate > CAST(\'{start_time}\' AS datetime) AND
-        S.InfopubDate < CAST(\'{end_time}\' AS datetime)
+        S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
+        S.InfopubDate <= CAST(\'{end_time}\' AS datetime)
     '''
 # 指数成分
 INDEX_SQL = '''
@@ -159,8 +164,8 @@ QUOTE_SQL = '''
         S.InnerCode = M.InnerCode AND
         M.SecuCode = \'{code}\' AND
         M.SecuMarket in (83, 90) AND
-        S.TradingDay < CAST(\'{start_time}\' as datetime) AND
-        S.TradingDay >= CAST(\'{end_time}\' as datetime) AND
+        S.TradingDay <= CAST(\'{end_time}\' as datetime) AND
+        S.TradingDay >= CAST(\'{start_time}\' as datetime) AND
         M.SecuCategory = 1
     ORDER BY S.TradingDay ASC
     '''
@@ -184,11 +189,21 @@ AUNIVERSE_SQL = '''
         ListedState != 9
     '''
 
+# 获取股票戴帽摘帽情况
+ST_SQL = '''
+    SELECT S.InfoPublDate, S.SecurityAbbr
+    FROM LC_SpecialTrade S, SecuMain M
+    WHERE
+        S.InnerCode = M.InnerCode AND
+        M.SecuCode = {code} AND
+        M.SecuMarket in (83, 90)
+    '''
 
 # 集合现有的所有基础SQL
 BASIC_SQLs = {'QIS': QIS_SQL, 'YIS': YIS_SQL, 'QCFS': QCFS_SQL, 'YCFS': YCFS_SQL,
               'BSS': BSS_SQL, 'SN': SN_SQL, 'INDEX_CONSTITUENTS': INDEX_SQL, 'DIV': DIV_SQL,
-              'QUOTE': QUOTE_SQL, 'ADJ_FACTOR': ADJFACTOR_SQL, 'A_UNIVERSE': AUNIVERSE_SQL}
+              'QUOTE': QUOTE_SQL, 'ADJ_FACTOR': ADJFACTOR_SQL, 'A_UNIVERSE': AUNIVERSE_SQL,
+              'ST_TAG': ST_SQL}
 # 添加SQL模板的其他操作
 SQLFILE_PATH = r"F:\GeneralLib\CONST_DATAS\sql_templates.pickle"
 # 获取当前的SQL模板
@@ -240,7 +255,7 @@ def reset_templates(path=SQLFILE_PATH):
     将模板重置为文件中的初始SQL模板
     '''
     datatoolkits.dump_pickle(BASIC_SQLs, path)
-    return BASIC_SQLs
+    # return BASIC_SQLs
 
 
 # 设置基础常量
