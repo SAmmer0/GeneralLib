@@ -12,6 +12,11 @@ __version__ = 1.0
 修改日期：2017年2月5日
 修改内容：
     初始化
+
+__version__ = 1.0.1
+修改日期：2017-05-05
+修改内容：
+    为get_tds添加装饰器，使其返回标准格式的时间
 '''
 __version__ = '1.0'
 
@@ -38,6 +43,22 @@ def date_formater(date, dateFormat=None):
     return date
 
 
+def time_trans_wrapper(func):
+    '''
+    装饰器，将get_tds转变为返回标准时间格式（而不是wind时间格式）的函数
+    @param:
+        func: 需要被转换的函数
+    @return:
+        转换后的函数
+    '''
+    def inner(*args, **kwargs):
+        tds = func(*args, **kwargs)
+        tds = wind_time_standardlization(tds)
+        return tds
+    return inner
+
+
+@time_trans_wrapper
 def get_tds(startTime, endTime, fileName="F:\\GeneralLib\\CONST_DATAS\\tradingDays.pickle"):
     '''
     获取给定时间区间内的交易日，该函数会先检测是否有公用文件，如果有会从文件中读取交易日的数据，读取之后会将
@@ -120,7 +141,7 @@ def time2wind(date):
     return date.replace(microsecond=5000)
 
 
-def get_nth_day(days, transFunc, nth, timeColName='time'):
+def get_nth_day(days, transFunc, nth, timeColName='time', to_df=True):
     '''
     用于将日期按照提供的方法transFunc分类，将分类后的数据按照时间（升序）排列，取出其中某个数据（第
     nth个点），组成新的时间序列
@@ -130,18 +151,21 @@ def get_nth_day(days, transFunc, nth, timeColName='time'):
         nth: 选取分类后的第n个数据作为结果数据，若时间按照给定方法分类后的最小长度为x，则nth应该在
             [-x, x]之间，索引下标的方式与Python的方式相同
         timeColName: 若提供的是pd.DataFrame的格式，则需要提供时间列的列名，默认为time
+        to_df: 是否返回DataFrame格式的数据，默认为True
     @return:
-        时间序列，类型为pd.DataFrame
+        时间序列，类型为pd.DataFrame或者list类型
     '''
     if not isinstance(days, pd.DataFrame):
         days = pd.DataFrame({timeColName: days})
     days['catagory'] = days[timeColName].apply(transFunc)
     daysGroup = days.groupby('catagory')
     cataCnt = daysGroup.count()[timeColName].min()
-    if nth > cataCnt-1 or nth < -(cataCnt-1):
+    if nth > cataCnt - 1 or nth < -(cataCnt - 1):
         raise IndexError('index out of range')
     resDays = daysGroup.apply(lambda x: x[timeColName].iloc[nth])
     resDays = pd.DataFrame({timeColName: resDays}).sort_values(timeColName).reset_index(drop=True)
+    if not to_df:
+        resDays = resDays[timeColName].tolist()
     return resDays
 
 
@@ -161,9 +185,9 @@ def get_latest_report_dates(date, num, reverse=True):
         date = dt.datetime.strptime(date, '%Y-%m-%d')
     rptDates = ['0331', '0630', '0930', '1231']
     optionalRes = list()
-    for year in range(date.year-num//4-1, date.year+1):
+    for year in range(date.year - num // 4 - 1, date.year + 1):
         for rptd in rptDates:
-            optionalRes.append(dt.datetime.strptime(str(year)+rptd, '%Y%m%d'))
+            optionalRes.append(dt.datetime.strptime(str(year) + rptd, '%Y%m%d'))
     optionalRes = [x for x in optionalRes if x <= date]
     optionalRes = optionalRes[-num:]
     if reverse:
