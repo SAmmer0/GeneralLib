@@ -37,8 +37,13 @@ __version__ = 1.3
 修改日期：2017-05-04
 修改内容：
     添加sortino比率
+
+__version__ = 1.3.1
+修改日期：2017-05-09
+修改内容：
+    在brief_report中添加sortino比率
 """
-__version__ = 1.2
+__version__ = '1.3.1'
 import pandas as pd
 import numpy as np
 import matplotlib.pylab as plt
@@ -225,15 +230,20 @@ def brief_report(net_value, benchmark, riskfree_rate, freq):
     '''
     assert len(net_value) == len(
         benchmark), '\'net_value\' should have the same length as \'benchmark\''
-    nav_ret = cal_ret(net_value)
+    ret = cal_ret(net_value)
     benchmark_ret = cal_ret(benchmark)
     alpha = cal_rawalpha(net_value, benchmark, freq, riskfree_rate)
     beta = cal_rawbeta(net_value, benchmark)
     mdd, mdd_start, mdd_end = max_drawn_down(net_value)
-    sharp = sharp_ratio(nav_ret, freq, riskFreeRate=riskfree_rate)
-    info = info_ratio(nav_ret, freq, benchMark=benchmark_ret)
+    sharp = sharp_ratio(ret, freq, riskFreeRate=riskfree_rate)
+    info = info_ratio(ret, freq, benchMark=benchmark_ret)
+    if freq == 250:
+        sr = sortino_ratio(ret, riskfree_rate)
+    else:
+        sr = np.nan
     return pd.Series({'alpha': alpha, 'beta': beta, 'mdd': mdd, 'mdd_start': mdd_start,
-                      'mdd_end': mdd_end, 'sharp_ratio': sharp, 'info_ratio': info})
+                      'mdd_end': mdd_end, 'sharp_ratio': sharp, 'info_ratio': info,
+                      'sortino_ratio': sr})
 
 
 def sortino_ratio(daily_ret, riskfree_rate):
@@ -250,7 +260,7 @@ def sortino_ratio(daily_ret, riskfree_rate):
     if not isinstance(daily_ret, pd.Series):
         daily_ret = pd.Series(daily_ret)
     annu_ret = datatoolkits.annualize_ret(daily_ret, 250)
-    r = datatoolkits.retfreq_trans(riskfree_rate, 1/250)
+    r = datatoolkits.retfreq_trans(riskfree_rate, 1 / 250)
     valid_r = (daily_ret - r).apply(lambda x: min(0, x))
     sr = (annu_ret - r) / sqrt(250 / len(daily_ret) * (valid_r**2).sum())
     return sr
