@@ -58,6 +58,11 @@ __version__ = 1.7.1
 修改日期：2017-05-03
 修改内容：
     map_data添加填充NA值的选项
+
+__version__ = 1.8
+修改日期：2017-05-10
+修改内容：
+    添加isclose函数，弥补Python 3.6之前math没有类似函数的缺陷
 '''
 __version__ = 1.7
 
@@ -165,7 +170,11 @@ def map_data(rawData, days, timeCols='time', fromNowOn=False, fillna=None):
     time_col = [t for t in time_col if t < days[0]] + days
     data = rawData.set_index(timeCols)
     data = data.sort_index()
-    data = data.reindex(time_col, method='ffill')
+    try:
+        data = data.reindex(time_col, method='ffill')
+    except ValueError as e:
+        print(rawData.code.iloc[0])
+        raise e
     if not fromNowOn:
         data = data.shift(1)
     data = data.reindex(days)
@@ -309,6 +318,29 @@ def quantile_sub(data, cols, qtls, sub=np.nan):
         qtl1, qtl2 = df[col].quantile(qtls)
         df.loc[(df[col] < qtl1) | (df[col] > qtl2), col] = sub
     return df
+
+
+def isclose(a, b, rel_tol=1e-9, abs_tol=0.0):
+    '''
+    判断两个数值是否接近，计算方法如下
+    abs(a-b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
+    Parameter
+    ---------
+    a: float
+        需要比较的数之一
+    b: float
+        需要比较的数之二
+    rel_tol: float
+        相对的容错度
+    abs_tol: float
+        绝对容错度
+
+    Return
+    ------
+    out: bool
+        当两个数字之间的距离满足上述公式，返回True，反之则返回False
+    '''
+    return abs(a - b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
 
 
 if __name__ == '__main__':
