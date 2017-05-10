@@ -48,7 +48,7 @@ __version__ = 1.4
 # --------------------------------------------------------------------------------------------------
 # import
 from collections import namedtuple
-# import datatoolkits
+import datatoolkits
 import dateshandle
 # from enum import Enum
 import pandas as pd
@@ -150,7 +150,75 @@ class Portfolio(object):
             self.cash += delist_value
         self.pos = self.pos.loc[~self.pos.code.isin(delist_codes)].reset_index(drop=True)
 
+# WeightCalculator的私有函数
 
+
+def _money_weighted(pos, quote):
+    '''
+    Parameter
+    ---------
+    pos: Position type
+        证券持仓
+    quote: DataFrame type
+        单个交易日的行情数据，必须包含pos.pos中的股票
+    '''
+    weight = 1 / len(pos.pos)
+    return dict(zip(pos.pos, [weight] * len(pos.pos)))
+
+
+def _mktvalue_weighted(pos, quote):
+    '''
+    Parameter
+    ---------
+    pos: Position type
+        证券持仓
+    quote: DataFrame type
+        单个交易日行情数据，需包含市值列，且必须包含pos.pos中的股票
+    '''
+    assert len(quote.time.unique()) == 1, 'Error, quote data should contain only on trading day'
+    assert 'mktvalue' in quote.columns, 'Error, quote data should contain "mktvalue" column'
+    tmp_quote = quote.loc[quote.code.isin(pos.pos), ['code', 'mktvalue']]
+    tmp_quote = tmp_quote.set_index('code')
+    tmp_quote['weight'] = tmp_quote['mktvalue'] / tmp_quote['mktvalue'].sum()
+    assert datatoolkits.isclose(tmp_quote['weight'].sum(),
+                                1), 'Error, sum of weights does not equal to 1'
+    return tmp_quote['weight'].to_dict()
+
+
+class WeightCalculator(object):
+    '''
+    Description
+    -----------
+    计算组合的权重，目前支持的权重计算方法有money-weighted（即等权), mktvalue-weighted（即市值
+    加权）
+    Example
+    -------
+    money-ewighted: Position(pos=(code1, code2, code3)) -> {code1: 1/3, code2: 1/3, code3: 1/3}
+    mktvalue-weighted: Position(pos=(code1, code2)), code1_mktvalue=1 code2_mktvalue=2 ->
+        {code1: 1/3, code2: 2/3}
+    '''
+    weight_method = {'money-weighted': _money_weighted,
+                     'mktvalue-weighted': _mktvalue_weighted}
+
+    def _checktype(self):
+        if self.weighted_type not in self.weight_method:
+            raise ValueError('Weight method error, valid types are {valid}, you provide {gtype}'.
+                             format(valid=WeightCalculator.weight_method.keys(),
+                                    gtype=WeightCalculator.weighted_type))
+
+    def __init__(self, weighted_type):
+        '''
+        Parameter
+        ---------
+        weighted_type: str
+            权重计算方法的名称
+        '''
+        self.weighted_type = weighted_type
+        self._checktype()
+
+    def cal_weight(self, pos, quote):
+        weight_func = WeightCalculator.weight_method[self.weighted_type]
+        return weight_func(pos, quote)
 # --------------------------------------------------------------------------------------------------
 # 函数
 
@@ -214,14 +282,13 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
         # 获取再平衡日的行业分类
         ind_cls = industry_cls.loc[industry_cls.time == reb_dt]
         # 过滤不能交易的股票，此处会自动将建仓日不存在数据的股票过滤
-        tradeable_stocks = quotes_data.loc[(quotes_data.time == chg_dt) & (quotes_data.STTag == 0) &
+        tradeable_stocks = quotes_data.loc[(quotes_data.time == chg_dt) & (~quotes_data.STTag) &
                                            quotes_data.tradeable, 'code'].tolist()
         tradeable_stocks = set(tradeable_stocks).intersection(constituent)
 
         # 获取当前信号数据，加入指数成份过滤
         reb_sig_data = signal_data.loc[(signal_data['time'] == reb_dt) &
                                        (signal_data['code'].isin(tradeable_stocks))]
-
         # 根据信号函数计算当前的股票组
         valid_stocks = stock_filter(reb_sig_data, ind_cls)
         # valid_stocks = [[c for c in group if c in tradeable_stocks]
@@ -273,7 +340,7 @@ def cal_nav(holdings, end_date, quotes, ini_capital=1e9, normalize=True, **kwarg
                 # 虽然这种假设不合理，但是如果使用上个交易日的数据会带来一些复杂性，且一个交易日的
                 # 收盘价和随后一天的开盘价的差值一般不会太大，故忽略这方面的影响
                 tmp_port = build_pos(pos, portfolio_record[port_idx].mkt_value(quotes, td, 'open'),
-                                     quotes, td)
+                                     quotes, td, **kwargs)
                 tmp_portrecord.append(tmp_port)
             portfolio_record = tmp_portrecord   # 更新portfolio_record
         # 计算每个组合的收盘市场价值
@@ -311,22 +378,26 @@ def build_pos(pos, cash, quotes, date, price_col='open', buildpos_type='money-we
     现金中
     如果没有持仓，则Portfolio中pos属性为空的df，所有价值按照现金计算
     '''
-    # 目前没有实现其他权重计算方式
-    if buildpos_type != 'money-weighted':
-        raise NotImplementedError
+    wc = WeightCalculator(buildpos_type)
+    # # 目前没有实现其他权重计算方式
+    # if buildpos_type != 'money-weighted':
+    #     raise NotImplementedError
 
-    # 计算资金分配
-    try:
-        cash_alloc = cash / len(pos.pos)
-    except ZeroDivisionError:
-        return Portfolio(pd.DataFrame(), cash)
+    # # 计算资金分配
+    # try:
+    #     cash_alloc = cash / len(pos.pos)
+    # except ZeroDivisionError:
+    #     return Portfolio(pd.DataFrame(), cash)
 
     # 计算每只股票的购买数量
     multiple = 100
     # 此处行情数据使用方法会自动剔除建仓日退市的股票，但是如果存在退市的公司，则会导致每只
     # 股票分配的资金相对比较少，问题不需要考虑，因为当天没有数据的股票会被过滤掉
-    data = quotes.loc[quotes.code.isin(pos.pos) & (quotes.time == date), ['code', price_col]]
-    data['num'] = cash_alloc / data[price_col]
+    data = quotes.loc[quotes.code.isin(pos.pos) & (quotes.time == date)]
+    weight = wc.cal_weight(pos, data)
+    data['num'] = data.code.map(weight)
+    data['num'] = cash * data['num'] / data[price_col]
+    # data['num'] = cash_alloc / data[price_col]
     data['num'] = data['num'].apply(lambda x: int(x / multiple) * multiple)
     residual_cash = cash - (data['num'] * data[price_col]).sum()
     res = Portfolio(data.loc[:, ['code', 'num']], residual_cash)
@@ -393,4 +464,20 @@ def holding2df(holding, fill=''):
 
 
 if __name__ == '__main__':
-    pass
+    def get_index_groups(sig_data, ind_cls):
+        return [sig_data['code'].tolist()]
+    quote_store = pd.HDFStore(r"F:\实习工作内容\东海证券\基础数据\行情数据\quote_store.h5")
+    quote = quote_store['quote_adj_20170510']
+    quote_store.close()
+    index_store = pd.HDFStore(r"F:\实习工作内容\东海证券\基础数据\指数成份\index_constituents.h5")
+    index_constituent = index_store['Index_000985']
+    index_constituent.code = index_constituent.code.apply(datatoolkits.add_suffix)
+    index_store.close()
+    tds = dateshandle.get_tds('2012-01-01', '2017-03-31')
+    rebalance_dates = dateshandle.get_nth_day(tds, lambda x: x.strftime('%Y-%m'), -1, to_df=False)
+    sw_cls = datatoolkits.load_pickle(
+        r'F:\实习工作内容\东海证券\主流投资策略\data\const\sw_classification_complete.pickle')
+    index_holding = get_daily_holding(quote, quote, index_constituent, sw_cls,
+                                      get_index_groups, rebalance_dates)
+    index_rets = cal_nav(index_holding, rebalance_dates[-1], quote, ini_capital=1e11,
+                         buildpos_type='mktvalue-weighted')
