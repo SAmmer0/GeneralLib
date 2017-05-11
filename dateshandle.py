@@ -17,8 +17,13 @@ __version__ = 1.0.1
 修改日期：2017-05-05
 修改内容：
     为get_tds添加装饰器，使其返回标准格式的时间
+
+__version__ = 1.0.2
+修改日期：2017-05-11
+修改内容：
+    修改get_nth_tds的唤起错误的条件
 '''
-__version__ = '1.0'
+__version__ = '1.0.2'
 
 from windwrapper import get_tds_wind
 
@@ -97,6 +102,7 @@ def get_tds(startTime, endTime, fileName="F:\\GeneralLib\\CONST_DATAS\\tradingDa
     fileEndTime = rawTDs[-1]
     if (fileStartTime > time2wind(startTime) or
             fileEndTime < time2wind(endTime)):     # 当前时间区间超过了文件中的范围
+        # 当提供的时间为非交易日时，则每次调用都会超出文件范围，导致需要调用Wind
         tds = get_tds_wind(min(fileStartTime, startTime), max(fileEndTime, endTime))
         with open(fileName, 'wb') as f:
             pickle.dump(tds, f)
@@ -160,7 +166,7 @@ def get_nth_day(days, transFunc, nth, timeColName='time', to_df=True):
     days['catagory'] = days[timeColName].apply(transFunc)
     daysGroup = days.groupby('catagory')
     cataCnt = daysGroup.count()[timeColName].min()
-    if nth > cataCnt - 1 or nth < -(cataCnt - 1):
+    if nth > cataCnt - 1 or nth < -cataCnt:
         raise IndexError('index out of range')
     resDays = daysGroup.apply(lambda x: x[timeColName].iloc[nth])
     resDays = pd.DataFrame({timeColName: resDays}).sort_values(timeColName).reset_index(drop=True)
