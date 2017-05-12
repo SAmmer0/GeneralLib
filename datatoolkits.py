@@ -63,8 +63,13 @@ __version__ = 1.8
 修改日期：2017-05-10
 修改内容：
     添加isclose函数，弥补Python 3.6之前math没有类似函数的缺陷
+
+__version__ = 1.8.1
+修改日期：2017-05-12
+修改内容：
+    修改retfreq_trans函数的相关说明
 '''
-__version__ = 1.7
+__version__ = '1.8.1'
 
 import datetime as dt
 from math import sqrt
@@ -223,13 +228,22 @@ def retfreq_trans(init_ret, new_freq):
     '''
     将收益的频率进行转换，例如将日收益率转化为年化或者将年化收益率转化为日收益率
     该函数只支持标量转换
-    计算方法如下：
-    new_ret = (1 + init_ret)**(new_freq/init_freq) - 1
-    @param:
-        init_ret: 初始的需要转换的收益率
-        new_freq: 最终收益率的频率，例如，月度数据年化则设为12
-    @return:
+
+    Parameter
+    ---------
+    init_ret: float
+        初始的需要转换的收益率
+    new_freq: int
+        最终收益率的频率，例如将月度的收益率年化则为12
+
+    Return
+    ------
         转换频率后的收益率
+
+    Notes
+    -----
+    计算方法如下：
+    new_ret = (1 + init_ret)**new_freq - 1
     '''
     return (1 + init_ret)**new_freq - 1
 
