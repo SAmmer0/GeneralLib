@@ -261,6 +261,36 @@ def tdcount(days, end_time, method='close'):
     return out
 
 
+def get_rebdates(start_time, end_time, freq='M', nth=-1):
+    '''
+    用于计算换仓的时间点
+    Parameter
+    ---------
+    start_time: type that can be converted by pd.to_datetime
+        开始时间
+    end_time: type that can be converted by pd.to_datetime
+        结束时间
+    freq: str
+        频率，目前仅支持月度和周度，即'M'和'W'
+    nth: int
+        定投时点，目前仅支持0和-1，分别表示在周期出和周期末定投
+
+    Return
+    ------
+    out: list
+        根据参数计算出的定投时间序列
+    '''
+    tds = get_tds(start_time, end_time)
+    if freq == 'M':
+        time_format = '%Y-%m'
+    elif freq == 'W':
+        time_format = '%Y-%W'
+    else:
+        raise ValueError('valid "freq" values are (M, W), you provide {}'.format(freq))
+    out = get_nth_day(tds, lambda x: x.strftime(time_format), nth, to_df=False)
+    return out
+
+
 if __name__ == '__main__':
     days = list(pd.date_range('2017-01-01', periods=20, freq='D'))
     test = tdcount(days, days[-1])
