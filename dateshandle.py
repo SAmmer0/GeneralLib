@@ -22,8 +22,13 @@ __version__ = 1.0.2
 修改日期：2017-05-11
 修改内容：
     修改get_nth_tds的唤起错误的条件
+
+__version__ = 1.1.0
+修改日期：2017-05-12
+修改内容：
+    添加tdcount函数
 '''
-__version__ = '1.0.2'
+__version__ = '1.1.0'
 
 from windwrapper import get_tds_wind
 
@@ -217,3 +222,45 @@ def is_continuous_rptd(dates):
     last_date = dates[-1]
     rpt_dates = get_latest_report_dates(last_date, len(dates), reverse=False)
     return all(d == rpt for d, rpt in zip(dates, rpt_dates))
+
+
+def tdcount(days, end_time, method='close'):
+    '''
+    计算给定的一些日期到指定截至日期之间交易日的数量
+    Parameter
+    ---------
+    days: list like, elements can be str or datetime, or single element
+        起始时间的序列，不要求一定为交易日，如果为非交易日，则计算其后最近的交易日到end_time之间
+        交易日的数量，要求days中的元素不能有重复的
+    end_time: str or datetime or type that can be converted by pd.to_datetime
+        截止日期，如果end_time不是交易日，则计算到小于end_time的最近交易日之间交易日的数量
+    method: str default close
+        计算交易日数量的方法，可选的方法有'close', 'half-close'，具体计算方法见Notes
+
+    Return
+    ------
+    out: list
+        对应的每个日期与end_time之间交易日的数量
+
+    Notes
+    -----
+    计算方法包含三种：
+        close: 包含首尾的日期在内
+        half-close: 只包含首或者尾
+    三者的关系如下：
+        close = half-close + 1
+    '''
+    if isinstance(days, (str, dt.datetime)):
+        days = [days]
+    days = [pd.to_datetime(t) for t in days]
+    min_day = min(days)
+    tds = get_tds(min_day, end_time)
+    out = [len([d for d in tds if d >= t and d <= end_time]) for t in days]
+    if method == 'half-close':
+        out = [x - 1 for x in out]
+    return out
+
+
+if __name__ == '__main__':
+    days = list(pd.date_range('2017-01-01', periods=20, freq='D'))
+    test = tdcount(days, days[-1])
