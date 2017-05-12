@@ -400,7 +400,8 @@ def build_pos(pos, cash, quotes, date, price_col='open', buildpos_type='money-we
     # 股票分配的资金相对比较少，问题不需要考虑，因为当天没有数据的股票会被过滤掉
     data = quotes.loc[quotes.code.isin(pos.pos) & (quotes.time == date)]
     weight = wc.cal_weight(pos, data)
-    data['num'] = data.code.map(weight)
+    data = data.assign(num=lambda x: x.code.map(weight))
+    # data['num'] = data.code.map(weight)
     data['num'] = cash * data['num'] / data[price_col]
     # data['num'] = cash_alloc / data[price_col]
     data['num'] = data['num'].apply(lambda x: int(x / multiple) * multiple)
