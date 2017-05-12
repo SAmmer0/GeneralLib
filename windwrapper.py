@@ -28,6 +28,7 @@ __version__ = '1.1.1'
 from WindPy import w
 import pandas as pd
 import datetime as dt
+import dateshandle
 
 
 def check_connection():
@@ -37,7 +38,7 @@ def check_connection():
 
 
 def get_data(code, field, startDate, endDate, add_stockcode=True, highFreq=False,
-             highFreqBarSize='barSize=5', priceAdj=False):
+             highFreqBarSize='barSize=5', priceAdj=False, time_std=True):
     '''
     从wind中获取数据，可以获取高频率（1天及以上）和低频率（1分钟-1天内）的数据，数据以字典的形式返回
     @param:
@@ -54,6 +55,7 @@ def get_data(code, field, startDate, endDate, add_stockcode=True, highFreq=False
         highFreqBarSize: 提取的高频率数据的频率设定，默认为5分钟线，即barSize=5，其他设置可以类似，
             但是要求必须为字符串，形式只能为barSize=n，n为需要的数据的频率
         priceAdj: 是否需要复权，默认不需要，bool型，只能对有复权选项的证券使用，否则返回的数据会有错误
+        time_std: 是否将时间由Wind格式转换为正常格式，默认为True
     @return:
         data: pd.DataFrame格式数据，其中另外会添加time列，记录时间
     '''
@@ -74,6 +76,8 @@ def get_data(code, field, startDate, endDate, add_stockcode=True, highFreq=False
     data = pd.DataFrame(data)
     if add_stockcode:
         data['code'] = [code] * len(data)
+    if time_std:
+        data['time'] = dateshandle.wind_time_standardlization(data.time)
     return data
 
 
