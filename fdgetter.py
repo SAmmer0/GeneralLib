@@ -30,6 +30,12 @@ __version__ = 1.2.1
     修改了获取股票股份的方式，将其获取的数据固定下来，获取流通股份
     将gen_sql_cols的返回的结果设置为TempRes(namedTuple类型)
     添加获取中信行业分类的SQL
+
+__version__ = 1.3.0
+修改日期：2017-05-15
+修改内容：
+    1. 将SQL语句全部移动到一个新的数据文件中
+    2. 添加朝阳永续的数据库
 '''
 __version__ = '1.2.1'
 
@@ -40,6 +46,7 @@ import functools
 import numpy as np
 import pandas as pd
 import SQLserver
+from sqlstmts import BASIC_SQLs
 
 # --------------------------------------------------------------------------------------------------
 # 设置数据库常量
@@ -49,233 +56,14 @@ except Exception as e:  # 当前环境下没有连接数据库
     jydb = None
     print(e)
 
+try:
+    zyyx = SQLserver.SQLserver(DATABASE='zyyx', SERVER='128.6.5.18', UID='zyyx', PWD='zyyx')
+except Exception as e:
+    zyyx = None
+    print(e)
+
 # --------------------------------------------------------------------------------------------------
-# 设置常用的sql
-# 季度利润表
-QIS_SQL = '''
-    SELECT %s
-    FROM LC_QIncomeStatementNew S, SecuMain M
-    WHERE
-        M.CompanyCode = S.CompanyCode AND
-        M.SecuCode = \'{code}\' AND
-        M.SecuMarket in (83, 90) AND
-        M.SecuCategory = 1 AND
-        S.BulletinType != 10 AND
-        S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
-        S.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
-    '''
-# 年度利润表（利润分配表）
-YIS_SQL = '''
-    SELECT %s
-    FROM LC_IncomeStatementAll S, SecuMain M
-    WHERE
-        M.CompanyCode = S.CompanyCode AND
-        M.SecuCode = \'{code}\' AND
-        M.SecuMarket in (83, 90) AND
-        M.SecuCategory = 1 AND
-        S.AccountingStandards = 1 AND
-        S.IfAdjusted not in (4, 5) AND
-        S.BulletinType != 10 AND
-        S.IfMerged = 1 AND
-        S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
-        S.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
-    '''
-# 资产负债表
-BSS_SQL = '''
-    SELECT %s
-    FROM SecuMain M, LC_BalanceSheetAll S
-    WHERE M.CompanyCode = S.CompanyCode AND
-        M.SecuCode = \'{code}\' AND
-        M.SecuMarket in (83, 90) AND
-        M.SecuCategory = 1 AND
-        S.BulletinType != 10 AND
-        S.IfMerged = 1 AND
-        S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
-        S.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
-    '''
-# 季度现金流量表
-QCFS_SQL = '''
-    SELECT %s
-    FROM LC_QCashFlowStatementNew S, SecuMain M
-    WHERE
-        M.CompanyCode = S.CompanyCode AND
-        M.SecuCode = \'{code}\' AND
-        M.SecuMarket in (83, 90) AND
-        M.SecuCategory = 1 AND
-        S.BulletinType != 10 AND
-        S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
-        S.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
-    '''
-# 年度现金流量表
-YCFS_SQL = '''
-    SELECT %s
-    FROM LC_CashFlowStatementAll S, SecuMain M
-    WHERE
-        M.CompanyCode = S.CompanyCode AND
-        M.SecuCode = \'{code}\' AND
-        M.SecuMarket in (83, 90) AND
-        M.SecuCategory = 1 AND
-        S.AccountingStandards = 1 AND
-        S.IfAdjusted not in (4, 5) AND
-        S.BulletinType != 10 AND
-        S.IfMerged = 1 AND
-        S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
-        S.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
-    '''
-# 股本数据，获取流通股本
-SN_SQL = '''
-    SELECT S.NonRestrictedShares, S.EndDate
-    FROM SecuMain M, LC_ShareStru S
-    WHERE M.CompanyCode = S.CompanyCode AND
-        M.SecuCode = \'{code}\' AND
-        M.SecuMarket in (83, 90) AND
-        M.SecuCategory = 1 AND
-        S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
-        S.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
-    '''
-# 分红进度表
-DIV_SQL = '''
-    SELECT %s
-    FROM SecuMain M, LC_DividendProgress S
-    WHERE
-        M.InnerCode = S.InnerCode AND
-        M.SecuCode = \'{code}\' AND
-        M.SecuMarket in (83, 90) AND
-        M.SecuCategory = 1 AND
-        S.InfoPubType = 40 AND
-        S.Process = 3131 AND
-        S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
-        S.InfopubDate <= CAST(\'{end_time}\' AS datetime)
-    '''
-# 指数成分
-INDEX_SQL = '''
-    SELECT  M2.SecuCode, S.EndDate
-    FROM SecuMain M, LC_IndexComponentsWeight S, SecuMain M2
-    WHERE
-        M.InnerCode = S.IndexCode AND
-        M2.InnerCode = S.InnerCode AND
-        M.SecuCode = \'{code}\' AND
-        M.SecuCategory = 4 AND
-        S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
-        S.EndDate <= CAST(\'{end_time}\' AS datetime)
-    '''
-# 获取股票行情
-QUOTE_SQL = '''
-    SELECT %s
-    FROM QT_DailyQuote S, SecuMain M
-    WHERE
-        S.InnerCode = M.InnerCode AND
-        M.SecuCode = \'{code}\' AND
-        M.SecuMarket in (83, 90) AND
-        S.TradingDay <= CAST(\'{end_time}\' as datetime) AND
-        S.TradingDay >= CAST(\'{start_time}\' as datetime) AND
-        M.SecuCategory = 1
-    ORDER BY S.TradingDay ASC
-    '''
-# 获取复权因子
-ADJFACTOR_SQL = '''
-    SELECT A.ExDiviDate, A.RatioAdjustingFactor
-    FROM QT_AdjustingFactor A, SecuMain M
-    WHERE
-        A.InnerCode = M.InnerCode AND
-        M.SecuCode = \'{code}\' AND
-        M.secuMarket in (83, 90)
-    ORDER BY A.ExDiviDate ASC
-    '''
-# 获取所有A股成份
-AUNIVERSE_SQL = '''
-    SELECT SecuCode
-    FROM SecuMain
-    WHERE
-        SecuCategory = 1 AND
-        SecuMarket in (83, 90) AND
-        ListedState != 9
-    '''
-
-# 获取股票戴帽摘帽情况
-ST_SQL = '''
-    SELECT S.InfoPublDate, S.SecurityAbbr
-    FROM LC_SpecialTrade S, SecuMain M
-    WHERE
-        S.InnerCode = M.InnerCode AND
-        M.SecuCode = {code} AND
-        M.SecuMarket in (83, 90)
-    '''
-
-# 获取中信行业分类
-ZXIND_SQL = '''
-    SELECT S.FirstIndustryName, S.InfoPublDate, M.SecuCode
-    FROM LC_exgIndustry S, SecuMain M
-    WHERE S.CompanyCOde = M.CompanyCode AND
-        S.Standard = 3 AND
-        M.SecuCategory = 1 AND
-        M.SecuMarket in (90, 83)
-    ORDER BY M.Secucode, S.Standard, S.InfoPublDate ASC
-    '''
-
-# 集合现有的所有基础SQL
-BASIC_SQLs = {'QIS': QIS_SQL, 'YIS': YIS_SQL, 'QCFS': QCFS_SQL, 'YCFS': YCFS_SQL,
-              'BSS': BSS_SQL, 'SN': SN_SQL, 'INDEX_CONSTITUENTS': INDEX_SQL, 'DIV': DIV_SQL,
-              'QUOTE': QUOTE_SQL, 'ADJ_FACTOR': ADJFACTOR_SQL, 'A_UNIVERSE': AUNIVERSE_SQL,
-              'ST_TAG': ST_SQL, 'ZX_IND': ZXIND_SQL}
-# 添加SQL模板的其他操作
-SQLFILE_PATH = r"F:\GeneralLib\CONST_DATAS\sql_templates.pickle"
-# 获取当前的SQL模板
-
-
-def get_sql_template(path=SQLFILE_PATH):
-    try:
-        res = datatoolkits.load_pickle(path)
-    except FileNotFoundError:
-        res = BASIC_SQLs
-        datatoolkits.dump_pickle(res, path)
-    return res
-
-# 向模板中添加其他模板，并存储到文件中
-
-
-def add_template(templates, name, sql, path=SQLFILE_PATH):
-    '''
-    向模板中添加内容，并存储
-    '''
-    templates[name] = sql
-    datatoolkits.dump_pickle(templates, path)
-    return templates
-
-
-def del_template(templates, name, path=SQLFILE_PATH):
-    '''
-    删除模板中的内容，并存储
-    注：删除操作不会对原数据造成影响
-    '''
-    assert name in templates, 'Error, valid sql names are {}'.format(list(templates.keys()))
-    templates_cp = templates.copy()
-    del templates_cp[name]
-    return templates_cp
-
-
-def modify_template(templates, name, sql, path=SQLFILE_PATH):
-    '''
-    修改模板中已有的模板，并存储
-    '''
-    assert name in templates, 'Error, valid sql names are {}'.format(list(templates.keys()))
-    templates[name] = sql
-    datatoolkits.dump_pickle(templates, path)
-    return templates
-
-
-def reset_templates(path=SQLFILE_PATH):
-    '''
-    将模板重置为文件中的初始SQL模板
-    '''
-    datatoolkits.dump_pickle(BASIC_SQLs, path)
-    # return BASIC_SQLs
-
-
-# 设置基础常量
-SQLs = get_sql_template()
-# --------------------------------------------------------------------------------------------------
-# 其他函数
+# 数据处理函数
 
 
 def clean_data(raw_data, col_names, replacer=None):
@@ -325,8 +113,8 @@ def gen_sql_cols(cols, sql_type):
     sql_cols, df_cols = zip(*cols.items())
     suffix = 'S.'
     sql_cols = ','.join([suffix + s for s in sql_cols])
-    assert sql_type in SQLs, 'Error, valid sql types are {}'.format(list(SQLs.keys()))
-    sql = SQLs[sql_type]
+    assert sql_type in BASIC_SQLs, 'Error, valid sql types are {}'.format(list(BASIC_SQLs.keys()))
+    sql = BASIC_SQLs[sql_type]
     sql = sql % sql_cols
     TempRes = namedtuple('TempRes', 'sql cols')
     res = TempRes(sql=sql, cols=df_cols)
