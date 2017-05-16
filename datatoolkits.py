@@ -68,6 +68,11 @@ __version__ = 1.8.1
 修改日期：2017-05-12
 修改内容：
     修改retfreq_trans函数的相关说明
+
+__version__ = 1.9.0
+修改日期：2017-05-16
+修改内容：
+    添加数据标准化函数standardlize
 '''
 __version__ = '1.8.1'
 
@@ -356,6 +361,24 @@ def isclose(a, b, rel_tol=1e-9, abs_tol=0.0):
     '''
     return abs(a - b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
 
+
+def standardlize(datas):
+    '''
+    对序列进行标准化，即对所有的数据减去均值除以方差
+    Parameter
+    ---------
+    datas: Series or list like
+        需要进行标准化的数据
+
+    Return
+    ------
+    out: Series
+        标准化后的数据
+    '''
+    if not isinstance(datas, pd.Series):
+        datas = pd.Series(datas)
+    out = (datas - datas.mean()) / datas.std()
+    return out
 
 if __name__ == '__main__':
     pass
