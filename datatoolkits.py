@@ -81,6 +81,7 @@ from math import sqrt
 import numpy as np
 import pandas as pd
 import pickle
+import statsmodels.api as sm
 # import six
 
 
@@ -197,7 +198,7 @@ def map_data(rawData, days, timeCols='time', fromNowOn=False, fillna=None):
     return data
 
 
-def date_processing(date, dateFormat=None):
+def date_processing(date, dateFormat='%Y-%m-%d'):
     '''
     用于检查日期的类型，如果为str则转换为datetime的格式
     @param:
@@ -206,8 +207,6 @@ def date_processing(date, dateFormat=None):
     @return:
         按照转换方法转换后的格式
     '''
-    if dateFormat is None:
-        dateFormat = '%Y-%m-%d'
     if not isinstance(date, dt.datetime):
         date = dt.datetime.strptime(date, dateFormat)
     return date
@@ -379,6 +378,68 @@ def standardlize(datas):
         datas = pd.Series(datas)
     out = (datas - datas.mean()) / datas.std()
     return out
+
+
+def extract_factor_OLS(data, factor_col, x_cols, standardization=True):
+    '''
+    使用OLS回归的方法，剔除新的因子中与以前因子相关的部分，即通过使用因子值对
+    现有因子做回归，取残差
+    Parameter
+    ---------
+    data: DataFrame
+        输入的数据，必须包含factor_col和x_cols参数中的列
+    factor_col: str
+        需要进行处理的因子值的列名
+    x_cols: str or list
+        需要从因子中剔除影响的列的列名
+    standardization: bool, default True
+        是否对因子进行标准化处理
+
+    Return
+    ------
+    out: Series
+        处理后的因子数据
+    '''
+    if isinstance(x_cols, str):
+        x_cols = [x_cols]
+    x_data = data.loc[:, x_cols]
+    y_data = data.loc[:, factor_col]
+    if standardization:
+        for col in x_cols:
+            x_data.loc[:, col] = standardlize(x_data[col])
+        y_data = standardlize(y_data)
+    x_data = sm.add_constant(x_data)
+    model = sm.OLS(y_data, x_data)
+    res = model.fit()
+    out = pd.Series(res.resid, index=data.index)
+    return out
+
+
+def demean(data, weight=None, skipna=True):
+    '''
+    对数据减去均值，默认减去等权的均值，也可自行提供权重，不要求权重的和为1，程序会自动对权重
+    进行正则化
+    Parameter
+    ---------
+    data: Series
+        需要去除均值的序列
+    weight: Series, default None
+        权重，默认为None表示等权
+    skipna: bool, default True
+        是否跳过data中的NA值
+    Return
+    ------
+    out: Series
+        减去加权均值后的序列
+    '''
+    if weight is None:
+        out = data - data.mean(skipna=True)
+    else:
+        weight = weight / np.sum(weight)
+        data_mean = (data*weight).sum(skipna=skipna)
+        out = data - data_mean
+    return out
+
 
 if __name__ == '__main__':
     pass
