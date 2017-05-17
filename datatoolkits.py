@@ -73,6 +73,11 @@ __version__ = 1.9.0
 修改日期：2017-05-16
 修改内容：
     添加数据标准化函数standardlize
+
+__version__ = 1.9.1
+修改日期：2017-05-17
+修改内容：
+    添加extract_factor_OLS和demean函数
 '''
 __version__ = '1.8.1'
 
@@ -436,7 +441,7 @@ def demean(data, weight=None, skipna=True):
         out = data - data.mean(skipna=True)
     else:
         weight = weight / np.sum(weight)
-        data_mean = (data*weight).sum(skipna=skipna)
+        data_mean = (data * weight).sum(skipna=skipna)
         out = data - data_mean
     return out
 
