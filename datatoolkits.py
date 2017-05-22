@@ -78,6 +78,12 @@ __version__ = 1.9.1
 修改日期：2017-05-17
 修改内容：
     添加extract_factor_OLS和demean函数
+
+
+__version__ = 1.10.0
+修改日期：2017-05-22
+修改内容：
+    添加DataLoader
 '''
 __version__ = '1.8.1'
 
@@ -88,6 +94,9 @@ import pandas as pd
 import pickle
 import statsmodels.api as sm
 # import six
+
+# --------------------------------------------------------------------------------------------------
+# 函数
 
 
 def gen_pdcolumns(data, operations):
@@ -445,6 +454,73 @@ def demean(data, weight=None, skipna=True):
         out = data - data_mean
     return out
 
+# --------------------------------------------------------------------------------------------------
+# 类
+# 通用加载数据类
+
+
+def _hdf_loader(path, key, **kwargs):
+    '''
+    读取HDF文件数据
+    Parameter
+    ---------
+    path: str
+        文件路径
+    key: str
+        数据关键字名称
+    kwargs: dict
+        其他HDFStore.select参数
+
+    Return
+    ------
+    out: pd.DataFrame
+        结果数据
+    '''
+    with pd.HDFStore(path) as store:
+        out = store.select(key, **kwargs)
+    return out
+
+
+class DataLoader(object):
+    '''
+    一个加载数据的通用接口，目前支持HDF和pickle的格式
+    '''
+    _loader = {'pickle': load_pickle, 'HDF': _hdf_loader}
+
+    def __init__(self, data_type, path, **kwargs):
+        '''
+        Parameter
+        ---------
+        data_type: str
+            目前仅支持HDF和pickle
+        path: str
+            文件路径
+        kwargs: dict
+            其他参数，主要针对HDF格式的文件，需要说明文件所使用的数据名称，对于HDF文件，该参数的形式
+            必须为key="name"，也可以包含HDFStore.select的其他参数
+        '''
+        self.data_type = data_type
+        self.path = path
+        self.kwargs = kwargs
+
+    def _check_validtype(self, data_type):
+        '''
+        检测参数中给定的数据类型是否合法
+        '''
+        assert data_type in DataLoader._loader, \
+            'Error, valid data types are {valid}, you provide {given}'. \
+            format(valid=list(DataLoader._loader.keys()), given=data_type)
+
+    def load_data(self):
+        '''
+        通用加载数据接口
+        '''
+        loader = DataLoader._loader[self.data_type]
+        kwargs = self.kwargs
+        out = loader(self.path, **kwargs)
+        return out
+
 
 if __name__ == '__main__':
-    pass
+    hdf_data = DataLoader('pickle', r"F:\GeneralLib\CONST_DATAS\random_sample.pickle")
+    data = hdf_data.load_data()
