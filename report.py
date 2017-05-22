@@ -42,6 +42,11 @@ __version__ = 1.3.1
 修改日期：2017-05-09
 修改内容：
     在brief_report中添加sortino比率
+
+__version__ = 1.4.0
+修改日期：2017-05-22
+修改内容：
+    添加trans2formater函数，用于简化报表的格式设置
 """
 __version__ = '1.3.1'
 import pandas as pd
@@ -395,12 +400,43 @@ class ColFormater(object):
 formater = ColFormater()
 table_convertor = HTMLTable()
 
+
+def trans2formater(format_set, formater=formater):
+    '''
+    简化创建每一列的格式的方式，使用户不需要重复输入formater
+
+    Parameter
+    ---------
+    format_set: dict
+        设置格式化的方式，内容应该为{col: (format_type, parameter)}或者{col: format_type}
+
+    Return
+    ------
+    out: dict
+        转换后的标准format格式，即{col: formater.get_modformater(param)}或者{col:
+        formater.get_basicformater(param)}
+
+    Notes
+    -----
+    函数会根据参数的形式推断需要使用的formater的方法，推断方法如下：
+    当字典值为tuple时会使用get_modformater，当字典值为str时，使用get_basicformater
+    '''
+    out = dict()
+    for col, format_type in format_set.items():
+        if isinstance(format_type, str):
+            out[col] = formater.get_basicformater(format_type)
+        else:
+            f, p = format_type
+            out[col] = formater.get_modformater(f, p)
+    return out
+
+
 if __name__ == '__main__':
-    # test_data = datatoolkits.load_pickle(r"F:\GeneralLib\CONST_DATAS\htmltable.pickle")
-    # res = table_convertor.format_df(test_data.reset_index(),
-    #                                 formater={'nav': formater.get_modformater('pctnp', 3),
-    #                                           'CSI700': formater.get_modformater('pctnp', 2)},
-    #                                 order=['nav', 'index', 'CSI700'])
-    ret = datatoolkits.load_pickle(r"F:\GeneralLib\CONST_DATAS\sample_ret.pickle")
-    sr = sortino_ratio(ret.group_05.pct_change().dropna(), 0.04)
-    print(sr)
+    test_data = datatoolkits.load_pickle(r"F:\GeneralLib\CONST_DATAS\htmltable.pickle")
+    res = table_convertor.format_df(test_data.reset_index(),
+                                    formater=trans2formater(
+                                        {'nav': 'pct2p', 'CSI700': ('pctnp', 4)}),
+                                    order=['nav', 'index', 'CSI700'])
+    # ret = datatoolkits.load_pickle(r"F:\GeneralLib\CONST_DATAS\sample_ret.pickle")
+    # sr = sortino_ratio(ret.group_05.pct_change().dropna(), 0.04)
+    # print(sr)
