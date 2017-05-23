@@ -53,6 +53,11 @@ __version__ = 1.6.0
 修改日期：2017-05-23
 修改内容：
     添加因子回测框架
+
+__version__ = 1.6.1
+修改日期：2017-05-23
+修改内容：
+    对get_daily_holding做了小幅修改，去除不必要的行业分类的数据加载
 '''
 __version__ = '1.6.0'
 # --------------------------------------------------------------------------------------------------
@@ -524,8 +529,11 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
     for (reb_dt, chg_dt), tqi in zip(key_dates, tqdm(key_dates)):
         # 获取换仓日股票池
         constituent = get_constituent(stockpool_bydate, chg_dt)
-        # 获取再平衡日的行业分类
-        ind_cls = industry_cls.loc[industry_cls.time == reb_dt]
+        # 获取再平衡日的行业分类，减少不必要的数据加载
+        if industry_cls is None:
+            ind_cls = None
+        else:
+            ind_cls = industry_cls.loc[industry_cls.time == reb_dt]
         # 过滤不能交易的股票，此处会自动将建仓日不存在数据的股票过滤
         tradeable_stocks = quotes_data.loc[(quotes_data.time == chg_dt) & (~quotes_data.STTag) &
                                            quotes_data.tradeable, 'code'].tolist()
@@ -759,7 +767,7 @@ if __name__ == '__main__':
     constituent_loader = datatoolkits.DataLoader(
         'HDF', r"F:\实习工作内容\东海证券\基础数据\指数成份\index_constituents.h5", key='Index_000985')
     ind_loader = datatoolkits.DataLoader(
-        'HDF', r"F:\实习工作内容\东海证券\基础数据\指数成份\industry_classification.h5", key='sw_cls_20161230')
+        'None', r"F:\实习工作内容\东海证券\基础数据\指数成份\industry_classification.h5")
     test = Test(quote_loader, constituent_loader, ind_loader,
                 get_stocks, '2016-01-01', '2016-12-31')
     test.run()

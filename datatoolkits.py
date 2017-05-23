@@ -84,8 +84,13 @@ __version__ = 1.10.0
 修改日期：2017-05-22
 修改内容：
     添加DataLoader
+
+__version__ = 1.10.1
+修改日期：2017-05-23
+修改内容：
+    在DataLoader中添加None的选项，可以加载空值数据
 '''
-__version__ = '1.8.1'
+__version__ = '1.10.0'
 
 import datetime as dt
 from math import sqrt
@@ -481,11 +486,15 @@ def _hdf_loader(path, key, **kwargs):
     return out
 
 
+def _none_loader(path, **kwargs):
+    return None
+
+
 class DataLoader(object):
     '''
     一个加载数据的通用接口，目前支持HDF和pickle的格式
     '''
-    _loader = {'pickle': load_pickle, 'HDF': _hdf_loader}
+    _loader = {'pickle': load_pickle, 'HDF': _hdf_loader, 'None': _none_loader}
 
     def __init__(self, data_type, path, **kwargs):
         '''
