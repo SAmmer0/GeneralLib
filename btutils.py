@@ -48,19 +48,30 @@ __version__ = 1.5
 修改日期：2017-05-10
 修改内容：
     添加流通市值加权的权重计算方法
+
+__version__ = 1.6.0
+修改日期：2017-05-23
+修改内容：
+    添加因子回测框架
 '''
-__version__ = '1.5'
+__version__ = '1.6.0'
 # --------------------------------------------------------------------------------------------------
 # import
 from collections import namedtuple
 import datatoolkits
 import dateshandle
 # from enum import Enum
+import numpy as np
 import pandas as pd
+import report
+import scipy.stats as spstats
 from tqdm import tqdm
 # --------------------------------------------------------------------------------------------------
 # 常量和类的定义
+# 持仓组合类型
 Position = namedtuple('Position', 'pos')
+
+# 持仓组合的集合类型
 
 
 class PositionGroup(object):
@@ -101,6 +112,7 @@ class PositionGroup(object):
         return repr(self.groups)
 
 
+# 明细组合类型，包含持仓代码和持仓的数量，并能够对组合进行操作和计算
 class Portfolio(object):
     '''
     用于记录组合的持仓状况
@@ -155,7 +167,7 @@ class Portfolio(object):
             self.cash += delist_value
         self.pos = self.pos.loc[~self.pos.code.isin(delist_codes)].reset_index(drop=True)
 
-# WeightCalculator的私有函数
+# WeightCalculator的私有的权重计算函数
 
 
 def _money_weighted(pos, quote):
@@ -224,6 +236,234 @@ class WeightCalculator(object):
     def cal_weight(self, pos, quote):
         weight_func = WeightCalculator.weight_method[self.weighted_type]
         return weight_func(pos, quote)
+
+
+# 因子测试框架类
+def _benchmark_filter(quote, ind_cls):
+    '''
+    样例函数，用于返回基准的所有股票代码
+    Parameter
+    ---------
+    quote: pd.DataFrame
+        相当于stock_filter的sig_data参数，因为返回所有股票，需要有code列
+    ind_cls: pd.DataFrame
+        空闲参数，保证API的一致
+
+    Return
+    ------
+    out: list of list
+        列表类型，中间只包含一个元素，且为列表类型，内部列表中为股票代码
+    '''
+    codes = quote.code.tolist()
+    out = [codes]
+    return out
+
+
+class Backtest(object):
+    '''
+    Notes
+    -----
+    回测接口框架，主要包含以下几步：
+    1. get_rawdata: 获取原始数据（必须用户实现）
+    2. get_observable_data: 获取可观察的数据（可选）
+    3. processing_data: 计算相关指标（必须用户实现）
+    4. get_rebdates: 计算在平衡日（可选）
+    5. processing_backtest: 进行回测（可选）
+    6. analysis: 进行回测结果分析（可选）
+    '''
+
+    def __init__(self, quote_loader, constituent_loader, ind_loader, stock_filter, start_time,
+                 end_time, freq='M', benchmark_filter=_benchmark_filter,
+                 weight_method='money-weighted'):
+        '''
+        Parameter
+        ---------
+        quote_loader: datatoolkits.DataLoader
+            行情数据加载器
+        constituent_loader: datatoolkits.DataLoader
+            指数成份数据加载器
+        ind_loader: datatoolkits.DataLoader
+            行业成份数据加载器
+        stock_filter: function
+            需要传入get_daily_holding用于获取每次筛选出股票的
+        start_time: str or datetime
+            回测开始时间
+        end_time: str or datetime
+            回测终止时间
+        freq: str, default "M"
+            回测频率，目前只支持月频和周频，且均在每个周期的最后一个交易日收盘后计算信号，在下个周期
+            开始的时间买入，目前可选的类型有'M'表示月度换仓，'W'表示周度换仓
+        benchmark_filter: func, default None
+            返回基准指数的成份的函数，用于传入回测程序中获取基准指数的净值情况，如果为None则不计算，
+            在计算基准净值时，参考使用的成份为constituent_loader中的数据
+        '''
+        self.quote_loader = quote_loader
+        self.constituent_loader = constituent_loader
+        self.ind_loader = ind_loader
+        self.stock_filter = stock_filter
+        self.start_time = start_time
+        self.end_time = end_time
+        self.freq = freq
+        self.benchmark_filter = benchmark_filter
+        self.weight_method = weight_method
+        self._cache = dict()
+
+    def get_rawdata(self):
+        '''
+        用户需要自行实现获取数据的函数，该函数没有任何参数，且返回pd.DataFrame格式的数据
+        Return
+        ------
+        out: pd.DataFrame
+            整理好的原始数据
+        '''
+        raise NotImplementedError
+
+    def get_observable_data(self, raw_data):
+        '''
+        用户可选实现的函数，目的是为了计算出每个日期能够观察到的数据，如果用户未给出实现，则直接返回
+        raw_data
+
+        Parameter
+        ---------
+        raw_data: pd.DataFrame
+            待处理的原始数据
+
+        Return
+        ------
+        out: pd.DataFrame
+            处理好后的观察日数据
+        '''
+        return raw_data
+
+    def processing_data(self, obs_data):
+        '''
+        用户必须实现的函数，用于计算在回测过程中需要使用的所有指标
+        Parameter
+        ---------
+        obs_data: pd.DataFrame
+            处理后的观察日数据
+
+        Return
+        ------
+        out: pd.DataFrame
+            处理后的对应每个交易日的数据（或者对应再平衡日的数据）
+        '''
+        raise NotImplementedError
+
+    def get_rebdates(self):
+        '''
+        用于获取换仓日的数据，用户可选实现，默认为换仓日为每个月的第一个交易日；用户自行实现需要
+        返回一个日期列表，日期必须为标准化后的时间，且列表需要按照升序排列
+        Return
+        ------
+        out: list like
+            按照升序排列的换仓日
+        '''
+        out = dateshandle.get_rebtd(self.start_time, self.end_time, freq=self.freq)
+        return out
+
+    def processing_backtest(self, sig_data, reb_dates):
+        '''
+        实行回测，用户可选实现，默认情况下，直接加载信号数据行情数据、行业成份数据和指数成份数据,
+        如果用户自行实现，需要将持仓设置为self的holding属性，并将净值结果存储为nav属性；回测实例
+        具有_cache属性，可用于存储后续需要使用的大量数据，在用户自行实现该函数过程中可以考虑使用
+        该缓存来加速
+        Parameter
+        ---------
+        sig_data: pd.DataFrame
+            信号数据
+        reb_dates: list like
+        '''
+        quote = self.quote_loader.load_data()
+        ind_cls = self.ind_loader.load_data()
+        index_constituent = self.constituent_loader.load_data()
+        # 将可能需要使用的数据加入缓存
+        self._cache['quote'] = quote
+        self._cache['ind_cls'] = ind_cls
+        self._cache['index_constituent'] = index_constituent
+        self._cache['reb_dates'] = reb_dates
+        # 进行回测
+        stock_filter = self.stock_filter
+        weight_method = self.weight_method
+        holding = get_daily_holding(sig_data, quote, index_constituent, ind_cls, stock_filter,
+                                    reb_dates)
+        self.nav = cal_nav(holding, reb_dates[-1], quote, buildpos_type=weight_method)
+        self.holding = holding
+
+    def analysis(self):
+        '''
+        对回测结果进行分析，用户可选实现，不返回结果，对于所有分析结果设置为回测实例的属性，默认包含
+        的回测分析有：在nav中添加benchmark列，计算每列数据的年度收益（yearly_ret）和月度收益（
+        monthly_ret），计算每组相对于基准的月度超额收益（monthly_excess），计算月度超额收益的t值和对
+        应的p值（monthly_ttest），年度收益报表（yearlyret_tab），超额收益t检验报表（ttest_tab）
+        Notes
+        -----
+        在本函数中默认情况下使用了回测过程中存储的缓存，如果回测函数进行了改变，该函数可能需要进行
+        对应的改变
+        '''
+        # 从缓存中加载数据
+        quote = self._cache['quote']
+        ind_cls = self._cache['ind_cls']
+        index_constituent = self._cache['index_constituent']
+        reb_dates = self._cache['reb_dates']
+        # 计算基准的净值
+        index_holding = get_daily_holding(quote, quote, index_constituent, ind_cls,
+                                          self.benchmark_filter, reb_dates)
+        index_nav = cal_nav(index_holding, reb_dates[-1], quote)
+        index_nav = index_nav.rename(columns={'group_01': 'benchmark'})
+        navs = pd.merge(self.nav, index_nav, left_index=True, right_index=True)
+        assert len(navs) == len(self.nav) and len(navs) == len(index_nav),\
+            '''Error, merge procedure produces missing data:
+               len(navs) = {navs},
+               len(self.nav) = {nav},
+               len(index_nav) = {inavl}'''.format(navs=len(navs),
+                                                  nav=len(self.nav),
+                                                  inavl=len(index_nav))
+        self.nav = navs
+        # 计算月度数据和年度数据
+        self.yearly_ret = self.nav.groupby(lambda x: x.year).\
+            apply(lambda x: x.iloc[-1] / x.iloc[0] - 1)
+        self.monthly_ret = self.nav.groupby(lambda x: x.strftime('%Y-%m')).\
+            apply(lambda x: x.iloc[-1] / x.iloc[0] - 1)
+        # 计算月度超额收益
+        is_group_columns = self.monthly_ret.columns.str.startswith('group_')
+        group_columns = sorted(self.monthly_ret.columns[is_group_columns])
+        self.monthly_excess = self.monthly_ret.loc[:, group_columns].\
+            apply(lambda x: x - self.monthly_ret['benchmark'])
+        # 对月度超额收益进行t检验
+        self.monthly_ttest = self.monthly_excess.apply(spstats.ttest_1samp, popmean=0)
+        # 生成相关报表
+        table_convertor = report.table_convertor
+        format_set = dict(zip(group_columns, len(group_columns) * ['pct2p']))
+        format_set['benchmark'] = 'pct2p'
+        format_set = report.trans2formater(format_set)
+        self.yearlyret_tab = table_convertor.format_df(self.yearly_ret.reset_index().
+                                                       rename(columns={'index': 'time'}),
+                                                       format_set,
+                                                       order=['time'] + group_columns +
+                                                       ['benchmark'])
+        ttest = _transttest(self.monthly_ttest)
+        ttest_formatset = {'tvalue': ('pctnp', 4), 'pvalue': ('pctnp', 4)}
+        ttest_formatset = report.trans2formater(ttest_formatset)
+        self.ttest_tab = table_convertor.format_df(ttest, ttest_formatset,
+                                                   order=['group_name', 'tvalue', 'pvalue'])
+
+    def run(self):
+        '''
+        回测启动函数
+        '''
+        raw_data = self.get_rawdata()
+        obs_data = self.get_observable_data(raw_data)
+        sig_data = self.processing_data(obs_data)
+        reb_dates = self.get_rebdates()
+        self.processing_backtest(sig_data, reb_dates)
+        self.analysis()
+
+    def clear_cache(self):
+        '''
+        清除缓存数据
+        '''
+        self._cache = dict()
 # --------------------------------------------------------------------------------------------------
 # 函数
 
@@ -291,7 +531,7 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
                                            quotes_data.tradeable, 'code'].tolist()
         tradeable_stocks = set(tradeable_stocks).intersection(constituent)
 
-        # 获取当前信号数据，加入指数成份过滤
+        # 获取当前信号数据，加入指数成份过滤，更新pandas的版本(0.20.1)后发现此步骤速度特别慢
         reb_sig_data = signal_data.loc[(signal_data['time'] == reb_dt) &
                                        (signal_data['code'].isin(tradeable_stocks))]
         # 根据信号函数计算当前的股票组
@@ -419,7 +659,7 @@ def cal_IC(factor_data, quotes, factor_col, rebalance_dates, price_type='close',
         factor_data: df格式，因子值，必须包含['time', 'code', factor_col]列
         quotes: 行情数据
         factor_col: 因子值所在的列
-        rebalance_dates: 因子计算的日期序列，为股票的收益也会是在相隔两个rebalance day之间的收益，
+        rebalance_dates: 因子计算的日期序列，股票的收益也会是在相隔两个rebalance day之间的收益
         price_type: 计算收益的价格类型，默认为close
         warning_threshold: 触发警告的数量阈值，因为有些股票会在月中退市，在计算时会将这些股票直接
             剔除，但是为了检查剔除的数量是否合理，设置警告的阈值，当剔除的数量超过这个阈值会触发
@@ -434,9 +674,12 @@ def cal_IC(factor_data, quotes, factor_col, rebalance_dates, price_type='close',
     by_code = quotes.groupby('code')
     quotes['ret'] = by_code[price_type].transform(lambda x: x.pct_change().shift(-1))
     quotes = quotes.dropna()
-    data = pd.merge(factor_data, quotes, on=['code', 'time'], how='right')
+    # 将合并方式从right改为inner，因为经常碰到的情况是factor_data没有数据，而行情有数据
+    data = pd.merge(factor_data, quotes, on=['code', 'time'], how='inner')
     if len(data) < len(factor_data) - warning_threshold:
-        print('Warning: %d stocks have been removed' % (len(factor_data) - len(data)))
+        print('Warning: %d stocks data have been removed' % (len(factor_data) - len(data)))
+        # tmp = pd.merge(factor_data, quotes, on=['code', 'time'], how='left')
+        # tmp = tmp.loc[np.any(pd.isnull(tmp), axis=1)]
     by_time = data.groupby('time')
     ICs = by_time.apply(lambda x: x[factor_col].corr(x.ret))
     return ICs.sort_index()
@@ -469,21 +712,54 @@ def holding2df(holding, fill=''):
     return res
 
 
+def _transttest(ttest_res):
+    '''
+    将t检验的结果转换为DataFrame的格式
+    Parameter
+    ---------
+    ttest_res: Series
+        索引为组名，值为spstats.ttest_1samp的返回结果
+
+    Return
+    ------
+    out: DataFrame
+        包含有三列，分别为group_name, tvalue和pvalue，每列为各组对应的值
+    '''
+    col_name = ['group_name', 'tvalue', 'pvalue']
+    res = list()
+    for col in ttest_res.iteritems():
+        tmp = [col[0]] + list(col[1])
+        res.append(dict(zip(col_name, tmp)))
+    return pd.DataFrame(res)
+
+
 if __name__ == '__main__':
-    def get_index_groups(sig_data, ind_cls):
-        return [sig_data['code'].tolist()]
-    quote_store = pd.HDFStore(r"F:\实习工作内容\东海证券\基础数据\行情数据\quote_store.h5")
-    quote = quote_store['quote_adj_20170510']
-    quote_store.close()
-    index_store = pd.HDFStore(r"F:\实习工作内容\东海证券\基础数据\指数成份\index_constituents.h5")
-    index_constituent = index_store['Index_000985']
-    index_constituent.code = index_constituent.code.apply(datatoolkits.add_suffix)
-    index_store.close()
-    tds = dateshandle.get_tds('2012-01-01', '2017-03-31')
-    rebalance_dates = dateshandle.get_nth_day(tds, lambda x: x.strftime('%Y-%m'), -1, to_df=False)
-    sw_cls = datatoolkits.load_pickle(
-        r'F:\实习工作内容\东海证券\主流投资策略\data\const\sw_classification_complete.pickle')
-    index_holding = get_daily_holding(quote, quote, index_constituent, sw_cls,
-                                      get_index_groups, rebalance_dates)
-    index_rets = cal_nav(index_holding, rebalance_dates[-1], quote, ini_capital=1e11,
-                         buildpos_type='mktvalue-weighted')
+    class Test(Backtest):
+
+        def get_rawdata(self):
+            data = self.quote_loader.load_data()
+            data = data.loc[:, ['mktvalue', 'time', 'code']]
+            return data
+
+        def processing_data(self, obs_data):
+            return obs_data
+
+    def get_stocks(sig_data, ind_cls):
+        sig_data = sig_data.assign(log_mktvalue=lambda x: np.log(x['mktvalue'])).\
+            assign(group_cls=lambda x: pd.qcut(x.log_mktvalue, 10, labels=range(1, 11)))
+        by_cls = sig_data.groupby('group_cls')
+        res = list()
+        for g_idx in sorted(by_cls.groups):
+            tmp_data = by_cls.get_group(g_idx)
+            res.append(tmp_data.code.tolist())
+        return res
+
+    quote_loader = datatoolkits.DataLoader(
+        'HDF', r"F:\实习工作内容\东海证券\基础数据\行情数据\quote_store.h5", key='quote_adj_20170510')
+    constituent_loader = datatoolkits.DataLoader(
+        'HDF', r"F:\实习工作内容\东海证券\基础数据\指数成份\index_constituents.h5", key='Index_000985')
+    ind_loader = datatoolkits.DataLoader(
+        'HDF', r"F:\实习工作内容\东海证券\基础数据\指数成份\industry_classification.h5", key='sw_cls_20161230')
+    test = Test(quote_loader, constituent_loader, ind_loader,
+                get_stocks, '2016-01-01', '2016-12-31')
+    test.run()
