@@ -511,6 +511,7 @@ class DataLoader(object):
         self.data_type = data_type
         self.path = path
         self.kwargs = kwargs
+        self._cache = None
 
     def _check_validtype(self, data_type):
         '''
@@ -524,10 +525,20 @@ class DataLoader(object):
         '''
         通用加载数据接口
         '''
-        loader = DataLoader._loader[self.data_type]
-        kwargs = self.kwargs
-        out = loader(self.path, **kwargs)
+        if self._cache is None:
+            loader = DataLoader._loader[self.data_type]
+            kwargs = self.kwargs
+            out = loader(self.path, **kwargs)
+            self._cache = out
+        else:
+            out = self._cache
         return out
+
+    def clear_cache(self):
+        '''
+        清理缓存数据
+        '''
+        self._cache = None
 
 
 if __name__ == '__main__':
