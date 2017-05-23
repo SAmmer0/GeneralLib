@@ -312,7 +312,6 @@ class Backtest(object):
         self.freq = freq
         self.benchmark_filter = benchmark_filter
         self.weight_method = weight_method
-        self._cache = dict()
 
     def get_rawdata(self):
         '''
@@ -383,11 +382,14 @@ class Backtest(object):
         quote = self.quote_loader.load_data()
         ind_cls = self.ind_loader.load_data()
         index_constituent = self.constituent_loader.load_data()
-        # 将可能需要使用的数据加入缓存
-        self._cache['quote'] = quote
-        self._cache['ind_cls'] = ind_cls
-        self._cache['index_constituent'] = index_constituent
-        self._cache['reb_dates'] = reb_dates
+        # 因为在DataLoader中已经加入缓存的功能，故在这个地方删去
+        # # 将可能需要使用的数据加入缓存
+        # self._cache['quote'] = quote
+        # self._cache['ind_cls'] = ind_cls
+        # self._cache['index_constituent'] = index_constituent
+        # self._cache['reb_dates'] = reb_dates
+        # 此处动态添加换仓日的缓存
+        self.reb_dates = reb_dates
         # 进行回测
         stock_filter = self.stock_filter
         weight_method = self.weight_method
@@ -408,10 +410,10 @@ class Backtest(object):
         对应的改变
         '''
         # 从缓存中加载数据
-        quote = self._cache['quote']
-        ind_cls = self._cache['ind_cls']
-        index_constituent = self._cache['index_constituent']
-        reb_dates = self._cache['reb_dates']
+        quote = self.quote_loader.load_data()
+        ind_cls = self.ind_loader.load_data()
+        index_constituent = self.constituent_loader.load_data()
+        reb_dates = self.reb_dates
         # 计算基准的净值
         index_holding = get_daily_holding(quote, quote, index_constituent, ind_cls,
                                           self.benchmark_filter, reb_dates)
@@ -465,11 +467,6 @@ class Backtest(object):
         self.processing_backtest(sig_data, reb_dates)
         self.analysis()
 
-    def clear_cache(self):
-        '''
-        清除缓存数据
-        '''
-        self._cache = dict()
 # --------------------------------------------------------------------------------------------------
 # 函数
 
