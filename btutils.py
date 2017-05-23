@@ -57,9 +57,10 @@ __version__ = 1.6.0
 __version__ = 1.6.1
 修改日期：2017-05-23
 修改内容：
-    对get_daily_holding做了小幅修改，去除不必要的行业分类的数据加载
+    1. 对get_daily_holding做了小幅修改，去除不必要的行业分类的数据加载
+    2. 修改了获取当前行业分类的方式
 '''
-__version__ = '1.6.0'
+__version__ = '1.6.1'
 # --------------------------------------------------------------------------------------------------
 # import
 from collections import namedtuple
@@ -489,6 +490,34 @@ def get_constituent(by_date_constituent, date):
     return code_res
 
 
+def get_industrycls(ind_cls, date):
+    '''
+    计算当前时间的行业分类
+    Parameter
+    ---------
+    ind_cls: pd.DataFrame
+        行业分类数据，列名要求为code, time和abbr
+    date: datetime or compatible type
+        需要获取的行业分类的时间
+
+    Return
+    ------
+    out: pd.DataFrame
+        包含三列，code和abbr
+
+    Notes
+    -----
+    使用这种方法获取行业分类会导致之前申万行业分类的获取速度下降很大，主要是因为申万已经有了每个
+    交易日的股票行业数据，在本函数中会使用排序等，从而导致对于数据量较大的申万行业分类速度很慢，
+    推荐使用中信行业分类
+    '''
+    data = ind_cls.loc[ind_cls.time <= date]    # 假设所有行业相关的信息都在开盘前发布
+    data = data.sort_values('time')
+    by_code = data.groupby('code')
+    out = by_code.tail(1).reset_index(drop=True).drop('time', axis=1)
+    return out
+
+
 def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_filter,
                       rebalance_dates):
     '''
@@ -533,7 +562,8 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
         if industry_cls is None:
             ind_cls = None
         else:
-            ind_cls = industry_cls.loc[industry_cls.time == reb_dt]
+            # ind_cls = industry_cls.loc[industry_cls.time == reb_dt]
+            ind_cls = get_industrycls(industry_cls, reb_dt)
         # 过滤不能交易的股票，此处会自动将建仓日不存在数据的股票过滤
         tradeable_stocks = quotes_data.loc[(quotes_data.time == chg_dt) & (~quotes_data.STTag) &
                                            quotes_data.tradeable, 'code'].tolist()
