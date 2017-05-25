@@ -59,8 +59,13 @@ __version__ = 1.6.1
 修改内容：
     1. 对get_daily_holding做了小幅修改，去除不必要的行业分类的数据加载
     2. 修改了获取当前行业分类的方式
+
+__version__ = 1.6.2
+修改日期：2017-05-25
+修改内容：
+    添加计算换手率的函数
 '''
-__version__ = '1.6.1'
+__version__ = '1.6.2'
 # --------------------------------------------------------------------------------------------------
 # import
 from collections import namedtuple
@@ -168,6 +173,7 @@ class Portfolio(object):
             price_type: 计算退市价格的类型，默认为close
         '''
         for code in delist_codes:
+            # 这里面假设行情价格是按照时间升序排列的
             delist_price = quotes.loc[(quotes.code == code) & quotes.tradeable, price_type].iloc[-1]
             delist_value = delist_price * self.pos.loc[self.pos.code == code, 'num'].iloc[0]
             self.cash += delist_value
@@ -577,7 +583,7 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
     return holdings
 
 
-def cal_nav(holdings, end_date, quotes, ini_capital=1e9, normalize=True, **kwargs):
+def cal_nav(holdings, end_date, quotes, ini_capital=1e9, normalize=True, cal_to=False, **kwargs):
     '''
     根据持仓状况计算策略的净值（以每个交易日的收盘价计算）
     @param:
@@ -589,6 +595,7 @@ def cal_nav(holdings, end_date, quotes, ini_capital=1e9, normalize=True, **kwarg
         ini_capital: 初始资本，默认为10亿人民币，避免数额过小导致在整数约束下很多股票的数量为0
         normalize: 是否将组合的价值由金额转换为净值（转换方法为组合市场价值除以初始资本），
             默认为True，即需要转换
+        cal_to: 是否计算换手率，默认为False
         kwargs: 一些其他的参数，用于传入build_pos函数
     @return:
         df类型，索引为时间，列名为group_i，其中i为分组次序
@@ -606,6 +613,7 @@ def cal_nav(holdings, end_date, quotes, ini_capital=1e9, normalize=True, **kwarg
     portfolio_record = None     # 组合记录
     nav = list()    # 净值结果
     cols = ['time'] + ['group_%02d' % i for i in range(1, len(holdings[start_date]) + 1)]    # 结果列名
+    turnover = list()   # 换手率
     # 交易日循环
     for td, tq_idx in zip(sorted(tds_map), tqdm(tds_map)):
         # 当前为换仓日，第一个建仓日一定为换仓日
@@ -622,6 +630,16 @@ def cal_nav(holdings, end_date, quotes, ini_capital=1e9, normalize=True, **kwarg
                 tmp_port = build_pos(pos, portfolio_record[port_idx].mkt_value(quotes, td, 'open'),
                                      quotes, td, **kwargs)
                 tmp_portrecord.append(tmp_port)
+            # TODO 在此处添加换手率计算，为了保证兼容性，可以考虑加入默认参数，默认不返回换手率
+            if portfolio_record is None:
+                tmp_to = {'turnover_%02d' % (i + 1): 0 for i in range(len(tmp_portrecord))}
+                tmp_to['time'] = td
+            else:
+                tmp_to = dict()
+                ports = zip(portfolio_record, tmp_portrecord)
+                for port_idx, p in enumerate(ports):
+                    tmp_to['turnover_%02d' % (port_idx + 1)] = cal_turnover(p[0], p[1], quotes, td)
+            turnover.append(tmp_to)
             portfolio_record = tmp_portrecord   # 更新portfolio_record
         # 计算每个组合的收盘市场价值
         tmp_mktvalue = list()
@@ -635,6 +653,9 @@ def cal_nav(holdings, end_date, quotes, ini_capital=1e9, normalize=True, **kwarg
     if normalize:
         for i in range(1, len(holdings[start_date]) + 1):
             nav['group_%02d' % i] = nav['group_%02d' % i] / ini_capital
+    if cal_to:
+        turnover = pd.DataFrame(turnover)
+        return nav, turnover
     return nav
 
 
@@ -685,6 +706,62 @@ def build_pos(pos, cash, quotes, date, price_col='open', buildpos_type='money-we
     return res
 
 
+def cal_turnover(port_ante, port_post, quote, date, price_type='open', include_cash=True):
+    '''
+    计算组合的换手率，换手率定义为T = 1/2 * sum(w_i^new - w_i^old)
+    Parameter
+    ---------
+    port_ante: Portfolio
+        在换手前的组合持仓
+    port_post: Portfolio
+        在换手后的组合持仓
+    quote: pd.DataFrame
+        行情数据
+    date: datetime or other compatible types
+        换仓时间
+    price_type: str, default "open"
+        换仓时价格计算类型
+    include_cash: boolean, default True
+        是否将现金占比包含在换仓计算中
+
+    Return
+    ------
+    out: float
+        换手率
+
+    Notes
+    -----
+    在计算换手率的过程中，假设当前组合中有退市的股票时，先对退市股票作退市处理，将其转换为现金，然后
+    再计算总体的换手率；且假设只有老的组合中存在退市的情况，新的组合中没有退市股票。
+    注意：这种方法计算出的结果存在低估换手率的可能
+    '''
+    quote_cs = quote.loc[quote.time == date]
+    if not set(port_ante.pos.code).issubset(quote_cs.code):  # 出现退市的情况
+        delist_codes = set(port_ante.pos.code).difference(quote_cs.code)
+        port_ante.delist_value(delist_codes, quote)
+    # 计算组合持仓的各个股票的市值
+    ante_df = pd.merge(port_ante.pos, quote_cs, on='code', how='left')
+    post_df = pd.merge(port_post.pos, quote_cs, on='code', how='left')
+    ante_df = ante_df.assign(stock_mkv=lambda x: x[price_type] * x.num).\
+        loc[:, ['code', 'stock_mkv']]
+    post_df = post_df.assign(stock_mkv=lambda x: x[price_type] * x.num).\
+        loc[:, ['code', 'stock_mkv']]
+    if include_cash:
+        ante_df = ante_df.append({'code': 'CASH', 'stock_mkv': port_ante.cash}, ignore_index=True)
+        post_df = post_df.append({'code': 'CASH', 'stock_mkv': port_post.cash}, ignore_index=True)
+    # 计算组合持仓的权重
+    ante_df = ante_df.assign(weight=lambda x: x.stock_mkv / x.stock_mkv.sum())
+    post_df = post_df.assign(weight=lambda x: x.stock_mkv / x.stock_mkv.sum())
+    # 计算换手率
+    ante_df = ante_df.set_index('code')
+    post_df = post_df.set_index('code')
+    ante_df = ante_df.reindex(ante_df.index.union(post_df.index)).fillna(0)
+    post_df = post_df.reindex(post_df.index.union(ante_df.index)).fillna(0)
+    to = post_df.weight - ante_df.weight
+    out = np.sum(np.abs(to))
+    return out
+
+
 def cal_IC(factor_data, quotes, factor_col, rebalance_dates, price_type='close',
            warning_threshold=10):
     '''
@@ -722,13 +799,13 @@ def cal_IC(factor_data, quotes, factor_col, rebalance_dates, price_type='close',
 
 # --------------------------------------------------------------------------------------------------
 # 持仓分析模块
-def holding2df(holding, fill=''):
+def holding2df(holding, fill='NAC'):
     '''
     将持仓转化为df的格式：
     包含了time和group_i列，其中，group_i有多少列视持仓分组的数量而定，按照time进行排列
     @param:
         holding: get_daily_holding返回的结果，即字典类型{time: PositionGroup}
-        fill: 不同组别股票数量不一致，为了对齐需要进行填充，默认填充''(空字符串)
+        fill: 不同组别股票数量不一致，为了对齐需要进行填充，默认填充'NAC'(Not A Code)
     @return:
         转化后的df，对于不同的组别股票数量可能不一致，需要进行填充，以股票数量最多的组为标杆，
         其他组数量达不到则填充fill参数
@@ -769,32 +846,12 @@ def _transttest(ttest_res):
 
 
 if __name__ == '__main__':
-    class Test(Backtest):
-
-        def get_rawdata(self):
-            data = self.quote_loader.load_data()
-            data = data.loc[:, ['mktvalue', 'time', 'code']]
-            return data
-
-        def processing_data(self, obs_data):
-            return obs_data
-
-    def get_stocks(sig_data, ind_cls):
-        sig_data = sig_data.assign(log_mktvalue=lambda x: np.log(x['mktvalue'])).\
-            assign(group_cls=lambda x: pd.qcut(x.log_mktvalue, 10, labels=range(1, 11)))
-        by_cls = sig_data.groupby('group_cls')
-        res = list()
-        for g_idx in sorted(by_cls.groups):
-            tmp_data = by_cls.get_group(g_idx)
-            res.append(tmp_data.code.tolist())
-        return res
-
     quote_loader = datatoolkits.DataLoader(
         'HDF', r"F:\实习工作内容\东海证券\基础数据\行情数据\quote_store.h5", key='quote_adj_20170510')
-    constituent_loader = datatoolkits.DataLoader(
-        'HDF', r"F:\实习工作内容\东海证券\基础数据\指数成份\index_constituents.h5", key='Index_000985')
-    ind_loader = datatoolkits.DataLoader(
-        'None', r"F:\实习工作内容\东海证券\基础数据\指数成份\industry_classification.h5")
-    test = Test(quote_loader, constituent_loader, ind_loader,
-                get_stocks, '2016-01-01', '2016-12-31')
-    test.run()
+    quote = quote_loader.load_data()
+    date = pd.to_datetime('2012-02-14')
+    port_ante = Portfolio(pd.DataFrame(
+        {'code': ['002230.SZ', '000001.SZ'], 'num': [1000, 2000]}), 1e4)
+    port_post = Portfolio(pd.DataFrame(
+        {'code': ['600519.SH', '000001.SZ'], 'num': [2000, 1000]}), 1e3)
+    res = cal_turnover(port_ante, port_post, quote, date)
