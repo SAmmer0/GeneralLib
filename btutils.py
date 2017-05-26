@@ -64,6 +64,11 @@ __version__ = 1.6.2
 修改日期：2017-05-25
 修改内容：
     添加计算换手率的函数
+
+__version__ = 1.6.3
+修改日期：2017-05-26
+修改内容：
+    完成换手率功能测试，修改部分bug
 '''
 __version__ = '1.6.2'
 # --------------------------------------------------------------------------------------------------
@@ -620,7 +625,7 @@ def cal_nav(holdings, end_date, quotes, ini_capital=1e9, normalize=True, cal_to=
         if tds_map[td] == td:
             cur_pos = holdings[td]
             if portfolio_record is None:    # 第一次建仓
-                portfolio_record = [Portfolio(pd.DataFrame(), ini_capital)
+                portfolio_record = [Portfolio(pd.DataFrame({'code': [], 'num': []}), ini_capital)
                                     for i in range(len(cur_pos))]
             tmp_portrecord = list()
             for port_idx, pos in enumerate(cur_pos):
@@ -631,14 +636,11 @@ def cal_nav(holdings, end_date, quotes, ini_capital=1e9, normalize=True, cal_to=
                                      quotes, td, **kwargs)
                 tmp_portrecord.append(tmp_port)
             # TODO 在此处添加换手率计算，为了保证兼容性，可以考虑加入默认参数，默认不返回换手率
-            if portfolio_record is None:
-                tmp_to = {'turnover_%02d' % (i + 1): 0 for i in range(len(tmp_portrecord))}
-                tmp_to['time'] = td
-            else:
-                tmp_to = dict()
-                ports = zip(portfolio_record, tmp_portrecord)
-                for port_idx, p in enumerate(ports):
-                    tmp_to['turnover_%02d' % (port_idx + 1)] = cal_turnover(p[0], p[1], quotes, td)
+            tmp_to = dict()
+            ports = zip(portfolio_record, tmp_portrecord)
+            for port_idx, p in enumerate(ports):
+                tmp_to['turnover_%02d' % (port_idx + 1)] = cal_turnover(p[0], p[1], quotes, td)
+            tmp_to['time'] = td
             turnover.append(tmp_to)
             portfolio_record = tmp_portrecord   # 更新portfolio_record
         # 计算每个组合的收盘市场价值
@@ -749,7 +751,7 @@ def cal_turnover(port_ante, port_post, quote, date, price_type='open', include_c
     if include_cash:
         ante_df = ante_df.append({'code': 'CASH', 'stock_mkv': port_ante.cash}, ignore_index=True)
         post_df = post_df.append({'code': 'CASH', 'stock_mkv': port_post.cash}, ignore_index=True)
-    # 计算组合持仓的权重
+    # 计算组合持仓的权重，这个地方可以直接使用计算市值的函数计算
     ante_df = ante_df.assign(weight=lambda x: x.stock_mkv / x.stock_mkv.sum())
     post_df = post_df.assign(weight=lambda x: x.stock_mkv / x.stock_mkv.sum())
     # 计算换手率
@@ -758,7 +760,7 @@ def cal_turnover(port_ante, port_post, quote, date, price_type='open', include_c
     ante_df = ante_df.reindex(ante_df.index.union(post_df.index)).fillna(0)
     post_df = post_df.reindex(post_df.index.union(ante_df.index)).fillna(0)
     to = post_df.weight - ante_df.weight
-    out = np.sum(np.abs(to))
+    out = np.sum(np.abs(to)) * 0.5
     return out
 
 
@@ -846,12 +848,43 @@ def _transttest(ttest_res):
 
 
 if __name__ == '__main__':
+    def get_stocks(sig_data, ind_cls):
+        sig_data = sig_data.assign(log_mktvalue=lambda x: np.log(x['mktvalue'])).\
+            assign(group_cls=lambda x: pd.qcut(x.log_mktvalue, 10, labels=range(1, 11)))
+        by_cls = sig_data.groupby('group_cls')
+        res = list()
+        for g_idx in sorted(by_cls.groups):
+            tmp_data = by_cls.get_group(g_idx)
+            res.append(tmp_data.code.tolist())
+        return res
+
+    class SizeBT(Backtest):
+
+        def get_rawdata(self):
+            return self.quote_loader.load_data()
+
+        def processing_data(self, obs_data):
+            return obs_data
+
+        def processing_backtest(self, sig_data, reb_dates):
+            quote = self.quote_loader.load_data()
+            ind_cls = self.ind_loader.load_data()
+            index_constituent = self.constituent_loader.load_data()
+            self.reb_dates = reb_dates
+            # 进行回测
+            stock_filter = self.stock_filter
+            weight_method = self.weight_method
+            holding = get_daily_holding(sig_data, quote, index_constituent, ind_cls, stock_filter,
+                                        reb_dates)
+            self.nav, self.turnover = cal_nav(holding, reb_dates[-1], quote,
+                                              buildpos_type=weight_method, cal_to=True)
+            self.holding = holding
+
     quote_loader = datatoolkits.DataLoader(
         'HDF', r"F:\实习工作内容\东海证券\基础数据\行情数据\quote_store.h5", key='quote_adj_20170510')
-    quote = quote_loader.load_data()
-    date = pd.to_datetime('2012-02-14')
-    port_ante = Portfolio(pd.DataFrame(
-        {'code': ['002230.SZ', '000001.SZ'], 'num': [1000, 2000]}), 1e4)
-    port_post = Portfolio(pd.DataFrame(
-        {'code': ['600519.SH', '000001.SZ'], 'num': [2000, 1000]}), 1e3)
-    res = cal_turnover(port_ante, port_post, quote, date)
+    constituent_loader = datatoolkits.DataLoader('HDF', r"F:\实习工作内容\东海证券\基础数据\指数成份\index_constituents.h5",
+                                                 key='Index_000985')
+    industry_loader = datatoolkits.DataLoader('None', '')
+    sizebt = SizeBT(quote_loader, constituent_loader, industry_loader, get_stocks, '2015-01-01',
+                    '2016-12-31')
+    sizebt.run()
