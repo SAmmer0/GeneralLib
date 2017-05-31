@@ -7,8 +7,17 @@
 
 '''
 本文件是专门用于存储获取数据的SQL
+__version__ = 1.1
+修改日期：2017-05-15
+修改内容：初始化
+
+__version__ = 1.2
+修改日期：2017-05-31
+修改内容：
+    修改了获取股本数据的方式，以免很多数据都没有办法计算市值
 '''
 
+__version__ = '1.1'
 # --------------------------------------------------------------------------------------------------
 # 年度财务报表
 # 年度利润表（利润分配表）
@@ -92,7 +101,7 @@ QCFS_SQL = '''
 # 其他财务数据表
 # 股本数据，获取流通股本
 SN_SQL = '''
-    SELECT S.NonRestrictedShares, S.EndDate
+    SELECT S.NonResiSharesJY, S.EndDate
     FROM SecuMain M, LC_ShareStru S
     WHERE M.CompanyCode = S.CompanyCode AND
         M.SecuCode = \'{code}\' AND
@@ -187,18 +196,25 @@ ST_SQL = '''
     FROM LC_SpecialTrade S, SecuMain M
     WHERE
         S.InnerCode = M.InnerCode AND
-        M.SecuCode = {code} AND
+        M.SecuCode = \'{code}\' AND
         M.SecuMarket in (83, 90)
     '''
 
 # --------------------------------------------------------------------------------------------------
 # 研究报告相关数据
 # 一致预期目标价
-
+TARGET_PRICE_SQL = '''
+    SELECT TARGET_PRICE, CON_DATE
+    FROM CON_FORECAST_SCHEDULE
+    WHERE
+        CON_DATE >= CAST(\'{start_time}\' AS datetime) AND
+        CON_DATE <= CAST(\'{end_time}\' AS datetime) AND
+        STOCK_CODE = \'{code}\'
+'''
 
 # --------------------------------------------------------------------------------------------------
 # 集合现有的所有基础SQL
 BASIC_SQLs = {'QIS': QIS_SQL, 'YIS': YIS_SQL, 'QCFS': QCFS_SQL, 'YCFS': YCFS_SQL,
               'BSS': BSS_SQL, 'SN': SN_SQL, 'INDEX_CONSTITUENTS': INDEX_SQL, 'DIV': DIV_SQL,
               'QUOTE': QUOTE_SQL, 'ADJ_FACTOR': ADJFACTOR_SQL, 'A_UNIVERSE': AUNIVERSE_SQL,
-              'ST_TAG': ST_SQL, 'ZX_IND': ZXIND_SQL}
+              'ST_TAG': ST_SQL, 'ZX_IND': ZXIND_SQL, 'TARGET_PRICE': TARGET_PRICE_SQL}
