@@ -11,13 +11,18 @@ __version__ = 1.1
 修改日期：2017-05-15
 修改内容：初始化
 
-__version__ = 1.2
+__version__ = 1.2.0
 修改日期：2017-05-31
 修改内容：
     修改了获取股本数据的方式，以免很多数据都没有办法计算市值
+
+__version__ = 1.2.1
+修改日期：2017-06-01
+修改内容：
+    添加了获取指数行情的SQL
 '''
 
-__version__ = '1.1'
+__version__ = '1.2.1'
 # --------------------------------------------------------------------------------------------------
 # 年度财务报表
 # 年度利润表（利润分配表）
@@ -200,6 +205,17 @@ ST_SQL = '''
         M.SecuMarket in (83, 90)
     '''
 
+# 获取指数行情数据
+INDEX_QUOTE_SQL = '''
+    SELECT %s
+    FROM QT_IndexQuote S, SecuMain M
+    WHERE S.InnerCode = M.InnerCode AND
+        M.SecuCode = \'{code}\' AND
+        M.SecuCategory = 4 AND
+        S.TradingDay >= \'{start_time}\' AND
+        S.TradingDay <= \'{end_time}\'
+    ORDER BY S.TradingDay ASC
+'''
 # --------------------------------------------------------------------------------------------------
 # 研究报告相关数据
 # 一致预期目标价
@@ -217,4 +233,5 @@ TARGET_PRICE_SQL = '''
 BASIC_SQLs = {'QIS': QIS_SQL, 'YIS': YIS_SQL, 'QCFS': QCFS_SQL, 'YCFS': YCFS_SQL,
               'BSS': BSS_SQL, 'SN': SN_SQL, 'INDEX_CONSTITUENTS': INDEX_SQL, 'DIV': DIV_SQL,
               'QUOTE': QUOTE_SQL, 'ADJ_FACTOR': ADJFACTOR_SQL, 'A_UNIVERSE': AUNIVERSE_SQL,
-              'ST_TAG': ST_SQL, 'ZX_IND': ZXIND_SQL, 'TARGET_PRICE': TARGET_PRICE_SQL}
+              'ST_TAG': ST_SQL, 'ZX_IND': ZXIND_SQL, 'TARGET_PRICE': TARGET_PRICE_SQL,
+              'INDEX_QUOTE': INDEX_QUOTE_SQL}
