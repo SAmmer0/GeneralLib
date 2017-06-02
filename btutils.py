@@ -404,6 +404,8 @@ class Backtest(object):
         # 进行回测
         stock_filter = self.stock_filter
         weight_method = self.weight_method
+        # 将因子的计算数据缓存供后续使用
+        self.factor_data = sig_data
         holding = get_daily_holding(sig_data, quote, index_constituent, ind_cls, stock_filter,
                                     reb_dates)
         self.nav = cal_nav(holding, reb_dates[-1], quote, buildpos_type=weight_method)
@@ -462,7 +464,7 @@ class Backtest(object):
                                                        order=['time'] + group_columns +
                                                        ['benchmark'])
         ttest = _transttest(self.monthly_ttest)
-        ttest_formatset = {'tvalue': ('pctnp', 4), 'pvalue': ('pctnp', 4)}
+        ttest_formatset = {'tvalue': ('floatnp', 4), 'pvalue': ('floatnp', 4)}
         ttest_formatset = report.trans2formater(ttest_formatset)
         self.ttest_tab = table_convertor.format_df(ttest, ttest_formatset,
                                                    order=['group_name', 'tvalue', 'pvalue'])
