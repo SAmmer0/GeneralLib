@@ -69,6 +69,11 @@ __version__ = 1.6.3
 修改日期：2017-05-26
 修改内容：
     完成换手率功能测试，修改部分bug
+
+__version__ = 1.6.4
+修改日期：2017-06-02
+修改内容：
+    在回测框架的analysis中添加报告简要回测数据的功能
 '''
 __version__ = '1.6.2'
 # --------------------------------------------------------------------------------------------------
@@ -441,6 +446,10 @@ class Backtest(object):
                                                   nav=len(self.nav),
                                                   inavl=len(index_nav))
         self.nav = navs
+        # 计算一般评估指标，默认无风险利率为4%
+        group_nav = self.nav.loc[:, self.nav.columns.str.startswith('group_')]
+        brief_rpt = group_nav.apply(lambda x: report.brief_report(x, self.nav.benchmark, 0.04, 250))
+        self.brief_rpt = brief_rpt.T
         # 计算月度数据和年度数据
         self.yearly_ret = self.nav.groupby(lambda x: x.year).\
             apply(lambda x: x.iloc[-1] / x.iloc[0] - 1)
