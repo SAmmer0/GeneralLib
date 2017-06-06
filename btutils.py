@@ -389,17 +389,16 @@ class Backtest(object):
         # 获取数据中的最小时间区间
         # 加载数据
         quote = self.quote_loader.load_data()
-        # constituent = self.constituent_loader.load_data()
+        constituent = self.constituent_loader.load_data()
         # 行情时间区间
         quote_start = quote.time.min()
         quote_end = quote.time.max()
-        # 剔除constituent的时间限制，因为constituent是按照最近的指数成分来获取的，而没有时间上的
-        # 限制
-        # # 成份股时间区间
-        # constituent_start = constituent.time.min()
+        # 剔除constituent的结束时间限制，因为constituent是按照往前推最近的指数成分来获取的
+        # 成份股时间区间
+        constituent_start = constituent.time.min()
         # constituent_end = constituent.time.max()
         # 计算最小时间区间
-        start_time = max(quote_start, self.start_time)
+        start_time = max(quote_start, self.start_time, constituent_start)
         end_time = min(quote_end, self.end_time)
         # 计算再平衡日
         out = dateshandle.get_rebtd(start_time, end_time, freq=self.freq)
