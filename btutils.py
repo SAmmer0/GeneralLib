@@ -74,6 +74,12 @@ __version__ = 1.6.4
 修改日期：2017-06-02
 修改内容：
     在回测框架的analysis中添加报告简要回测数据的功能
+
+__version__ = 1.6.5
+修改日期：2017-06-06
+修改内容：
+    修改了BackTest类中默认的获取换仓日的方法，使用数据中有效的最小时间区间作为使用的时间区间，同时在初始化
+    函数中现将开始和结束时间格式化为表示日期格式，避免后续使用出现的错误
 '''
 __version__ = '1.6.2'
 # --------------------------------------------------------------------------------------------------
@@ -323,8 +329,8 @@ class Backtest(object):
         self.constituent_loader = constituent_loader
         self.ind_loader = ind_loader
         self.stock_filter = stock_filter
-        self.start_time = start_time
-        self.end_time = end_time
+        self.start_time = pd.to_datetime(start_time)
+        self.end_time = pd.to_datetime(end_time)
         self.freq = freq
         self.benchmark_filter = benchmark_filter
         self.weight_method = weight_method
@@ -380,7 +386,22 @@ class Backtest(object):
         out: list like
             按照升序排列的换仓日
         '''
-        out = dateshandle.get_rebtd(self.start_time, self.end_time, freq=self.freq)
+        # 获取数据中的最小时间区间
+        # 加载数据
+        quote = self.quote_loader.load_data()
+        constituent = self.constituent_loader.load_data()
+        # 行情时间区间
+        quote_start = quote.time.min()
+        quote_end = quote.time.max()
+        # 成份股时间区间
+        constituent_start = constituent.time.min()
+        constituent_end = constituent.time.max()
+        # 计算最小时间区间
+        start_time = max([quote_start, constituent_start, self.start_time])
+        end_time = min([quote_end, constituent_end, self.end_time])
+        # 计算再平衡日
+        out = dateshandle.get_rebtd(start_time, end_time, freq=self.freq)
+
         return out
 
     def processing_backtest(self, sig_data, reb_dates):
@@ -893,8 +914,9 @@ if __name__ == '__main__':
 
     quote_loader = datatoolkits.DataLoader(
         'HDF', r"F:\实习工作内容\东海证券\基础数据\行情数据\quote_store.h5", key='quote_adj_20170510')
-    constituent_loader = datatoolkits.DataLoader('HDF', r"F:\实习工作内容\东海证券\基础数据\指数成份\index_constituents.h5",
-                                                 key='Index_000985')
+    constituent_loader = datatoolkits.DataLoader(
+        'HDF', r"F:\实习工作内容\东海证券\基础数据\指数成份\index_constituents.h5",
+        key='Index_000985')
     industry_loader = datatoolkits.DataLoader('None', '')
     sizebt = SizeBT(quote_loader, constituent_loader, industry_loader, get_stocks, '2015-01-01',
                     '2016-12-31')
