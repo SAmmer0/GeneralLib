@@ -81,7 +81,7 @@ __version__ = 1.6.5
     修改了BackTest类中默认的获取换仓日的方法，使用数据中有效的最小时间区间作为使用的时间区间，同时在初始化
     函数中现将开始和结束时间格式化为表示日期格式，避免后续使用出现的错误
 '''
-__version__ = '1.6.2'
+__version__ = '1.6.5'
 # --------------------------------------------------------------------------------------------------
 # import
 from collections import namedtuple
@@ -389,19 +389,20 @@ class Backtest(object):
         # 获取数据中的最小时间区间
         # 加载数据
         quote = self.quote_loader.load_data()
-        constituent = self.constituent_loader.load_data()
+        # constituent = self.constituent_loader.load_data()
         # 行情时间区间
         quote_start = quote.time.min()
         quote_end = quote.time.max()
-        # 成份股时间区间
-        constituent_start = constituent.time.min()
-        constituent_end = constituent.time.max()
+        # 剔除constituent的时间限制，因为constituent是按照最近的指数成分来获取的，而没有时间上的
+        # 限制
+        # # 成份股时间区间
+        # constituent_start = constituent.time.min()
+        # constituent_end = constituent.time.max()
         # 计算最小时间区间
-        start_time = max([quote_start, constituent_start, self.start_time])
-        end_time = min([quote_end, constituent_end, self.end_time])
+        start_time = max(quote_start, self.start_time)
+        end_time = min(quote_end, self.end_time)
         # 计算再平衡日
         out = dateshandle.get_rebtd(start_time, end_time, freq=self.freq)
-
         return out
 
     def processing_backtest(self, sig_data, reb_dates):
