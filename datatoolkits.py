@@ -89,8 +89,13 @@ __version__ = 1.10.1
 修改日期：2017-05-23
 修改内容：
     在DataLoader中添加None的选项，可以加载空值数据
+
+__version__ = 1.10.2
+修改日期：2017-06-07
+修改内容：
+    添加自定义的rolling_apply函数
 '''
-__version__ = '1.10.0'
+__version__ = '1.10.2'
 
 import datetime as dt
 from math import sqrt
@@ -459,6 +464,37 @@ def demean(data, weight=None, skipna=True):
         out = data - data_mean
     return out
 
+
+def rolling_apply(df, func, period, min_period=None):
+    '''
+    在移动窗口中进行计算的函数
+    Parameter
+    ---------
+    df: DataFrame
+        需要进行滚动窗口计算的DataFrame
+    func: function(df) -> value
+        要求函数必须以DataFrame为参数传入，且返回单一一个数值结果
+    period: int
+        窗口长度
+    min_period: int
+        最小窗口长度，如果未给定，则与period给定的参数相同
+
+    Return
+    ------
+    out: Series
+        移动窗口计算后的结果，数值不足填充NA，索引与原来给定的df的索引相同
+    '''
+    if min_period is None:
+        min_period = period
+    res = pd.Series(np.nan, index=df.index)
+    df = df.copy()
+    for i in range(1, len(df) + 1):
+        tmp_df = df.iloc[max(0, i - period): i]
+        if len(tmp_df) >= min_period:
+            idx = tmp_df.index[-1]
+            res[idx] = func(tmp_df)
+    return res
+
 # --------------------------------------------------------------------------------------------------
 # 类
 # 通用加载数据类
@@ -542,5 +578,10 @@ class DataLoader(object):
 
 
 if __name__ == '__main__':
-    hdf_data = DataLoader('pickle', r"F:\GeneralLib\CONST_DATAS\random_sample.pickle")
-    data = hdf_data.load_data()
+    np.random.seed(100)
+    df = pd.DataFrame(np.random.rand(10, 3), columns=['group_%d' % i for i in range(1, 4)])
+
+    def foo(df):
+        res = df['group_1'].mean() - 0.5 * df['group_2'].mean() - 0.5 * df['group_3'].mean()
+        return res
+    result = rolling_apply(df, foo, 4, min_period=2)
