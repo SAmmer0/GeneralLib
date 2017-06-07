@@ -20,6 +20,11 @@ __version__ = 1.2.1
 修改日期：2017-06-01
 修改内容：
     添加了获取指数行情的SQL
+
+__version__ = 1.2.2
+修改日期：2017-06-07
+修改内容：
+    在获取股本中添加总股本数据
 '''
 
 __version__ = '1.2.1'
@@ -104,9 +109,9 @@ QCFS_SQL = '''
 
 # --------------------------------------------------------------------------------------------------
 # 其他财务数据表
-# 股本数据，获取流通股本
+# 股本数据，获取总股本和流通股本
 SN_SQL = '''
-    SELECT S.NonResiSharesJY, S.EndDate
+    SELECT S.TotalShares, S.NonResiSharesJY, S.EndDate
     FROM SecuMain M, LC_ShareStru S
     WHERE M.CompanyCode = S.CompanyCode AND
         M.SecuCode = \'{code}\' AND
