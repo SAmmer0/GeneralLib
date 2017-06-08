@@ -94,6 +94,11 @@ __version__ = 1.10.2
 修改日期：2017-06-07
 修改内容：
     添加自定义的rolling_apply函数
+
+__version__ = 1.10.3
+修改日期：2017-06-08
+修改内容：
+    为rolling_apply添加显示进度的功能
 '''
 __version__ = '1.10.2'
 
@@ -104,6 +109,8 @@ import pandas as pd
 import pickle
 import statsmodels.api as sm
 # import six
+# import time     # for test
+from tqdm import tqdm
 
 # --------------------------------------------------------------------------------------------------
 # 函数
@@ -465,7 +472,7 @@ def demean(data, weight=None, skipna=True):
     return out
 
 
-def rolling_apply(df, func, period, min_period=None, **kwargs):
+def rolling_apply(df, func, period, min_period=None, show_progress=False, **kwargs):
     '''
     在移动窗口中进行计算的函数
     Parameter
@@ -478,6 +485,8 @@ def rolling_apply(df, func, period, min_period=None, **kwargs):
         窗口长度
     min_period: int
         最小窗口长度，如果未给定，则与period给定的参数相同
+    show_progress: bool, default False
+        显示计算的进度
     kwargs: additional parameters
         用于提供给func的其他参数
 
@@ -490,7 +499,16 @@ def rolling_apply(df, func, period, min_period=None, **kwargs):
         min_period = period
     res = pd.Series(np.nan, index=df.index)
     df = df.copy()
-    for i in range(1, len(df) + 1):
+    idx_range = range(1, len(df) + 1)
+    # 显示进度
+    if show_progress:
+        idx_range = zip(idx_range, tqdm(idx_range))
+    for idx in idx_range:
+        if show_progress:
+            i, _ = idx
+            # time.sleep(1)
+        else:
+            i = idx
         tmp_df = df.iloc[max(0, i - period): i]
         if len(tmp_df) >= min_period:
             idx = tmp_df.index[-1]
@@ -586,4 +604,4 @@ if __name__ == '__main__':
     def foo(df):
         res = df['group_1'].mean() - 0.5 * df['group_2'].mean() - 0.5 * df['group_3'].mean()
         return res
-    result = rolling_apply(df, foo, 4, min_period=2)
+    result = rolling_apply(df, foo, 4, min_period=2, show_progress=True)
