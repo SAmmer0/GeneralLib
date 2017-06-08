@@ -465,19 +465,21 @@ def demean(data, weight=None, skipna=True):
     return out
 
 
-def rolling_apply(df, func, period, min_period=None):
+def rolling_apply(df, func, period, min_period=None, **kwargs):
     '''
     在移动窗口中进行计算的函数
     Parameter
     ---------
     df: DataFrame
         需要进行滚动窗口计算的DataFrame
-    func: function(df) -> value
+    func: function(df, **kwargs) -> value
         要求函数必须以DataFrame为参数传入，且返回单一一个数值结果
     period: int
         窗口长度
     min_period: int
         最小窗口长度，如果未给定，则与period给定的参数相同
+    kwargs: additional parameters
+        用于提供给func的其他参数
 
     Return
     ------
@@ -492,7 +494,7 @@ def rolling_apply(df, func, period, min_period=None):
         tmp_df = df.iloc[max(0, i - period): i]
         if len(tmp_df) >= min_period:
             idx = tmp_df.index[-1]
-            res[idx] = func(tmp_df)
+            res[idx] = func(tmp_df, **kwargs)
     return res
 
 # --------------------------------------------------------------------------------------------------
