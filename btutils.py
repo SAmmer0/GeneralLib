@@ -395,7 +395,11 @@ class Backtest(object):
         quote_end = quote.time.max()
         # 剔除constituent的结束时间限制，因为constituent是按照往前推最近的指数成分来获取的
         # 成份股时间区间
-        constituent_start = constituent.time.min()
+        # 此处加入考虑指数成份为空值的情况
+        if constituent is not None:
+            constituent_start = constituent.time.min()
+        else:
+            constituent_start = pd.to_datetime('1989-01-01')
         # constituent_end = constituent.time.max()
         # 计算最小时间区间
         start_time = max(quote_start, self.start_time, constituent_start)
@@ -514,15 +518,16 @@ class Backtest(object):
 # 函数
 
 
-def get_constituent(by_date_constituent, date):
+def get_constituent(stock_pool, date):
     '''
     将股票池按照时间进行分组，然后从分组中取出任何一个时间点的对应的成分
     @param:
-        by_date_constituent：股票池按照日期进行分组后的groupby对象
+        stock_pool: 股票池，DataFrame格式，要求包含time和code列
         date: 需要获取成分的日期
     @return:
         返回给定日期的股票池列表
     '''
+    by_date_constituent = stock_pool.groupby('time')
     valid_tds = list(by_date_constituent.groups.keys())
     valid_tds = pd.Series(valid_tds)
     newest_td = valid_tds[valid_tds < date].max()  # 假设成分相关的信息都是在日中公布的
@@ -567,7 +572,7 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
         signal_data: 信号数据DataFrame，必须包含time、code列
         quotes_data: 行情数据DataFramem，必须包含time、code列
         stock_pool: 时点股票池DataFrame，测试中股票池为离当前交易日最近的一个时点的股票池，
-            必须包含time、code列
+            必须包含time、code列；可以为None，当参数为None时，不加上股票池的限制
         industry_cls: 行业分类DataFrame，必须包含time、code列
         stock_filter: 用于选择股票的函数，形式为stock_filter(cur_signal_data, cur_ind_cls)，要求返回
             的股票为[[code1, code2, ...], [codex1, codex2, ...], ...]
@@ -592,12 +597,10 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
 
     # 初始化
     holdings = dict()
-    stockpool_bydate = stock_pool.groupby('time')
+    # stockpool_bydate = stock_pool.groupby('time')
 
     # 计算换仓日的股票组合
     for (reb_dt, chg_dt), tqi in zip(key_dates, tqdm(key_dates)):
-        # 获取换仓日股票池
-        constituent = get_constituent(stockpool_bydate, chg_dt)
         # 获取再平衡日的行业分类，减少不必要的数据加载
         if industry_cls is None:
             ind_cls = None
@@ -607,7 +610,11 @@ def get_daily_holding(signal_data, quotes_data, stock_pool, industry_cls, stock_
         # 过滤不能交易的股票，此处会自动将建仓日不存在数据的股票过滤
         tradeable_stocks = quotes_data.loc[(quotes_data.time == chg_dt) & (~quotes_data.STTag) &
                                            quotes_data.tradeable, 'code'].tolist()
-        tradeable_stocks = set(tradeable_stocks).intersection(constituent)
+
+        # 获取换仓日股票池，如果传入的股票池参数为None，则返回所有满足要求的股票
+        if stock_pool is not None:
+            constituent = get_constituent(stock_pool, chg_dt)
+            tradeable_stocks = set(tradeable_stocks).intersection(constituent)
 
         # 获取当前信号数据，加入指数成份过滤，更新pandas的版本(0.20.1)后发现此步骤速度特别慢
         reb_sig_data = signal_data.loc[(signal_data['time'] == reb_dt) &
