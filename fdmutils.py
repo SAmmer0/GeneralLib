@@ -17,8 +17,10 @@ __version__ = 1.01
 修改内容：
     1. 添加isvalid_rptdate
     2. 添加get_latest_rptdate
-    3. 修改计算ttm的函数
+    3. 修改计算ttm和季度往前推的函数
 '''
+__version__ = '1.01'
+
 import datatoolkits
 import dateshandle
 # import datetime as dt
@@ -124,7 +126,7 @@ def get_observabel_data(df, rpt_col='rpt_date', update_col='update_time'):
         tmp_res = by_rpt.apply(lambda x: x.tail(1))
         tmp_res['obs_time'] = [udt] * len(tmp_res)
         res = res.append(tmp_res)
-    return res
+    return res.reset_index(drop=True)
 
 
 def cal_ttm(df, col_name, rpt_col='rpt_date', nperiod=4, rename=None):
@@ -142,13 +144,16 @@ def cal_ttm(df, col_name, rpt_col='rpt_date', nperiod=4, rename=None):
     if isinstance(col_name, str):
         col_name = [col_name]
     ltst_rptdate = get_latest_rptdate(df['rpt_date'])
-    begin_rptdate = dateshandle.get_latest_report_dates(ltst_rptdate, nperiod)[-1]
-    # 得到df格式的data
-    data = df.loc[df[rpt_col] >= begin_rptdate, col_name]
-    if len(data) < nperiod:
+    if ltst_rptdate is None:
         res = datatoolkits.gen_series(col_name)
     else:
-        res = data.sum(axis=0)   # sum会忽视NA值
+        begin_rptdate = dateshandle.get_latest_report_dates(ltst_rptdate, nperiod)[-1]
+        # 得到df格式的data
+        data = df.loc[df[rpt_col] >= begin_rptdate, col_name]
+        if len(data) < nperiod:
+            res = datatoolkits.gen_series(col_name)
+        else:
+            res = data.sum(axis=0)   # sum会忽视NA值
     if rename is not None:
         res = res.rename(rename)
     return res
@@ -203,6 +208,7 @@ def cal_season(df, col_name, rpt_col='rpt_date', offset=1, rename=None):
     if rename is not None:
         res = res.rename(rename)
     return res
+
 
 if __name__ == '__main__':
     dates = [pd.to_datetime('2011-03-31'), pd.to_datetime('2011-06-30'),
