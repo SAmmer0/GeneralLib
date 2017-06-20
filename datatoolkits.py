@@ -99,6 +99,11 @@ __version__ = 1.10.3
 修改日期：2017-06-08
 修改内容：
     为rolling_apply添加显示进度的功能
+
+__version__ = 1.10.4
+修改日期：2017-06-20
+修改内容：
+    添加winsorize函数
 '''
 __version__ = '1.10.2'
 
@@ -369,6 +374,29 @@ def quantile_sub(data, cols, qtls, sub=np.nan):
     return df
 
 
+def winsorize(s, qtls):
+    '''
+    将超过分位数的数据拉回到给定的分位数中
+
+    Parameter
+    ---------
+    s: pd.Series
+        需要被拉回的序列
+    qtls: list/tuple or other types with index (0, 1)
+        上限和下限的分为点，格式为(lower_quantile, upper_quantile)
+
+    Return
+    ------
+    out: pd.Series
+        经过分位数拉回的序列
+    '''
+    out = s.copy()
+    lower_quantile, upper_quantile = out.quantile(qtls)
+    out.loc[out > upper_quantile] = upper_quantile
+    out.loc[out < lower_quantile] = lower_quantile
+    return out
+
+
 def isclose(a, b, rel_tol=1e-9, abs_tol=0.0):
     '''
     判断两个数值是否接近，计算方法如下
@@ -395,6 +423,7 @@ def isclose(a, b, rel_tol=1e-9, abs_tol=0.0):
 def standardlize(datas):
     '''
     对序列进行标准化，即对所有的数据减去均值除以方差
+
     Parameter
     ---------
     datas: Series or list like
