@@ -104,13 +104,19 @@ __version__ = 1.10.4
 修改日期：2017-06-20
 修改内容：
     添加winsorize函数
+
+__version__ = 1.10.5
+修改日期：2017-06-21
+修改内容：
+    添加正交化函数orthogonalize_lstsq
 '''
-__version__ = '1.10.2'
+__version__ = '1.10.5'
 
 import datetime as dt
 from math import sqrt
 import numpy as np
 import pandas as pd
+# import pdb
 import pickle
 import statsmodels.api as sm
 # import six
@@ -356,21 +362,19 @@ def gen_df(cols, fill=np.nan):
     return pd.DataFrame(dict(zip(cols, [[fill]] * len(cols))))
 
 
-def quantile_sub(data, cols, qtls, sub=np.nan):
+def quantile_sub(data, qtls, sub=np.nan):
     '''
     将超过分位数的数据进行替换
     @param:
-        data: df
-        cols: 需要替换异常数据的列，可迭代类型
+        data: pd.Series
         qtls: 分位数标准，格式为(min_qtl, max_qtl)
         sub: 替代的数据，默认为np.nan
     @return:
         df，分位数定义的异常值均被sub提供的数据替代
     '''
     df = data.copy()
-    for col in cols:
-        qtl1, qtl2 = df[col].quantile(qtls)
-        df.loc[(df[col] < qtl1) | (df[col] > qtl2), col] = sub
+    qtl1, qtl2 = df.quantile(qtls)
+    df.loc[(df < qtl1) | (df > qtl2)] = sub
     return df
 
 
@@ -543,6 +547,50 @@ def rolling_apply(df, func, period, min_period=None, show_progress=False, **kwar
             idx = tmp_df.index[-1]
             res[idx] = func(tmp_df, **kwargs)
     return res
+
+
+def orthogonalize_lstsq(a, b, weight=None):
+    '''
+    使用最小二乘的方法对数据进行正交化处理
+
+    Parameter
+    ---------
+    a: pd.Series
+        需要被正交化处理的序列
+    b: pd.Series or pd.DataFrame
+        正交化处理时使用的参考序列
+    weight: pd.Series or None, default None
+        正交化过程中的权重，如果提供的权重为(w1, w2, ...)，则会事先对数据都乘以(sqrt(w1), sqrt(w2),...)
+        默认为None表示等权
+
+    Return
+    ------
+    out: pd.Series
+        正交化处理以后的序列，index与a相同
+
+    Notes
+    -----
+    正交化过程中，如果需要被正交化的数据中有NA值，则将其当做均值处理，最后再将NA填充至原位置
+    注：为了使正交化后的数据与其他数据的相关性降低至0，需要在正交化之前减去（加权）均值
+    '''
+    if isinstance(b, pd.Series):
+        b = pd.DataFrame({'0': b})
+    # 填充NA值
+    filtered_a = a.fillna(a.mean())
+    filtered_b = b.fillna(b.mean())
+    # 数据按照权重进行转换
+    if weight is None:
+        weight = pd.Series(np.ones(len(a)))
+    else:
+        weight = np.sqrt(weight)
+    # 对数据进行转换
+    trans_a = weight * filtered_a
+    trans_b = filtered_b.mul(weight, axis=0)
+    # 使用最小二乘计算系数
+    param = np.linalg.lstsq(trans_b, trans_a)[0]
+    out = a - b.dot(param)
+    return out
+
 
 # --------------------------------------------------------------------------------------------------
 # 类
