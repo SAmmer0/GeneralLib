@@ -479,11 +479,15 @@ def wmean(data, skipna=True, weight=None):
     if weight is None:
         return data.mean(skipna=skipna)
     if skipna:
+        weight[pd.isnull(data)] = 0
         data[pd.isnull(data)] = 0
     assert len(weight) == len(data), "Error, length of data must be equal to length of weight"
     weight_sum = weight.sum()
-    assert weight_sum != 0, 'Error, weight should not sum to ZERO!'
-    weight = weight / weight_sum
+    try:
+        weight = weight / weight_sum
+    except ZeroDivisionError:
+        print('Error, valid weights sum to ZERO!')
+        return np.nan
     out = data.dot(weight)
     return out
 
