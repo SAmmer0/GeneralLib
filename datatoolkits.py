@@ -109,6 +109,11 @@ __version__ = 1.10.5
 修改日期：2017-06-21
 修改内容：
     添加正交化函数orthogonalize_lstsq
+
+__version__ = 1.10.6
+修改日期：2017-06-27
+修改内容：
+    添加计算加权平均值的wmean函数
 '''
 __version__ = '1.10.5'
 
@@ -116,7 +121,7 @@ import datetime as dt
 from math import sqrt
 import numpy as np
 import pandas as pd
-# import pdb
+import pdb
 import pickle
 import statsmodels.api as sm
 # import six
@@ -444,6 +449,45 @@ def standardlize(datas):
     return out
 
 
+def wmean(data, skipna=True, weight=None):
+    '''
+    计算数据的（加权）均值
+
+    Parameter
+    ---------
+    data: pd.Series or types that can be converted to pd.Series
+        需要计算均值的数据
+    skipna: boolean, default True
+        是否忽略NA值，默认忽略
+    weight: pd.Series, default None
+        加权的权重，默认为None，表示等权。要求weight与data具有相同的长度和索引，对weight的数值不要求
+        和为一，计算过程中会自动归一化，但是权重的和不能为0
+
+    Return
+    ------
+    out: float
+        计算的（加权）均值结果
+
+    Notes
+    -----
+    这种方法计算的速度要比原生的要慢一倍，尽量少使用
+    '''
+    if not isinstance(data, pd.Series):
+        data = pd.Series(data)
+    else:
+        data = data.copy()
+    if weight is None:
+        return data.mean(skipna=skipna)
+    if skipna:
+        data[pd.isnull(data)] = 0
+    assert len(weight) == len(data), "Error, length of data must be equal to length of weight"
+    weight_sum = weight.sum()
+    assert weight_sum != 0, 'Error, weight should not sum to ZERO!'
+    weight = weight / weight_sum
+    out = data.dot(weight)
+    return out
+
+
 def extract_factor_OLS(data, factor_col, x_cols, standardization=True):
     '''
     使用OLS回归的方法，剔除新的因子中与以前因子相关的部分，即通过使用因子值对
@@ -488,7 +532,7 @@ def demean(data, weight=None, skipna=True):
     data: Series
         需要去除均值的序列
     weight: Series, default None
-        权重，默认为None表示等权
+        权重，不要求和为1，默认为None表示等权
     skipna: bool, default True
         是否跳过data中的NA值
     Return
@@ -571,7 +615,6 @@ def orthogonalize_lstsq(a, b, weight=None):
     Notes
     -----
     正交化过程中，如果需要被正交化的数据中有NA值，则将其当做均值处理，最后再将NA填充至原位置
-    注：为了使正交化后的数据与其他数据的相关性降低至0，需要在正交化之前减去（加权）均值
     '''
     if isinstance(b, pd.Series):
         b = pd.DataFrame({'0': b})
@@ -588,6 +631,7 @@ def orthogonalize_lstsq(a, b, weight=None):
     trans_b = filtered_b.mul(weight, axis=0)
     # 使用最小二乘计算系数
     param = np.linalg.lstsq(trans_b, trans_a)[0]
+    # pdb.set_trace()
     out = a - b.dot(param)
     return out
 
