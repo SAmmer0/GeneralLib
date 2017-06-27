@@ -478,6 +478,7 @@ def wmean(data, skipna=True, weight=None):
         data = data.copy()
     if weight is None:
         return data.mean(skipna=skipna)
+    weight = weight.copy()
     if skipna:
         weight[pd.isnull(data)] = 0
         data[pd.isnull(data)] = 0
