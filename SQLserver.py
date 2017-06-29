@@ -10,6 +10,8 @@ class SQLserver:
         self.uid = UID
         self.pwd = PWD
         self.driver = DRIVER
+
+    def connect(self):
         self.cur = self.__GetConnect()
 
     def __GetConnect(self):
@@ -57,19 +59,4 @@ class ConnectionError(Error):
 
 
 if __name__ == '__main__':
-    # SQL_dfcfzx = SQLserver(DATABASE='dfcf', SERVER='128.6.5.18', UID='dfcfzx', PWD='dfcfzx')
-    # SQL_zyyx = SQLserver(DATABASE='zyyx', SERVER='128.6.5.18', UID='zyyx', PWD='zyyx')
-    SQL_jydb = SQLserver(DATABASE='jydb', SERVER='128.6.5.18', UID='jydb', PWD='jydb')
-    # test_dfcfzx = SQL_dfcfzx.ExecQuery ("""select top 100 INFOCODE , RELATECODE , RELATENAME ,
-    # RELATEVARIETYCODE , INFOTYPE , NEWSCOLUMN ,  MKTPOSTFIX
-    # from INFO_AN_NEWSRELATION
-    # where NEWSCOLUMN is not null """)
-    # test_zyyx = SQL_zyyx.ExecQuery("select * from I_report_type ")
-    test_jydb = SQL_jydb.fetchall(
-        "select * from QT_TradingDayNew where IfTradingDay=1 and TradingDate between ? and ? ", '2015-01-01', '2015-02-01')
-    # print(test_dfcfzx[0:50])
-    # print(test_zyyx[0])
-    print(test_jydb[0])
-# 构造DataFrame：pd.DataFrame(np.array(test_dfcfzx),columns=['INFOCODE' ,
-# 'RELATECODE' , 'RELATENAME' ,'RELATEVARIETYCODE' , 'INFOTYPE' ,
-# 'NEWSCOLUMN' ,  'MKTPOSTFIX'])
+    pass
