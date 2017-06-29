@@ -5,6 +5,7 @@
 # @Link    : https://github.com/SAmmer0
 # @Version : $Id$
 '''
+该模块主要包含一些其他需要使用却不好分类的工具函数
 __version__ = 1.0.0
 修改日期：2017-05-22
 修改内容：
