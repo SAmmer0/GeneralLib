@@ -482,6 +482,7 @@ def wmean(data, skipna=True, weight=None):
     if skipna:
         weight[pd.isnull(data)] = 0
         data[pd.isnull(data)] = 0
+        weight[pd.isnull(weight)] = 0
     assert len(weight) == len(data), "Error, length of data must be equal to length of weight"
     weight_sum = weight.sum()
     try:
