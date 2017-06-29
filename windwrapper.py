@@ -25,7 +25,10 @@ __version__ = 1.1.1
 '''
 __version__ = '1.1.1'
 
-from WindPy import w
+try:
+    from WindPy import w
+except ImportError:
+    print('Warning: fail to import WindPy')
 import pandas as pd
 import datetime as dt
 import dateshandle
