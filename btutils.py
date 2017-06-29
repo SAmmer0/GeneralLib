@@ -92,6 +92,7 @@ import numpy as np
 import pandas as pd
 import report
 import scipy.stats as spstats
+import sysconfiglee
 from tqdm import tqdm
 # --------------------------------------------------------------------------------------------------
 # 常量和类的定义
@@ -918,12 +919,11 @@ if __name__ == '__main__':
             self.nav, self.turnover = cal_nav(holding, reb_dates[-1], quote,
                                               buildpos_type=weight_method, cal_to=True)
             self.holding = holding
-
-    quote_loader = datatoolkits.DataLoader(
-        'HDF', r"F:\实习工作内容\东海证券\基础数据\行情数据\quote_store.h5", key='quote_adj_20170510')
-    constituent_loader = datatoolkits.DataLoader(
-        'HDF', r"F:\实习工作内容\东海证券\基础数据\指数成份\index_constituents.h5",
-        key='Index_000985')
+    quote_path = sysconfiglee.get_config('quote_file_path')
+    quote_loader = datatoolkits.DataLoader('HDF', quote_path, key='quote_adj_20170510')
+    index_constituent_path = sysconfiglee.get_config('index_constituent_file_path')
+    constituent_loader = datatoolkits.DataLoader('HDF', index_constituent_path,
+                                                 key='Index_000985')
     industry_loader = datatoolkits.DataLoader('None', '')
     sizebt = SizeBT(quote_loader, constituent_loader, industry_loader, get_stocks, '2015-01-01',
                     '2016-12-31')
