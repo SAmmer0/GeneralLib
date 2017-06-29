@@ -26,7 +26,11 @@ __version__ = 1.0.2
 __version__ = 1.1.0
 修改日期：2017-05-12
 修改内容：
-    添加tdcount函数
+    1. 添加tdcount函数
+    2. 添加get_rebtd函数
+
+__version__ = 1.1.1
+修改日期：2017-06-01
 '''
 __version__ = '1.1.0'
 
@@ -35,6 +39,12 @@ from windwrapper import get_tds_wind
 import datetime as dt
 import pickle
 import pandas as pd
+import sysconfiglee
+
+# --------------------------------------------------------------------------------------------------
+# 常量设置
+TDS_FILE_PATH = sysconfiglee.get_config('tds_file_path')
+# --------------------------------------------------------------------------------------------------
 
 
 def date_formater(date, dateFormat=None):
@@ -69,7 +79,7 @@ def time_trans_wrapper(func):
 
 
 @time_trans_wrapper
-def get_tds(startTime, endTime, fileName="F:\\GeneralLib\\CONST_DATAS\\tradingDays.pickle"):
+def get_tds(startTime, endTime, fileName=TDS_FILE_PATH):
     '''
     获取给定时间区间内的交易日，该函数会先检测是否有公用文件，如果有会从文件中读取交易日的数据，读取之后会将
     所读取的日期与给定的日期做比较，然后返回需要的交易日，如果所需要的交易日超过了文件的范围，则会从
@@ -261,7 +271,7 @@ def tdcount(days, end_time, method='close'):
     return out
 
 
-def get_rebdates(start_time, end_time, freq='M', nth=-1):
+def get_rebtd(start_time, end_time, freq='M', nth=-1):
     '''
     用于计算换仓的时间点
     Parameter
