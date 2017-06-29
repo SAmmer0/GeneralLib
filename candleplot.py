@@ -14,7 +14,8 @@ from matplotlib import finance
 #import matplotlib.dates as mpldates
 from matplotlib import ticker
 
-def time_formatterSetting(ax, times, majorStep=20, majorOffset=0, timeFormat='%Y-%m-%d', 
+
+def time_formatterSetting(ax, times, majorStep=20, majorOffset=0, timeFormat='%Y-%m-%d',
                           minor=False, minorStep=5, minorOffset=0):
     '''
     设置横轴时间轴的格式，与FixedFormatter相配合
@@ -35,20 +36,21 @@ def time_formatterSetting(ax, times, majorStep=20, majorOffset=0, timeFormat='%Y
         同时设置刻度表示的日期形式
     '''
     strDates = list(map(lambda x: x.date().strftime(timeFormat), times))
-    majorDates = [strDates[i] for i in range(len(strDates)) 
-                  if (i-majorOffset)%majorStep==0]
+    majorDates = [strDates[i] for i in range(len(strDates))
+                  if (i-majorOffset) % majorStep == 0]
     formatter = ticker.FixedFormatter(majorDates)
     ax.xaxis.set_major_formatter(formatter)
     if minor:
         minorDates = [strDates[i] for i in range(len(strDates))
-                      if (i-minorOffset)%minorStep==0]
+                      if (i-minorOffset) % minorStep == 0]
         minorFormatter = ticker.FixedFormatter(minorDates)
         ax.xaxis.set_minor_formatter(minorFormatter)
     return strDates
 
+
 def plot(data, columnNames=None, timeColumnName=None,
          majorLocatorStep=20, majorOffset=0, minorLocatorStep=5, minorOffset=0,
-         displayMinor=False, timeFormat='%Y-%m-%d', rotation=45, 
+         displayMinor=False, timeFormat='%Y-%m-%d', rotation=45,
          stickWidth=0.6, alpha=1):
     '''
     根据所给的数据，画出蜡烛图
@@ -74,7 +76,8 @@ def plot(data, columnNames=None, timeColumnName=None,
         openName, closeNames, highName, lowName = columnNames
     else:
         openName, closeNames, highName, lowName = ('open', 'close', 'high', 'low')
-    opens, closes, highs, lows = data[openName].tolist(), data[closeNames].tolist(), data[highName].tolist(), data[lowName].tolist()
+    opens, closes, highs, lows = data[openName].tolist(), data[closeNames].tolist(), data[
+        highName].tolist(), data[lowName].tolist()
     fig.subplots_adjust(bottom=0.2)
     majorLocator = ticker.IndexLocator(majorLocatorStep, majorOffset)
     ax.xaxis.set_major_locator(majorLocator)
@@ -99,4 +102,5 @@ if __name__ == '__main__':
     import pickle
     with open(r'F:\GeneralLib\test_sources\candleplot_testdata.pickle', 'rb') as f:
         testData = pickle.load(f)
-    plot(testData, timeColumnName='time', majorLocatorStep=10, minorLocatorStep=1, displayMinor=True, rotation=90)
+    plot(testData, timeColumnName='time', majorLocatorStep=10,
+         minorLocatorStep=1, displayMinor=True, rotation=90)
