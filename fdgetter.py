@@ -43,13 +43,20 @@ from collections import namedtuple
 import datatoolkits
 from decimal import Decimal
 import functools
+import imp
 import numpy as np
 import pandas as pd
 import SQLserver
-from sqlstmts import BASIC_SQLs
-
+import sqlstmts
+import sysconfiglee
+# from sqlstmts import BASIC_SQLs
+# 防止sqlstmts更新后，reload不会更新
+imp.reload(sqlstmts)
+BASIC_SQLs = sqlstmts.BASIC_SQLs
 # --------------------------------------------------------------------------------------------------
-# 设置数据库常量
+# 从常量模块中获取数据库标识
+jydb = sysconfiglee.get_database('jydb')
+zyyx = sysconfiglee.get_database('zyyx')
 try:
     jydb = SQLserver.SQLserver(DATABASE='jydb', SERVER='128.6.5.18', UID='jydb', PWD='jydb')
 except Exception as e:  # 当前环境下没有连接数据库
@@ -180,13 +187,16 @@ def combine(datas, on, how='outer'):
 
 
 if __name__ == '__main__':
-    qis_sql = gen_sql_cols({'NetProfit': 'ni', 'EndDate': 'rpt_date',
-                            'InfoPublDate': 'update_time'}, 'QIS')
-    bss_sql = gen_sql_cols({'TotalAssets': 'total_asset', 'ShortTermLoan': 'ST_loan',
-                            'EndDate': 'rpt_date', 'InfoPublDate': 'update_time'}, 'BSS')
-    code = '000001.SZ'
-    data = list()
-    for sql, col in (qis_sql, bss_sql):
-        tmp_data = get_db_data(sql, code, '2009-01-01', '2016-01-01', col)
-        data.append(tmp_data)
-    data = combine(data, on=('code', 'rpt_date', 'update_time'))
+    # qis_sql = gen_sql_cols({'NetProfit': 'ni', 'EndDate': 'rpt_date',
+    #                         'InfoPublDate': 'update_time'}, 'QIS')
+    # bss_sql = gen_sql_cols({'TotalAssets': 'total_asset', 'ShortTermLoan': 'ST_loan',
+    #                         'EndDate': 'rpt_date', 'InfoPublDate': 'update_time'}, 'BSS')
+    # code = '000001.SZ'
+    # data = list()
+    # for sql, col in (qis_sql, bss_sql):
+    #     tmp_data = get_db_data(sql, code, '2009-01-01', '2016-01-01', col)
+    #     data.append(tmp_data)
+    # data = combine(data, on=('code', 'rpt_date', 'update_time'))
+    data = get_db_data(BASIC_SQLs['TARGET_PRICE'], code='002230.SZ',
+                       start_time='2010-01-01', end_time='2017-04-01',
+                       cols=('target_price', 'time'), db=zyyx)
