@@ -46,7 +46,7 @@ import functools
 import imp
 import numpy as np
 import pandas as pd
-import SQLserver
+# import SQLserver
 import sqlstmts
 import sysconfiglee
 # from sqlstmts import BASIC_SQLs
@@ -57,18 +57,6 @@ BASIC_SQLs = sqlstmts.BASIC_SQLs
 # 从常量模块中获取数据库标识
 jydb = sysconfiglee.get_database('jydb')
 zyyx = sysconfiglee.get_database('zyyx')
-try:
-    jydb = SQLserver.SQLserver(DATABASE='jydb', SERVER='128.6.5.18', UID='jydb', PWD='jydb')
-except Exception as e:  # 当前环境下没有连接数据库
-    jydb = None
-    print(e)
-
-try:
-    zyyx = SQLserver.SQLserver(DATABASE='zyyx', SERVER='128.6.5.18', UID='zyyx', PWD='zyyx')
-except Exception as e:
-    zyyx = None
-    print(e)
-
 # --------------------------------------------------------------------------------------------------
 # 数据处理函数
 
