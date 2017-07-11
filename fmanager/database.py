@@ -4,7 +4,13 @@
 # @Author  : Li Hao (howardlee_h@outlook.com)
 # @Link    : https://github.com/SAmmer0
 # @Version : $Id$
+'''
+__version__ = 1.0.0
+修改日期：2017-07-11
+修改内容：初步完成基础数据存储模块
 
+'''
+__version__ = "1.0.0"
 # import datatoolkits
 import dateshandle
 import numpy as np
@@ -250,7 +256,7 @@ class DBConnector(object):
         out = data.loc[:, codes]
         return out
 
-    def insert_df(self, df, filled_value=np.nan, data_dtype=None):
+    def insert_df(self, df, data_dtype=None, filled_value=np.nan):
         '''
         将DataFrame插入数据库中
 
@@ -258,12 +264,12 @@ class DBConnector(object):
         ---------
         df: pd.DataFrame
             需要插入的数据，要求index为时间，columns为股票代码
-        filled_value: str or float or else, default np.nan
-            当插入数据的列与数据文件中的数据列不匹配时，需要对源数据一些空余的列做填充，默认填充
-            NA
         data_dtype: str, default None
             pd.DataFrame中的数据与数据库中的数据格式不匹配，需要对pd.DataFrame进行适当的转换，默认为
             None表示不需要转换，否则则需要提供转换后的格式形式
+        filled_value: str or float or else, default np.nan
+            当插入数据的列与数据文件中的数据列不匹配时，需要对源数据一些空余的列做填充，默认填充
+            NA
 
         Return
         ------
