@@ -31,8 +31,13 @@ __version__ = 1.1.0
 
 __version__ = 1.1.1
 修改日期：2017-06-01
+
+__version__ = 1.1.2
+修改日期：2017-07-19
+修改内容：
+    添加get_recent_td用于获取最近的交易日
 '''
-__version__ = '1.1.0'
+__version__ = '1.1.2'
 
 from windwrapper import get_tds_wind
 
@@ -301,6 +306,27 @@ def get_rebtd(start_time, end_time, freq='M', nth=-1):
     return out
 
 
+def get_recent_td(day):
+    '''
+    获取在给定日期之前距离给定日期最近的交易日
+
+    Parameter
+    ---------
+    day: str or datetime
+        给定需要获取最近交易日的日期
+
+    Return
+    ------
+    out: pd.Timestamp
+        给定日期的最近交易日
+    '''
+    offset = dt.timedelta(30)
+    start_date = pd.to_datetime(day) - offset
+    tds = get_tds(start_date, day)
+    assert len(tds) > 0, "Error, time duration too short"
+    return tds[-1]
+
+
 if __name__ == '__main__':
-    days = list(pd.date_range('2017-01-01', periods=20, freq='D'))
-    test = tdcount(days, days[-1])
+    res = get_recent_td('2017-01-31')
+    print(res)
