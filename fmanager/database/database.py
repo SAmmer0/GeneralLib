@@ -7,7 +7,8 @@
 '''
 __version__ = 1.0.0
 修改日期：2017-07-11
-修改内容：初步完成基础数据存储模块
+修改内容：
+    初步完成基础数据存储模块
 
 '''
 __version__ = "1.0.0"
@@ -15,7 +16,7 @@ __version__ = "1.0.0"
 import dateshandle
 import numpy as np
 import pandas as pd
-import pdb
+# import pdb
 import h5py
 
 MAX_COL_SIZE = 4000
