@@ -4,11 +4,21 @@
 # @Author  : Li Hao (howardlee_h@outlook.com)
 # @Link    : https://github.com/SAmmer0
 # @Version : $Id$
+'''
+因子查询模块
+
+__version__ = 1.0.0
+修改日期：2017-07-19
+修改内容：
+    添加add_abs_path
+'''
+__version__ = '1.0.0'
 
 from .. import database
 from . import basicfactors
 from . import derivativefactors
 from ..const import FACTOR_FILE_PATH, SUFFIX
+from copy import deepcopy
 
 # --------------------------------------------------------------------------------------------------
 # 常量
@@ -27,6 +37,30 @@ def get_factor_dict():
     for mod in FACTOR_MODULES:
         factors.update(mod.get_factor_dict())
     return factors
+
+
+def add_abs_path(factor_dict):
+    '''
+    在因子字典中加入绝对路径
+
+    Parameter
+    ---------
+    factor_dict: dict
+        因子字典
+
+    Return
+    ------
+    res: dict
+        加入绝对路径的因子字典
+
+    Notes
+    -----
+    该函数会在因子字典中加入新的abs_path值，用于记录因子的绝对路径
+    '''
+    res = deepcopy(factor_dict)
+    for factor in res:
+        res[factor]['abs_path'] = FACTOR_FILE_PATH + '\\' + res[factor]['rel_path'] + SUFFIX
+    return res
 
 
 def query(factor_name, time, codes=None):
