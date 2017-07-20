@@ -16,7 +16,7 @@ __version__ = "1.0.0"
 import dateshandle
 import numpy as np
 import pandas as pd
-# import pdb
+import pdb
 import h5py
 
 MAX_COL_SIZE = 4000
@@ -291,6 +291,8 @@ class DBConnector(object):
 
         if not (self.data_time is None or self.code_order is None):     # 非第一次插入数据
             df = df.loc[df.index > self.data_time]
+            if not len(df):  # 没有需要插入的数据
+                return df
             df_dates = df.index.tolist()
             df_dates.append(self.data_time)
 
@@ -304,6 +306,7 @@ class DBConnector(object):
         # 将数据转化为数据库文件可以识别的格式
         codes = np.array([c for c in df.columns], dtype=self._code_dtype)
         dates = np.array([c for c in df.index], dtype=self._date_dtype)
+        pdb.set_trace()
         if data_dtype is not None:
             data = df.values.astype(data_dtype)
         else:

@@ -32,10 +32,10 @@ ZXIND_TRANS_DICT = {'银行': 'bank', '房地产': 'realestate', '计算机': 'c
 class Factor(object):
     '''
     用于记录一个因子的基本信息，包含因子的名称、因子的计算方法、因子添加的时间、计算依赖的因子、
-    因子的相关描述说明
+    因子的相关描述说明、因子数据类型
     '''
 
-    def __init__(self, name, calc_method, addtime, dependency=None, desc=None):
+    def __init__(self, name, calc_method, addtime, dependency=None, desc=None, data_type='f8'):
         '''
         Parameter
         ---------
@@ -47,6 +47,7 @@ class Factor(object):
         self.addtime = addtime
         self.dependency = dependency
         self.desc = desc
+        self.data_type = data_type
 
     def __str__(self):
         return self.name

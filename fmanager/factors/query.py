@@ -32,10 +32,12 @@ FACTOR_MODULES = [derivativefactors, basicfactors]
 def get_factor_dict():
     '''
     获取模块内部的因子字典
+    因子字典结构为{factor_name: {'factor': factor, 'rel_path': relative path, 'abs_path': absolute path}}
     '''
     factors = dict()
     for mod in FACTOR_MODULES:
         factors.update(mod.get_factor_dict())
+    factors = add_abs_path(factors)
     return factors
 
 
@@ -86,7 +88,7 @@ def query(factor_name, time, codes=None):
         'Error, factor name "{pname}" is'.format(pname=factor_name) +\
         ' not valid, valid names are {vnames}'.format(pname=list(all_factors.keys()))
     factor_msg = all_factors[factor_name]
-    abs_path = FACTOR_FILE_PATH + '\\' + factor_msg['rel_path'] + SUFFIX
+    abs_path = factor_msg['abs_path']
     db = database.DBConnector(abs_path)
     data = db.query(time, codes)
     return data

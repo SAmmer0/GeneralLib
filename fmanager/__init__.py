@@ -7,3 +7,4 @@
 from . import database
 from . import factors
 from . import const
+from . import update

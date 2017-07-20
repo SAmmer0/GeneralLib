@@ -45,19 +45,18 @@ def get_zxind(universe, start_time, end_time):
                                     add_stockcode=False)
     ind_data['ind'] = ind_data.ind.map(ZXIND_TRANS_DICT)
     ind_data['code'] = ind_data.code.apply(datatoolkits.add_suffix)
+    # pdb.set_trace()
     tds = dateshandle.get_tds(start_time, end_time)
     by_code = ind_data.groupby('code')
     ind_data = by_code.apply(datatoolkits.map_data, days=tds,
                              fillna={'ind': lambda x: NaS, 'code': lambda x: x.code.iloc[0]})
-    # ind_data = ind_data.reset_index(drop=True).set_index(['time', 'code'])
-    # ind_data = ind_data.loc[:, 'ind'].unstack()
-    ind_data = ind_data.reset_index(drop=True)
-    ind_data = ind_data.pivot_table('ind', index='time', columns='code')
+    ind_data = ind_data.reset_index(drop=True).set_index(['time', 'code'])
+    ind_data = ind_data.loc[:, 'ind'].unstack()
     ind_data = ind_data.loc[:, sorted(universe)].fillna(NaS)
     return ind_data
 
 
-zx_ind_factor = Factor('ZX_IND', get_zxind, pd.to_datetime('2017-07-13'))
+zx_ind_factor = Factor('ZX_IND', get_zxind, pd.to_datetime('2017-07-13'), data_type='S30')
 
 # --------------------------------------------------------------------------------------------------
 # 上市状态因子，1表示正常上市，2表示暂停上市，3表示退市整理，4表示终止上市
@@ -206,5 +205,5 @@ IH_constituents = Factor('IH_CONS', get_IH_constituents, pd.to_datetime('2017-07
 IC_constituents = Factor('IC_CONS', get_IC_constituents, pd.to_datetime('2017-07-18'))
 IF_constituents = Factor('IF_CONS', get_IF_constituents, pd.to_datetime('2017-07-18'))
 # --------------------------------------------------------------------------------------------------
-factor_list = [zx_ind_factor, ls_factor, st_factor, IH_constituents, IC_constituents,
-               IF_constituents]
+factor_list = [zx_ind_factor, ls_factor, st_factor, tradeable_factor, IH_constituents,
+               IC_constituents, IF_constituents]

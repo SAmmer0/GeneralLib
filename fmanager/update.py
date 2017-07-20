@@ -15,13 +15,16 @@ __version__ = 1.0.0
 '''
 __version__ = '1.0.0'
 
+from collections import deque
 from .const import UNIVERSE_FILE_PATH, START_TIME
 from . import database
+from .factors.query import get_factor_dict
 import datatoolkits
 import dateshandle
 import datetime as dt
 import fdgetter
 from os.path import exists
+import pdb
 
 
 def update_universe(path=UNIVERSE_FILE_PATH):
@@ -116,7 +119,7 @@ def check_dependency(factor_name, factor_dict):
     return all(res)
 
 
-def update_factor(factor_name, factor_dict, univserse):
+def update_factor(factor_name, factor_dict, universe):
     '''
     更新数据，如果数据文件不存在，则创建一个数据文件，并写入数据，数据的时间从START_TIME开始，到当前
     时间为止
@@ -142,11 +145,76 @@ def update_factor(factor_name, factor_dict, univserse):
     start_time = None   # 更新的起始时间
     end_time = dt.datetime.now()    # 更新的截止时间
     if not exists(factor_msg['abs_path']):  # 检查文件是否存在
-        connector.init_dbfile()
+        connector.init_dbfile(factor_msg['factor'].data_type)
         start_time = START_TIME     # 数据文件初始化，从最早的时间开始
     else:
-        start_time = connector.data_time
+        if connector.data_time is not None:
+            start_time = connector.data_time
+        else:
+            start_time = START_TIME
     factor_func = factor_msg['factor'].calc_method
-    factor_data = factor_func(univserse, start_time, end_time)
-    connector.insert_df(factor_data)
+    factor_data = factor_func(universe, start_time, end_time)
+    pdb.set_trace()
+    connector.insert_df(factor_data, data_dtype=factor_msg['factor'].data_type)
     return True
+
+
+def update_all_factors(factor_dict, max_iter=100, order=None, show_progress=False):
+    '''
+    更新所有因子的数据
+
+    Parameter
+    ---------
+    factor_dict: dict
+        因子字典
+    max_iter: int, default 100
+        最大循环次数，超过这个次数更新过程被强制中断
+    order: list, default None
+        因子更新顺序，目前不实现对应功能，供未来扩展用（未来需要根据因子的依赖关系，解析更新顺序）
+    show_progress: boolean, default False
+        显示进度，默认不显示
+
+    Return
+    ------
+    out: boolean
+        如果成功更新所有因子，返回True，反之返回False
+    '''
+    if order is not None:
+        raise NotImplementedError
+    iter_num = 0
+    factor_queue = deque(sorted(factor_dict.keys()), maxlen=len(factor_dict))
+    universe = update_universe()
+    while len(factor_queue):
+        if iter_num > max_iter:
+            break
+        iter_num += 1   # 更新循环次数
+        factor_name = factor_queue.pop()
+        if show_progress:
+            print('Iter Num: {iter_num},\nFactor Name: {name},'.format(iter_num=iter_num,
+                                                                       name=factor_name))
+        update_res = update_factor(factor_name, factor_dict, universe)
+        if not update_res:  # 未成功更新
+            factor_queue.appendleft(factor_name)
+        update_res_str = 'success' if update_res else 'fail'
+        if show_progress:
+            print('Result: {res}'.format(res=update_res_str))
+    else:
+        return True
+    return False
+
+
+def auto_update_all(max_iter=100, show_progress=False):
+    '''
+    自动化更新所有因子
+
+    Parameter
+    ---------
+    max_iter: int, default 100
+        最大循环次数，超过这个次数更新过程被强制中断
+    show_progress: boolean, default False
+        显示更新进度，默认为不显示
+    '''
+    all_factors = get_factor_dict()
+    success = update_all_factors(all_factors, max_iter=max_iter, show_progress=show_progress)
+    if not success:
+        print('Updating process FAILED')
