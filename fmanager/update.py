@@ -18,7 +18,7 @@ __version__ = '1.0.0'
 from collections import deque
 from .const import UNIVERSE_FILE_PATH, START_TIME
 from . import database
-from .factors.query import get_factor_dict
+from .factors.dictionary import get_factor_dict, update_factordict
 import datatoolkits
 import dateshandle
 import datetime as dt
@@ -105,13 +105,16 @@ def is_updated(path):
     相关数据，到同步到本地的数据库中间需要些时间，有的数据更新时间甚至在7点左右），17点以后以当前交易
     日为最新；非最新的情况除了包含数据的时间戳非最新外，还包含数据文件为空的情况
     '''
-    connector = database.DBConnector(path)
-    if connector.data_time is None:
+    try:
+        connector = database.DBConnector(path)
+        if connector.data_time is None:
+            return False
+        data_time = connector.data_time
+        now = get_endtime(dt.datetime.now())
+        rct_td = dateshandle.get_recent_td(now)
+        return rct_td.date() == data_time.date()
+    except OSError:  # 表示当前没有对应的文件
         return False
-    data_time = connector.data_time
-    now = get_endtime(dt.datetime.now())
-    rct_td = dateshandle.get_recent_td(now)
-    return rct_td.date() == data_time.date()
 
 
 def check_dependency(factor_name, factor_dict):
@@ -234,7 +237,7 @@ def update_all_factors(factor_dict, max_iter=100, order=None, show_progress=Fals
 
 def auto_update_all(max_iter=100, show_progress=False):
     '''
-    自动化更新所有因子
+    自动化更新所有因子，并更新因子字典
 
     Parameter
     ---------
@@ -247,3 +250,4 @@ def auto_update_all(max_iter=100, show_progress=False):
     success = update_all_factors(all_factors, max_iter=max_iter, show_progress=show_progress)
     if not success:
         print('Updating process FAILED')
+    update_factordict()

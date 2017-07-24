@@ -8,3 +8,4 @@ from . import utils
 from . import basicfactors
 from . import derivativefactors
 from .import query
+from . import dictionary

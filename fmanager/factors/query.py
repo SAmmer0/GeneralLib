@@ -14,55 +14,15 @@ __version__ = 1.0.0
 '''
 __version__ = '1.0.0'
 
+from datatoolkits import load_pickle
+from ..const import FACTOR_DICT_FILE_PATH
 from .. import database
-from . import basicfactors
-from . import derivativefactors
-from ..const import FACTOR_FILE_PATH, SUFFIX
-from copy import deepcopy
 
 # --------------------------------------------------------------------------------------------------
 # 常量
-FACTOR_MODULES = [derivativefactors, basicfactors]
-
 
 # --------------------------------------------------------------------------------------------------
 # 函数
-
-
-def get_factor_dict():
-    '''
-    获取模块内部的因子字典
-    因子字典结构为{factor_name: {'factor': factor, 'rel_path': relative path, 'abs_path': absolute path}}
-    '''
-    factors = dict()
-    for mod in FACTOR_MODULES:
-        factors.update(mod.get_factor_dict())
-    factors = add_abs_path(factors)
-    return factors
-
-
-def add_abs_path(factor_dict):
-    '''
-    在因子字典中加入绝对路径
-
-    Parameter
-    ---------
-    factor_dict: dict
-        因子字典
-
-    Return
-    ------
-    res: dict
-        加入绝对路径的因子字典
-
-    Notes
-    -----
-    该函数会在因子字典中加入新的abs_path值，用于记录因子的绝对路径
-    '''
-    res = deepcopy(factor_dict)
-    for factor in res:
-        res[factor]['abs_path'] = FACTOR_FILE_PATH + '\\' + res[factor]['rel_path'] + SUFFIX
-    return res
 
 
 def query(factor_name, time, codes=None):
@@ -83,12 +43,13 @@ def query(factor_name, time, codes=None):
     out: pd.DataFrame
         查询结果数据，index为时间，columns为股票代码，如果未查询到符合要求的数据，则返回None
     '''
-    all_factors = get_factor_dict()
-    assert factor_name in all_factors, \
+    factor_dict = load_pickle(FACTOR_DICT_FILE_PATH)
+    if factor_dict is None:
+        raise ValueError('Dictionary file needs initialization...')
+    assert factor_name in factor_dict, \
         'Error, factor name "{pname}" is'.format(pname=factor_name) +\
-        ' not valid, valid names are {vnames}'.format(pname=list(all_factors.keys()))
-    factor_msg = all_factors[factor_name]
-    abs_path = factor_msg['abs_path']
+        ' not valid, valid names are {vnames}'.format(vnames=list(factor_dict.keys()))
+    abs_path = factor_dict[factor_name]
     db = database.DBConnector(abs_path)
     data = db.query(time, codes)
     return data

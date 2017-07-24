@@ -19,6 +19,7 @@ import dateshandle
 import fdgetter
 import pandas as pd
 from ..utils import check_indexorder, Factor
+from ..query import query
 # --------------------------------------------------------------------------------------------------
 # 常量和功能函数
 NAME = 'quote'
@@ -157,7 +158,88 @@ def get_shares(share_type):
 float_shares = Factor('FLOAT_SHARE', get_shares('NonResiSharesJY'), pd.to_datetime('2017-07-21'))
 # 总股本
 total_shares = Factor('TOTAL_SHARE', get_shares('TotalShares'), pd.to_datetime('2017-07-21'))
+# --------------------------------------------------------------------------------------------------
+# 股票市值：包含总市值和流通市值
+
+
+def get_mktvalue(share_factor_name):
+    '''
+    母函数，用于生成计算市值因子的函数
+    '''
+    def _inner(universe, start_time, end_time):
+        share_data = query(share_factor_name, (start_time, end_time))
+        close_data = query('CLOSE', (start_time, end_time))
+        assert len(share_data) == len(close_data), "Error, basic data length does not  match! " + \
+            "share data = {sd_len}, while close data = {cd_len}".format(sd_len=len(share_data),
+                                                                        cd_len=len(close_data))
+        res = share_data * close_data
+        res = res.loc[:, sorted(universe)]
+        return res
+    return _inner
+
+
+total_mktvalue = Factor('TOTAL_MKTVALUE', get_mktvalue('TOTAL_SHARE'), pd.to_datetime('2017-07-24'),
+                        desc="使用收盘价计算", dependency=['TOTAL_SHARE', 'CLOSE'])
+float_mktvalue = Factor('FLOAT_MKTVALUE', get_mktvalue('FLOAT_SHARE'), pd.to_datetime('2017-07-24'),
+                        desc="使用收盘价计算", dependency=['FLOAT_SHARE', 'CLOSE'])
+
+# --------------------------------------------------------------------------------------------------
+# 后复权价格
+
+
+def get_adjclose(universe, start_time, end_time):
+    '''
+    获取后复权收盘价
+    '''
+    adj_factor = query('ADJ_FACTOR', (start_time, end_time))
+    close_data = query('CLOSE', (start_time, end_time))
+    assert len(adj_factor) == len(close_data), "Error, basic data length does not  match! " + \
+        "adj_factor data = {sd_len}, while close data = {cd_len}".format(sd_len=len(adj_factor),
+                                                                         cd_len=len(close_data))
+    res = adj_factor * close_data
+    res = res.loc[:, sorted(universe)]
+    return res
+
+
+adj_close = Factor('ADJ_CLOSE', get_adjclose, pd.to_datetime('2017-07-24'),
+                   dependency=['CLOSE', 'ADJ_FACTOR'])
+
+# --------------------------------------------------------------------------------------------------
+# 日收益率
+
+
+def get_dailyret(universe, start_time, end_time):
+    '''
+    获取日收益率，使用后复权收盘价计算
+    '''
+    new_start = pd.to_datetime(start_time) - pd.Timedelta('30 day')
+    data = query('ADJ_CLOSE', (new_start, end_time))
+    data = data.pct_change()
+    mask = data.index >= start_time
+    data = data.loc[mask, sorted(universe)]
+    return data
+
+
+daily_ret = Factor('DAILY_RET', get_dailyret, pd.to_datetime('2017-07-24'),
+                   dependency=['ADJ_CLOSE'])
+# --------------------------------------------------------------------------------------------------
+# 换手率
+
+
+def get_torate(universe, start_time, end_time):
+    '''
+    获取换手率，使用当天交易量/流通股数来计算
+    '''
+    volume = query('TO_VOLUME', (start_time, end_time))
+    float_shares = query('FLOAT_SHARE', (start_time, end_time))
+    res = volume / float_shares
+    res = res.loc[:, sorted(universe)]
+    return res
+
+to_rate = Factor('TO_RATE', get_torate, pd.to_datetime('2017-07-24'),
+                 dependency=['TO_VOLUME', 'FLOAT_SHARE'])
 
 # --------------------------------------------------------------------------------------------------
 factor_list = [close_price, open_price, high_price, low_price, to_value, to_volume, adj_factor,
-               float_shares, total_shares]
+               float_shares, total_shares, total_mktvalue, float_mktvalue, adj_close,
+               daily_ret, to_rate]

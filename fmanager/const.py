@@ -11,3 +11,4 @@ FACTOR_FILE_PATH = sysconfiglee.get_config('factor_file_path')  # 因子存储�
 SUFFIX = '.h5'  # 因子文件后缀
 START_TIME = '2007-01-01'   # 因子最早可追溯的时间
 UNIVERSE_FILE_PATH = FACTOR_FILE_PATH + '\\' + 'universe.pickle'
+FACTOR_DICT_FILE_PATH = FACTOR_FILE_PATH + '\\' + 'factor_dict.pickle'
