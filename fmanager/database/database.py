@@ -132,12 +132,10 @@ class DBConnector(object):
                 data_time = store.attrs['data time']
             if data_time == 'nat':
                 return None
-            else:
-                data_time = pd.to_datetime(data_time)
-                self._data_time = data_time
-                return data_time
-        else:
-            return self._data_time
+            data_time = pd.to_datetime(data_time)
+            self._data_time = data_time
+            return data_time
+        return self._data_time
 
     @property
     def code_order(self):
@@ -150,11 +148,8 @@ class DBConnector(object):
             code_order = [c.decode('utf8') for c in code_order if len(c) > 0]
             if len(code_order) == 0:
                 return None
-            else:
-                self._code_order = code_order
-                return code_order
-        else:
-            return self._code_order
+            return code_order
+        return self._code_order
 
     def _query_panel(self, start_time, end_time):
         '''
@@ -306,7 +301,7 @@ class DBConnector(object):
         # 将数据转化为数据库文件可以识别的格式
         codes = np.array([c for c in df.columns], dtype=self._code_dtype)
         dates = np.array([c for c in df.index], dtype=self._date_dtype)
-        pdb.set_trace()
+        # pdb.set_trace()
         if data_dtype is not None:
             data = df.values.astype(data_dtype)
         else:

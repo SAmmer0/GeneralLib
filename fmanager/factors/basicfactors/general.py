@@ -52,7 +52,7 @@ def get_zxind(universe, start_time, end_time):
                              fillna={'ind': lambda x: NaS, 'code': lambda x: x.code.iloc[0]})
     ind_data = ind_data.reset_index(drop=True).set_index(['time', 'code'])
     ind_data = ind_data.loc[:, 'ind'].unstack()
-    ind_data = ind_data.loc[:, sorted(universe)].fillna(NaS)
+    ind_data = ind_data.loc[:, sorted(universe)].dropna(axis=0, how='all').fillna(NaS)
     return ind_data
 
 
@@ -79,7 +79,8 @@ def get_liststatus(universe, start_time, end_time):
     # ls_data = ls_data.reset_index(drop=True).set_index(['time', 'code'])
     # ls_data = ls_data.loc[:, 'list_status'].unstack()
     ls_data = ls_data.reset_index(drop=True)
-    ls_data = ls_data.pivot_table('list_status', index='time', columns='code')
+    ls_data = ls_data.pivot_table('list_status', index='time',
+                                  columns='code').dropna(axis=0, how='all')
     ls_data = ls_data.loc[:, sorted(universe)]
     return ls_data
 
@@ -127,7 +128,7 @@ def get_st(universe, start_time, end_time):
                             fromNowOn=True)
     # st_data = st_data.reset_index(drop=True).set_index(['time', 'code'])
     # st_data = st_data.loc[:, 'tag'].unstack()
-    st_data = st_data.pivot_table('tag', index='time', columns='code')
+    st_data = st_data.pivot_table('tag', index='time', columns='code').dropna(axis=0, how='all')
     st_data = st_data.loc[:, sorted(universe)].fillna(0)
     return st_data
 
@@ -159,6 +160,7 @@ def get_tradeable(universe, start_time, end_time):
     '''
     data = fdgetter.get_db_data(sql, cols=('time', 'vol', 'code'), start_time=start_time,
                                 end_time=end_time, add_stockcode=False)
+    # pdb.set_trace()
     data['code'] = data.code.apply(datatoolkits.add_suffix)
     data.loc[data.vol > 0, 'vol'] = 1
     data = data.pivot_table('vol', index='time', columns='code')

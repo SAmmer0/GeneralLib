@@ -48,7 +48,7 @@ def update_universe(path=UNIVERSE_FILE_PATH):
     new_universe = new_universe.code.tolist()
     try:
         universe_save = datatoolkits.load_pickle(path)
-        universe, update_time = universe_save
+        universe, _ = universe_save
         nu_set = set(new_universe)
         ou_set = set(universe)
         if nu_set != ou_set:
@@ -61,6 +61,28 @@ def update_universe(path=UNIVERSE_FILE_PATH):
     data = (new_universe, dt.datetime.now())
     datatoolkits.dump_pickle(data, path)
     return new_universe
+
+
+def get_endtime(t, threshold=18):
+    '''
+    根据给定的时间计算对应的结束时间，该功能用于确定当前更新数据时最新的数据时间
+
+    Parameter
+    ---------
+    t: dt.datetime or the like
+        参考转换的时间
+    threshold: int(0, 23], default 18
+        每天更新的时间节点，即如果t的时间在18点之前（<18），则返回的时间为昨天（上一天），反之返回的时间为今天
+
+    Return
+    ------
+    out: dt.datetime or the like
+    '''
+    if t.hour < 18:
+        out = t - dt.timedelta(1)
+    else:
+        out = t
+    return out
 
 
 def is_updated(path):
@@ -86,11 +108,10 @@ def is_updated(path):
     connector = database.DBConnector(path)
     if connector.data_time is None:
         return False
-    now = dt.datetime.now()
-    if now.hour <= 17:
-        now = now - dt.timedelta(1)
+    data_time = connector.data_time
+    now = get_endtime(dt.datetime.now())
     rct_td = dateshandle.get_recent_td(now)
-    return rct_td.date() == now.date()
+    return rct_td.date() == data_time.date()
 
 
 def check_dependency(factor_name, factor_dict):
@@ -141,9 +162,17 @@ def update_factor(factor_name, factor_dict, universe):
     if not check_dependency(factor_name, factor_dict):  # 检查因子依赖是否满足
         return False
     factor_msg = factor_dict[factor_name]
+    abs_path = factor_msg['abs_path']
+    if exists(abs_path) and is_updated(abs_path):  # 当前已经是最新，不用取数据更新
+        return True
     connector = database.DBConnector(factor_msg['abs_path'])
     start_time = None   # 更新的起始时间
-    end_time = dt.datetime.now()    # 更新的截止时间
+    now = dt.datetime.now()
+    end_time = get_endtime(now)
+    # if now.hour > 17:    # 18点之前将昨天的数据视为最新
+    #     end_time = now    # 更新的截止时间
+    # else:
+    #     end_time = now - dt.timedelta(1)
     if not exists(factor_msg['abs_path']):  # 检查文件是否存在
         connector.init_dbfile(factor_msg['factor'].data_type)
         start_time = START_TIME     # 数据文件初始化，从最早的时间开始
@@ -154,7 +183,7 @@ def update_factor(factor_name, factor_dict, universe):
             start_time = START_TIME
     factor_func = factor_msg['factor'].calc_method
     factor_data = factor_func(universe, start_time, end_time)
-    pdb.set_trace()
+    # pdb.set_trace()
     connector.insert_df(factor_data, data_dtype=factor_msg['factor'].data_type)
     return True
 

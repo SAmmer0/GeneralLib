@@ -5,9 +5,26 @@
 # @Link    : https://github.com/SAmmer0
 # @Version : $Id$
 
+'''
+行情类因子
+__version__: 1.0.0
+修改日期：2017-07-20
+修改内容：
+    初始化，添加基本因子
+'''
+__version__ = '1.0.0'
+
+import datatoolkits
+import dateshandle
+import fdgetter
+import pandas as pd
+from ..utils import check_indexorder, Factor
 # --------------------------------------------------------------------------------------------------
 # 常量和功能函数
 NAME = 'quote'
+
+# --------------------------------------------------------------------------------------------------
+# 功能函数
 
 
 def get_factor_dict():
@@ -17,4 +34,130 @@ def get_factor_dict():
     return res
 
 
-factor_list = []
+# --------------------------------------------------------------------------------------------------
+# 获取行情相关数据
+
+
+def get_quote(data_type):
+    '''
+    母函数，用于生成获取给定行情数据的函数
+    '''
+    sql = '''
+        SELECT S.TradingDay, data_type, M.Secucode
+        FROM QT_DailyQuote S, SecuMain M
+        WHERE
+            S.InnerCode = M.InnerCode AND
+            M.SecuMarket in (83, 90) AND
+            S.TradingDay <= CAST(\'{end_time}\' as datetime) AND
+            S.TradingDay >= CAST(\'{start_time}\' as datetime) AND
+            M.SecuCategory = 1
+        ORDER BY S.TradingDay ASC, M.Secucode ASC
+        '''
+    price_filter = ['openprice', 'highprice', 'lowprice']
+    if data_type.lower() not in price_filter:
+        transed_sql = sql.replace('data_type', 'S.' + data_type)
+        cols = ('time', 'data', 'code')
+    else:
+        transed_sql = sql.replace('data_type', 'S.PrevClosePrice, S.' + data_type)
+        cols = ('time', 'prevclose', 'data', 'code')
+
+    def _inner(universe, start_time, end_time):
+        data = fdgetter.get_db_data(transed_sql, cols=cols, start_time=start_time,
+                                    end_time=end_time, add_stockcode=False)
+        data['code'] = data.code.apply(datatoolkits.add_suffix)
+        if len(data.columns) == 4:
+            data.loc[data.data == 0, 'data'] = data['prevclose']
+            data.drop('prevclose', inplace=True, axis=1)
+        data = data.pivot_table('data', index='time', columns='code')
+        data = data.loc[:, sorted(universe)]
+        assert check_indexorder(data), 'Error, data order is mixed!'
+        return data
+    return _inner
+
+
+# 收盘价
+close_price = Factor('CLOSE', get_quote('ClosePrice'), pd.to_datetime('2017-07-20'))
+# 开盘价
+open_price = Factor('OPEN', get_quote('OpenPrice'), pd.to_datetime('2017-07-20'))
+# 最高价
+high_price = Factor('HIGH', get_quote('HighPrice'), pd.to_datetime('2017-07-20'))
+# 最低价
+low_price = Factor('LOW', get_quote('LowPrice'), pd.to_datetime('2017-07-20'))
+# 成交量
+to_volume = Factor('TO_VOLUME', get_quote('TurnoverVolume'), pd.to_datetime('2017-07-20'),
+                   desc='单位为股')
+# 成交额
+to_value = Factor('TO_VALUE', get_quote('TurnoverValue'), pd.to_datetime('2017-07-20'),
+                  desc='单位为元')
+
+# --------------------------------------------------------------------------------------------------
+# 复权因子
+
+
+def get_adjfactor(universe, start_time, end_time):
+    '''
+    股票的复权因子
+    '''
+    sql = '''
+        SELECT A.ExDiviDate, A.RatioAdjustingFactor, M.SecuCode
+        FROM QT_AdjustingFactor A, SecuMain M
+        WHERE
+            A.InnerCode = M.InnerCode AND
+            M.secuMarket in (83, 90) AND
+            M.SECUCATEGORY = 1
+        ORDER BY M.SecuCode ASC, A.ExDiviDate ASC
+        '''
+    data = fdgetter.get_db_data(sql, cols=('time', 'data', 'code'), add_stockcode=False)
+    data['code'] = data.code.apply(datatoolkits.add_suffix)
+    by_code = data.groupby('code')
+    tds = dateshandle.get_tds(start_time, end_time)
+    data = by_code.apply(datatoolkits.map_data, days=tds, fromNowOn=True,
+                         fillna={'code': lambda x: x.code.iloc[0], 'data': lambda x: 1})
+    data = data.reset_index(drop=True)
+    data = data.pivot_table('data', index='time', columns='code')
+    data = data.loc[:, sorted(universe)]
+    assert check_indexorder(data), 'Error, data order is mixed!'
+    return data
+
+
+adj_factor = Factor('ADJ_FACTOR', get_adjfactor, pd.to_datetime('2017-07-21'))
+# --------------------------------------------------------------------------------------------------
+# 股本
+
+
+def get_shares(share_type):
+    '''
+    母函数，用于生成获取给定类型股本的函数
+    '''
+    sql = '''
+        SELECT S.share_type, S.EndDate, M.SecuCode
+        FROM SecuMain M, LC_ShareStru S
+        WHERE M.CompanyCode = S.CompanyCode AND
+            M.SecuMarket in (83, 90) AND
+            M.SecuCategory = 1
+        '''
+    transed_sql = sql.replace('share_type', share_type)
+
+    def _inner(universe, start_time, end_time):
+        data = fdgetter.get_db_data(transed_sql, cols=('data', 'time', 'code'), add_stockcode=False)
+        data['code'] = data.code.apply(datatoolkits.add_suffix)
+        by_code = data.groupby('code')
+        tds = dateshandle.get_tds(start_time, end_time)
+        data = by_code.apply(datatoolkits.map_data, days=tds, fromNowOn=True,
+                             fillna={'code': lambda x: x.code.iloc[0]})
+        data = data.reset_index(drop=True)
+        data = data.pivot_table('data', index='time', columns='code')
+        data = data.loc[:, sorted(universe)]
+        assert check_indexorder(data), 'Error, data order is mixed!'
+        return data
+    return _inner
+
+
+# 流通股本
+float_shares = Factor('FLOAT_SHARE', get_shares('NonResiSharesJY'), pd.to_datetime('2017-07-21'))
+# 总股本
+total_shares = Factor('TOTAL_SHARE', get_shares('TotalShares'), pd.to_datetime('2017-07-21'))
+
+# --------------------------------------------------------------------------------------------------
+factor_list = [close_price, open_price, high_price, low_price, to_value, to_volume, adj_factor,
+               float_shares, total_shares]

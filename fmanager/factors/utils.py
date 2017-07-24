@@ -9,7 +9,6 @@
 '''
 提供因子计算的一些基本工具
 '''
-
 # --------------------------------------------------------------------------------------------------
 # 常量
 
@@ -41,6 +40,18 @@ class Factor(object):
         ---------
         name: str
             因子的名称，要求要在所有因子中具有唯一性
+        calc_method: function
+            因子的计算方法，要求function的格式为func(universe, start_time, end_time)，其中universe为
+            股票代码列表，start_time和end_time分别为计算的起始时间，要求为可被pd.to_datetime转化的格式
+        addtime: datetime or the like
+            因子的添加时间，要求为静态时间
+        dependency: list like, default None
+            该因子的依赖因子，要求为列表，列表内容为字符串（因子名），如果为None，表示没有依赖项
+        desc: str, default None
+            因子相关描述，默认为None表示没有相关介绍
+        data_type: str, default f8
+            表示因子的数据格式，目前只支持f和s开头的格式描述，数字型数据默认即可，表示64位浮点数，
+            字符串型数据以S开头，后面跟上最大的字符串长度（也可分配更多空间，供后续扩展）
         '''
         self.name = name
         self.calc_method = calc_method
@@ -57,3 +68,21 @@ class Factor(object):
 
 # --------------------------------------------------------------------------------------------------
 # 函数
+
+
+def check_indexorder(df):
+    '''
+    检查数据的时间顺序是否正确（升序）
+
+    Parameter
+    ---------
+    df: pd.DataFrame
+        需要检查的数据
+
+    Return
+    ------
+    out: boolean
+        如果顺序正确，返回True，反之返回False
+    '''
+    index = df.index.tolist()
+    return index == sorted(index)
