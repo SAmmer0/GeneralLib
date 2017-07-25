@@ -24,6 +24,7 @@ import dateshandle
 import datetime as dt
 import fdgetter
 from os.path import exists
+from os import makedirs
 import pdb
 
 
@@ -247,7 +248,26 @@ def auto_update_all(max_iter=100, show_progress=False):
         显示更新进度，默认为不显示
     '''
     all_factors = get_factor_dict()
+    gen_folders(all_factors)
     success = update_all_factors(all_factors, max_iter=max_iter, show_progress=show_progress)
     if not success:
         print('Updating process FAILED')
     update_factordict()
+
+
+def gen_folders(fd):
+    '''
+    用于生成因子数据文件所在的文件夹
+
+    Parameter
+    ---------
+    fd: dict
+        因子字典数据
+    '''
+    path_list = [fd[name]['abs_path'] for name in fd]
+    folder_list = ['\\'.join(p.split('\\')[:-1]) for p in path_list]
+    folder_list = list(set(folder_list))
+    for folder in folder_list:
+        if exists(folder):
+            continue
+        makedirs(folder)
