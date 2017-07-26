@@ -219,7 +219,7 @@ def map_data(rawData, days, timeCols='time', fromNowOn=False, fillna=None):
         fillna: 填充缺省值，默认为None，即不做任何填充，填充方式为{col: func}，func接受rawData为参数，
             返回一个值，作为填充
     @return:
-        pd.DataFrame格式的处理后的数据，数据长度与参数days相同，且时间列为索引
+        pd.DataFrame格式的处理后的数据，数据长度与参数days相同，<del>且时间列为索引</del>
     '''
     if not isinstance(days, list):
         days = list(days)
@@ -234,7 +234,7 @@ def map_data(rawData, days, timeCols='time', fromNowOn=False, fillna=None):
         print(rawData.code.iloc[0])
         raise e
     if not fromNowOn:
-        data = data.shift(1)
+        data = data.shift(1)    # 若报告发布日期在两个交易日之间，则会导致数据会滞后一个交易日
     data = data.reindex(days)
     data = data.reset_index()
     if fillna:
