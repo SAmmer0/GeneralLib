@@ -21,7 +21,7 @@ import pandas as pd
 import pdb
 
 from ...database import NaS
-from ..utils import Factor, ZXIND_TRANS_DICT
+from ..utils import Factor, ZXIND_TRANS_DICT, check_duplicate_factorname
 
 # --------------------------------------------------------------------------------------------------
 # 常量和功能函数
@@ -126,6 +126,7 @@ def get_st(universe, start_time, end_time):
     st_data = by_code.apply(datatoolkits.map_data, days=tds,
                             fillna={'code': lambda x: x.code.iloc[0]},
                             fromNowOn=True)
+    st_data = st_data.reset_index(drop=True)
     # st_data = st_data.reset_index(drop=True).set_index(['time', 'code'])
     # st_data = st_data.loc[:, 'tag'].unstack()
     st_data = st_data.pivot_table('tag', index='time', columns='code').dropna(axis=0, how='all')
@@ -209,3 +210,4 @@ IF_constituents = Factor('IF_CONS', get_IF_constituents, pd.to_datetime('2017-07
 # --------------------------------------------------------------------------------------------------
 factor_list = [zx_ind_factor, ls_factor, st_factor, tradeable_factor, IH_constituents,
                IC_constituents, IF_constituents]
+check_duplicate_factorname(factor_list, __name__)

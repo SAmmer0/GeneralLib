@@ -18,7 +18,7 @@ import dateshandle
 import fdgetter
 import fdmutils
 import pandas as pd
-from ..utils import Factor, check_indexorder
+from ..utils import Factor, check_indexorder, check_duplicate_factorname
 # from ..query import query
 
 # --------------------------------------------------------------------------------------------------
@@ -31,6 +31,42 @@ def get_factor_dict():
     for f in factor_list:
         res[f.name] = {'rel_path': NAME + '\\' + f.name, 'factor': f}
     return res
+
+
+def _handle_dbdata(data, start_time, end_time, func, **kwargs):
+    '''
+    将从数据库中获取的数据映射到交易日中
+
+    Parameter
+    ---------
+    data: pd.DataFrame
+        从数据库中获取的数据，要求列名为['update_time', 'rpt_date', 'code', 'data']
+    start_time: str or other type that can be transfered by pd.to_datetime
+        获取的数据的起始时间
+    end_time: str or other type that can be transfered by pd.to_datetime
+        获取数据的结束之间
+    func: function
+        要求function接受的第一个参数为pd.DataFrame，为经过代码和观察日分组的数据，且返回的结果
+        为一个值或者只包含一个值得pd.Series
+    **kwargs: dictionary like parameter
+        为需要传入func的其他参数
+
+    Return
+    ------
+    out: pd.DataFrame
+        经过特定计算后的结果，columns为股票代码，index为日期
+    '''
+    by_code = data.groupby('code')
+    data = by_code.apply(fdmutils.get_observabel_data).reset_index(drop=True)
+    by_cno = data.groupby(['code', 'obs_time'])
+    data = by_cno.apply(func, **kwargs)
+    data = data.reset_index().rename(columns={'obs_time': 'time'})
+    tds = dateshandle.get_tds(start_time, end_time)
+    data = data.groupby('code').apply(datatoolkits.map_data, days=tds,
+                                      fillna={'code': lambda x: x.code.iloc[0]})
+    data = data.reset_index(drop=True)
+    data = data.pivot_table('data', index='time', columns='code')
+    return data
 # --------------------------------------------------------------------------------------------------
 # TTM数据
 
@@ -169,6 +205,161 @@ equity = Factor('EQUITY', get_BS_latest('SEWithoutMI'), pd.to_datetime('2017-07-
 cash = Factor('CASH', get_BS_latest('CashEquivalents'), pd.to_datetime('2017-07-25'),
               desc='现金')
 # --------------------------------------------------------------------------------------------------
+# 特定时间季度数据（例如最新季度数据，往前推三个季度的数据等等）
+
+
+def get_season_nshift(data_type, sql_type, n):
+    '''
+    母函数，用于生成获取对应数据的函数（对应的数据是指当前最新季度往前推n个季度的数据）
+
+    Parameter
+    ---------
+    data_type: str
+        从数据库字典中获取的对应数据的数据代码
+    sql_type: str
+        目前仅支持{'季度利润表': 'IS', '季度现金流量表': 'CFS'}
+    n: int
+        往前推的期数，例如，n=1表明最近一个季度，n=2表明上个季度（相对最近季度而言）
+    '''
+    sql_type_dict = {'IS': 'LC_QIncomeStatementNew', 'CFS': 'LC_QCashFlowStatementNew'}
+    sql_type = sql_type_dict[sql_type]
+    sql_template = '''
+    SELECT S.InfoPublDate, S.EndDate, M.SecuCode, S.data
+    FROM sql_type S, SecuMain M
+    WHERE
+        M.CompanyCode = S.CompanyCode AND
+        M.SecuMarket in (83, 90) AND
+        M.SecuCategory = 1 AND
+        S.BulletinType != 10 AND
+        S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
+        S.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
+    ORDER BY M.SecuCode ASC, S.InfoPublDate ASC
+    '''
+    sql = sql_template.replace('data', data_type).replace('sql_type', sql_type)
+
+    def _inner(universe, start_time, end_time):
+        offset = 100 * n + 250
+        new_start = pd.to_datetime(start_time) - pd.Timedelta('%d day' % offset)
+        data = fdgetter.get_db_data(sql, start_time=new_start, end_time=end_time,
+                                    cols=('update_time', 'rpt_date', 'code', 'data'),
+                                    add_stockcode=False)
+        data['code'] = data.code.apply(datatoolkits.add_suffix)
+        # 该部分可以单独做成一个函数
+        by_code = data.groupby('code')
+        data = by_code.apply(fdmutils.get_observabel_data).reset_index(drop=True)
+        by_cno = data.groupby(['code', 'obs_time'])
+        data = by_cno.apply(fdmutils.cal_season, col_name='data', offset=n)
+        data = data.reset_index().rename(columns={'obs_time': 'time'})
+        tds = dateshandle.get_tds(start_time, end_time)
+        data = data.groupby('code').apply(datatoolkits.map_data, days=tds,
+                                          fillna={'code': lambda x: x.code.iloc[0]})
+        data = data.reset_index(drop=True)
+        data = data.pivot_table('data', index='time', columns='code')
+        data = data.loc[:, sorted(universe)]
+        assert check_indexorder(data), 'Error, data order is mixed!'
+        return data
+    return _inner
+
+
+# 最近季度归属母公司净利润
+ni_1s = Factor('NI_1S', get_season_nshift('NPFromParentCompanyOwners', 'IS', 1),
+               pd.to_datetime('2017-07-26'), desc='最近一个季度归属母公司净利润')
+# 往前推4个季度的归属母公司的净利润（即如果最近季度为一季度，那么该因子指的是上个年度的一季度数据）
+ni_5s = Factor('NI_5S', get_season_nshift('NPFromParentCompanyOwners', 'IS', 5),
+               pd.to_datetime('2017-07-26'), desc='往前推四个季度归属母公司净利润')
+# 最近季度营业收入
+oprev_1s = Factor('OPREV_1S', get_season_nshift('OperatingRevenue', 'IS', 1),
+                  pd.to_datetime('2017-07-26'), desc='最近一个季度营业收入')
+# 往前推4个季度的营业收入
+oprev_5s = Factor('OPREV_5S', get_season_nshift('OperatingRevenue', 'IS', 5),
+                  pd.to_datetime('2017-07-26'), desc='往前推四个季度营业收入')
+# --------------------------------------------------------------------------------------------------
+# 特定时间的年度数据（例如最新财年数据，上个财年的数据）
+
+
+def get_year_nshift(data_type, sql_type, n):
+    '''
+    母函数，用于生成用于生成获取对应数据的函数（对应的数据是指当前最新财年往前推n个财年的数据）
+
+    Parameter
+    ---------
+    data_type: str
+        从数据库字典中获取的对应数据的数据代码
+    sql_type: str
+        目前仅支持{'利润表': 'IS', '现金流量表': 'CFS'}
+    n: int
+        往前推的期数，例如，n=1表明最近一个财年，n=2表明上个财年（相对最近财年而言），以此类推
+    '''
+    sql_type_dict = {'IS': 'LC_IncomeStatementAll', 'CFS': 'LC_CashFlowStatementAll'}
+    sql_type = sql_type_dict[sql_type]
+    sql_template = '''
+    SELECT S.InfoPublDate, S.EndDate, M.SecuCode, S.data
+    FROM sql_type S, SecuMain M
+    WHERE
+        M.CompanyCode = S.CompanyCode AND
+        M.SecuMarket in (83, 90) AND
+        M.SecuCategory = 1 AND
+        S.AccountingStandards = 1 AND
+        S.IfAdjusted not in (4, 5) AND
+        S.BulletinType != 10 AND
+        S.IfMerged = 1 AND
+        S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
+        S.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
+    ORDER BY M.SecuCode ASC, S.InfoPublDate ASC
+    '''
+    sql = sql_template.replace('data', data_type).replace('sql_type', sql_type)
+
+    def _inner(universe, start_time, end_time):
+        offset = 366 * n + 180
+        new_start = pd.to_datetime(start_time) - pd.Timedelta('%d day' % offset)
+        data = fdgetter.get_db_data(sql, start_time=new_start, end_time=end_time,
+                                    cols=('update_time', 'rpt_date', 'code', 'data'),
+                                    add_stockcode=False)
+        data['code'] = data.code.apply(datatoolkits.add_suffix)
+        data = _handle_dbdata(data, start_time, end_time, fdmutils.cal_yr, col_name='data',
+                              offset=n)
+        # pdb.set_trace()
+        data = data.loc[:, sorted(universe)]
+        assert check_indexorder(data), 'Error, data order is mixed!'
+        return data
+    return _inner
+
+
+# 最近财年的归属母公司的净利润
+ni_1y = Factor('NI_1Y', get_year_nshift('NPParentCompanyOwners', 'IS', 1),
+               pd.to_datetime('2017-07-26'), desc='最近财年归属母公司的净利润')
+# 往前推2个财年（上财年）的归属母公司净利润
+ni_2y = Factor('NI_2Y', get_year_nshift('NPParentCompanyOwners', 'IS', 2),
+               pd.to_datetime('2017-07-26'), desc='往前推2个财年的归属母公司净利润')
+# 往前推3个财年的归属母公司净利润
+ni_3y = Factor('NI_3Y', get_year_nshift('NPParentCompanyOwners', 'IS', 3),
+               pd.to_datetime('2017-07-26'), desc='往前推3个财年的归属母公司净利润')
+# 往前推4个财年的归属母公司净利润
+ni_4y = Factor('NI_4Y', get_year_nshift('NPParentCompanyOwners', 'IS', 4),
+               pd.to_datetime('2017-07-26'), desc='往前推4个财年的归属母公司净利润')
+# 往前推5个财年的归属母公司净利润
+ni_5y = Factor('NI_5Y', get_year_nshift('NPParentCompanyOwners', 'IS', 5),
+               pd.to_datetime('2017-07-26'), desc='往前推5个财年的归属母公司净利润')
+
+# 最近财年的营业收入
+oprev_1y = Factor('OPREV_1Y', get_year_nshift('OperatingRevenue', 'IS', 1),
+                  pd.to_datetime('2017-07-26'), desc='最近财年营业收入')
+# 往前推2个财年（上财年）的营业收入
+oprev_2y = Factor('OPREV_2Y', get_year_nshift('OperatingRevenue', 'IS', 2),
+                  pd.to_datetime('2017-07-26'), desc='往前推2个财年的营业收入')
+# 往前推3个财年的营业收入
+oprev_3y = Factor('OPREV_3Y', get_year_nshift('OperatingRevenue', 'IS', 3),
+                  pd.to_datetime('2017-07-26'), desc='往前推3个财年的营业收入')
+# 往前推4个财年的营业收入
+oprev_4y = Factor('OPREV_4Y', get_year_nshift('OperatingRevenue', 'IS', 4),
+                  pd.to_datetime('2017-07-26'), desc='往前推4个财年的营业收入')
+# 往前推5个财年的营业收入
+oprev_5y = Factor('OPREV_5Y', get_year_nshift('OperatingRevenue', 'IS', 5),
+                  pd.to_datetime('2017-07-26'), desc='往前推5个财年的营业收入')
+
+# --------------------------------------------------------------------------------------------------
 
 factor_list = [ni_ttm, oprev_ttm, opprofit_ttm, opexp_ttm, adminexp_ttm, fiexp_ttm, opnetcf_ttm,
-               TA, TNCL, TCA, TCL, equity, cash]
+               TA, TNCL, TCA, TCL, equity, cash, ni_1s, ni_5s, oprev_1s, oprev_5s,
+               ni_1y, ni_2y, ni_3y, ni_4y, ni_5y, oprev_1y, oprev_2y, oprev_3y, oprev_4y, oprev_5y]
+check_duplicate_factorname(factor_list, __name__)

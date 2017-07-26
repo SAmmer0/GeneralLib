@@ -18,7 +18,7 @@ import datatoolkits
 import dateshandle
 import fdgetter
 import pandas as pd
-from ..utils import check_indexorder, Factor
+from ..utils import check_indexorder, Factor, check_duplicate_factorname
 from ..query import query
 # --------------------------------------------------------------------------------------------------
 # 常量和功能函数
@@ -243,3 +243,4 @@ to_rate = Factor('TO_RATE', get_torate, pd.to_datetime('2017-07-24'),
 factor_list = [close_price, open_price, high_price, low_price, to_value, to_volume, adj_factor,
                float_shares, total_shares, total_mktvalue, float_mktvalue, adj_close,
                daily_ret, to_rate]
+check_duplicate_factorname(factor_list, __name__)

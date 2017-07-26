@@ -5,7 +5,7 @@
 # @Link    : https://github.com/SAmmer0
 # @Version : $Id$
 
-
+from collections import defaultdict
 '''
 提供因子计算的一些基本工具
 '''
@@ -88,3 +88,23 @@ def check_indexorder(df):
     '''
     index = df.index.tolist()
     return index == sorted(index)
+
+
+def check_duplicate_factorname(factor_list, mod):
+    '''
+    检测重复的因子名称，用于各个因子模块中
+
+    Parameter
+    ---------
+    factor_list: list like
+        因子模块中的因子列表
+    mod: str
+        因子模块的名称
+    '''
+    factor_dict = defaultdict(list)
+    for factor in factor_list:
+        factor_dict[factor.name].append(factor)
+    for name in factor_dict:
+        assert len(factor_dict[name]) <= 1, \
+            'Error, factor name("{name}") is duplicated in module "{mod_name}"'.format(name=name,
+                                                                                       mod_name=mod)

@@ -6,11 +6,12 @@
 # @Version : $Id$
 from . import financialdata
 from . import general
+from . import other
 from . import quote
 from . import test
 
 NAME = 'basicfactors'
-FACTOR_MODULES = [financialdata, general, quote]
+FACTOR_MODULES = [financialdata, general, quote, other]
 
 
 def get_factor_dict():

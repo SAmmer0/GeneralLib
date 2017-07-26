@@ -8,7 +8,9 @@
 '''
 因子字典模块，用于从各个因子模块中读取因子，并构造因子字典，写入文件中
 '''
+
 from copy import deepcopy
+import pdb
 from datatoolkits import dump_pickle, load_pickle
 from . import basicfactors
 from . import derivativefactors
@@ -30,9 +32,15 @@ def get_factor_dict():
     因子字典结构为{factor_name: {'factor': factor, 'rel_path': relative path, 'abs_path': absolute path}}
     '''
     factors = dict()
+    factor_names = set()
     for mod in FACTOR_MODULES:
+        mod_dict = mod.get_factor_dict()    # 检查是否有重复因子名称
+        assert len(factor_names.intersection(mod_dict.keys())) == 0, \
+            'Error, duplicate factor name in module "{mod_name}"'.format(mod_name=mod.__name__)
         factors.update(mod.get_factor_dict())
+        factor_names.update(mod_dict.keys())
     factors = add_abs_path(factors)
+    # pdb.set_trace()
     return factors
 
 
