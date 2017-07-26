@@ -31,7 +31,6 @@ except ImportError:
     print('Warning: fail to import WindPy')
 import pandas as pd
 import datetime as dt
-import dateshandle
 
 
 def check_connection():
@@ -80,6 +79,7 @@ def get_data(code, field, startDate, endDate, add_stockcode=True, highFreq=False
     if add_stockcode:
         data['code'] = [code] * len(data)
     if time_std:
+        import dateshandle
         data['time'] = dateshandle.wind_time_standardlization(data.time)
     return data
 
