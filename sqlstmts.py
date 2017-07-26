@@ -200,14 +200,16 @@ ADJFACTOR_SQL = '''
     ORDER BY A.ExDiviDate ASC
     '''
 
-# 获取股票戴帽摘帽情况
+# 获取股票特殊处理的情况，仅限于A股
 ST_SQL = '''
-    SELECT S.InfoPublDate, S.SecurityAbbr
-    FROM LC_SpecialTrade S, SecuMain M
+    SELECT S.SpecialTradeTime, S.SecurityAbbr, C.MS, M.SecuCode
+    FROM LC_SpecialTrade S, SecuMain M, CT_SystemConst C
     WHERE
         S.InnerCode = M.InnerCode AND
-        M.SecuCode = \'{code}\' AND
-        M.SecuMarket in (83, 90)
+        M.SecuMarket in (83, 90) AND
+        S.SpecialTradeType = C.DM AND
+        C.LB = 1185 AND
+        M.SecuCategory = 1
     '''
 
 # 获取指数行情数据
@@ -234,9 +236,21 @@ TARGET_PRICE_SQL = '''
 '''
 
 # --------------------------------------------------------------------------------------------------
+# 股票的基本状态
+# 上市状态
+LIST_STATUS_SQL = '''
+    SELECT M.Secucode, S.ChangeType, S.changeDate
+    FROM SECUMAIN M, LC_ListStatus S
+    WHERE M.INNERCODE = S.INNERCODE AND
+        M.SecuCategory = 1 AND
+        S.SecuMarket in (90, 83) AND
+        S.ChangeType != 9
+    ORDER BY M.SECUCODE
+'''
+# --------------------------------------------------------------------------------------------------
 # 集合现有的所有基础SQL
 BASIC_SQLs = {'QIS': QIS_SQL, 'YIS': YIS_SQL, 'QCFS': QCFS_SQL, 'YCFS': YCFS_SQL,
               'BSS': BSS_SQL, 'SN': SN_SQL, 'INDEX_CONSTITUENTS': INDEX_SQL, 'DIV': DIV_SQL,
               'QUOTE': QUOTE_SQL, 'ADJ_FACTOR': ADJFACTOR_SQL, 'A_UNIVERSE': AUNIVERSE_SQL,
               'ST_TAG': ST_SQL, 'ZX_IND': ZXIND_SQL, 'TARGET_PRICE': TARGET_PRICE_SQL,
-              'INDEX_QUOTE': INDEX_QUOTE_SQL}
+              'INDEX_QUOTE': INDEX_QUOTE_SQL, 'LIST_STATUS': LIST_STATUS_SQL}
