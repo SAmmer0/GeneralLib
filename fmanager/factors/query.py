@@ -11,6 +11,10 @@ __version__ = 1.0.0
 修改日期：2017-07-19
 修改内容：
     添加add_abs_path
+
+修改日期：2017-07-27
+修改内容：
+    给query函数添加fillna参数选项
 '''
 __version__ = '1.0.0'
 
@@ -25,7 +29,7 @@ from .. import database
 # 函数
 
 
-def query(factor_name, time, codes=None):
+def query(factor_name, time, codes=None, fillna=None):
     '''
     接受外部的请求，从数据库中获取对应因子的数据
 
@@ -37,7 +41,8 @@ def query(factor_name, time, codes=None):
         单一的参数表示查询横截面的数据，元组（start_time, end_time）表示查询时间序列数据
     codes: list, default None
         需要查询数据的股票代码，默认为None，表示查询所有股票的数据
-
+    fillna: int or float, default
+        是否给NA值进行填充，默认为None，即不需要填充，如果需要填充则将填充值传给fillna参数
     Return
     ------
     out: pd.DataFrame
@@ -52,4 +57,6 @@ def query(factor_name, time, codes=None):
     abs_path = factor_dict[factor_name]
     db = database.DBConnector(abs_path)
     data = db.query(time, codes)
+    if fillna is not None:
+        data = data.fillna(fillna)
     return data

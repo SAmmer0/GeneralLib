@@ -192,7 +192,7 @@ def update_factor(factor_name, factor_dict, universe):
     return True
 
 
-def update_all_factors(factor_dict, max_iter=100, order=None, show_progress=False):
+def update_all_factors(factor_dict, max_iter=300, order=None, show_progress=False):
     '''
     更新所有因子的数据
 
@@ -200,7 +200,7 @@ def update_all_factors(factor_dict, max_iter=100, order=None, show_progress=Fals
     ---------
     factor_dict: dict
         因子字典
-    max_iter: int, default 100
+    max_iter: int, default 300
         最大循环次数，超过这个次数更新过程被强制中断
     order: list, default None
         因子更新顺序，目前不实现对应功能，供未来扩展用（未来需要根据因子的依赖关系，解析更新顺序）
