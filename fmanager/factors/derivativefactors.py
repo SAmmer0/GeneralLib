@@ -18,7 +18,7 @@ import datatoolkits
 import dateshandle
 import numpy as np
 import pandas as pd
-from .utils import Factor, check_indexorder, check_duplicate_factorname
+from .utils import Factor, check_indexorder, check_duplicate_factorname, convert_data
 from .query import query
 
 # --------------------------------------------------------------------------------------------------
@@ -163,7 +163,115 @@ def get_ni_yoy(universe, start_time, end_time):
 ni_yoy = Factor('NI_YOY', get_ni_yoy, pd.to_datetime('2017-07-27'),
                 dependency=['NI_1S', 'NI_5S'],
                 desc='(本季度净利润-上年同季度净利润)/abs(上年同季度净利润)')
+
+# 过去5年增长率
+
+
+def get_p5ygrowth(factor_type):
+    '''
+    母函数，用于生成计算过去五年平均增长率的函数
+
+    Parameter
+    ---------
+    factor_type: str
+        因子类型，目前只支持['NI', 'OPREV']
+
+    Notes
+    -----
+    采用将对应数值对时间做回归（时间由远到近依次为1到5），然后除以平均值的绝对值
+    '''
+    def calc_growth(df):
+        # 假设数据按照升序排列，即由上到下依次为1-5
+        t = np.arange(5, 0, -1)
+        df_mean = df.mean()
+        df_demean = df - df_mean
+        res = np.dot(t, df_demean.values) / 10
+        res = pd.Series(res, index=df.columns)
+        res = res / np.abs(df_mean)
+        return res
+
+    def _inner(universe, start_time, end_time):
+        datas = list()
+        for i in range(1, 6):
+            tmp_data = query(factor_type + '_%dY' % i, (start_time, end_time))
+            datas.append(tmp_data)
+        data = convert_data(datas, range(1, 6))  # 1（最近年度）-5（最远年度）依次表示到现在的时间间隔越来越远
+        data = data.sort_index()
+        by_date = data.groupby(level=0)
+        data = by_date.apply(calc_growth)
+        data = data.loc[:, sorted(universe)]
+        assert check_indexorder(data), 'Error, data order is mixed!'
+        return data
+    return _inner
+
+
+# 净利润过去5年增长率
+ni_5yg = Factor('NI_5YG', get_p5ygrowth('NI'), pd.to_datetime('2017-07-28'),
+                dependency=['NI_%dY' % i for i in range(1, 6)])
+# 营业收入过去5年增长率
+oprev_5yg = Factor('OPREV_5YG', get_p5ygrowth('OPREV'), pd.to_datetime('2017-07-28'),
+                   dependency=['OPREV_%dY' % i for i in range(1, 6)])
+
+# --------------------------------------------------------------------------------------------------
+# 质量类因子
+# ROE
+
+
+def get_roe(universe, start_time, end_time):
+    '''
+    ROE = 净利润TTM / 归属母公司权益
+    '''
+    ni_data = query('NI_TTM', (start_time, end_time))
+    equity_data = query('EQUITY', (start_time, end_time))
+    data = ni_data / equity_data
+    data = data.loc[:, sorted(universe)]
+    assert check_indexorder(data), 'Error, data order is mixed!'
+    return data
+
+
+roe = Factor('ROE', get_roe, pd.to_datetime('2017-07-28'),
+             dependency=['NI_TTM', 'EQUITY'], desc='净利润TTM/归属母公司权益')
+# ROA
+
+
+def get_roa(universe, start_time, end_time):
+    '''
+    ROA = 净利润TTM / 总资产
+    '''
+    ni_data = query('NI_TTM', (start_time, end_time))
+    ta_data = query('TA', (start_time, end_time))
+    data = ni_data / ta_data
+    data = data.loc[:, sorted(universe)]
+    assert check_indexorder(data), 'Error, data order is mixed!'
+    return data
+
+
+roa = Factor('ROA', get_roa, pd.to_datetime('2017-07-28'),
+             dependency=['NI_TTM', 'TA'], desc='净利润TTM/总资产')
+
+# 营业利润率
+
+
+def get_grossmargin(universe, start_time, end_time):
+    '''
+    营业利润率 = (营业收入-营业成本-销售费用-管理费用-财务费用) / abs(营业收入)
+    '''
+    oprev = query('OPREV_TTM', (start_time, end_time))
+    opcost = query('OPCOST_TTM', (start_time, end_time))
+    opsale = query('OPEXP_TTM', (start_time, end_time))
+    adminexp = query('ADMINEXP_TTM', (start_time, end_time))
+    fiexp = query('FIEXP_TTM', (start_time, end_time))
+    data = (oprev - opcost - opsale - adminexp - fiexp) / np.abs(oprev)
+    data = data.loc[:, sorted(universe)]
+    assert check_indexorder(data), 'Error, data order is mixed!'
+    return data
+
+gross_margin = Factor('GROSS_MARGIN', get_grossmargin, pd.to_datetime('2017-07-28'),
+                      dependency=['OPREV_TTM', 'OPCOST_TTM', 'OPEXP_TTM', 'ADMINEXP_TTM',
+                                  'FIEXP_TTM'],
+                      desc='营业利润率 = (营业收入-营业成本-销售费用-管理费用-财务费用) / abs(营业收入)')
 # --------------------------------------------------------------------------------------------------
 
-factor_list = [ep_ttm, bp, sp_ttm, cfp_ttm, sale2ev, oprev_yoy, ni_yoy]
+factor_list = [ep_ttm, bp, sp_ttm, cfp_ttm, sale2ev, oprev_yoy, ni_yoy, ni_5yg, oprev_5yg,
+               roe, roa, gross_margin]
 check_duplicate_factorname(factor_list, __name__)

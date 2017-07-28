@@ -6,6 +6,8 @@
 # @Version : $Id$
 
 from collections import defaultdict
+import pandas as pd
+import pdb
 '''
 提供因子计算的一些基本工具
 '''
@@ -108,3 +110,37 @@ def check_duplicate_factorname(factor_list, mod):
         assert len(factor_dict[name]) <= 1, \
             'Error, factor name("{name}") is duplicated in module "{mod_name}"'.format(name=name,
                                                                                        mod_name=mod)
+
+
+def convert_data(dfs, indices):
+    '''
+    将多维度的数据结合到一张表中，结合的方法为：在每个df的index中添加一个维度，填充对应的indices，然后将
+    所有的数据在0轴的方向通过append结合在一起
+
+    Parameter
+    ---------
+    dfs: list like
+        需要通过该方法结合的数据，目前仅支持index为时间，columns为股票代码的数据（不做检测），要求
+        列表中数据的长度都相同（即包含相同的时间长度，否则会造成一些日期内没有特定的数据），目前暂时
+        不支持依照列进行结合，因为股票代码的数量会变动，容易出现长度的问题
+    indices: list like
+        每个数据对应的标记，即对应的index
+
+    Return
+    ------
+    out: pd.DataFrame
+        index为MultiIndex类型，最后一个维度为数据标记维度，columns为股票代码，顺序与第一个dfs的第一个
+        df的columns相同
+    '''
+    if not hasattr(indices, '__len__'):
+        indices = list(indices)
+    assert len(dfs) == len(indices), \
+        'Error, DataFrame list({df_len}) should have the same length as indices({idx_len})'.\
+        format(df_len=len(dfs), idx_len=len(indices))
+    out = pd.DataFrame()
+    for idx, df in zip(indices, dfs):
+        df = df.copy()
+        df.index = pd.MultiIndex.from_product([df.index, [idx]])
+        out = out.append(df)
+        # pdb.set_trace()
+    return out

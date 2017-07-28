@@ -29,6 +29,11 @@ from os import makedirs, system
 import pdb
 import time
 
+# 日志设置
+logging.basicConfig(filename=FACTOR_FILE_PATH + '\\' + 'update_log.log',
+                    format='%(asctime)s: %(message)s', level=logging.INFO,
+                    datefmt='%Y-%m-%d %H:%M:%S')
+
 
 def update_universe(path=UNIVERSE_FILE_PATH):
     '''
@@ -57,8 +62,10 @@ def update_universe(path=UNIVERSE_FILE_PATH):
         if nu_set != ou_set:
             add_diff = list(nu_set.difference(ou_set))
             minus_diff = list(ou_set.difference(nu_set))
-            print('Warning: universe UPDATED, {drop} are DROPED, {add} are ADDED'.
-                  format(drop=minus_diff, add=add_diff))
+            msg = 'Warning: universe UPDATED, {drop} are DROPED, {add} are ADDED'.\
+                format(drop=minus_diff, add=add_diff)
+            logging.info(msg)
+            print(msg)
     except FileNotFoundError:
         pass
     data = (new_universe, dt.datetime.now())
@@ -278,9 +285,8 @@ def gen_folders(fd):
             continue
         makedirs(folder)
 
+
 if __name__ == '__main__':
-    logging.basicConfig(filename=FACTOR_FILE_PATH + '\\' + 'update_log.log',
-                        format='%(asctime)s: %(message)s', level=logging.INFO)
     logging.info('-' * 10 + 'START UPDATING' + '-' * 10)
     now = dt.datetime.now()
     if now.hour < 19:
@@ -289,10 +295,10 @@ if __name__ == '__main__':
         logging.info("Wait for {second}s".format(seconds))
         time.sleep(seconds)
     try:
-        fmanager.update.auto_update_all(show_progress=True)
+        auto_update_all(show_progress=True)
     except Exception as e:
         logging.exception(e)
         raise e
     finally:
         logging.info('-' * 10 + 'COMPLETE UPDATING' + '-' * 10)
-        os.system('shutdown -s -t 100')
+        system('shutdown -s -t 100')

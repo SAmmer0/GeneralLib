@@ -140,6 +140,9 @@ adminexp_ttm = Factor('ADMINEXP_TTM', get_TTM('AdministrationExpense', 'IS'),
 # 财务费用TTM
 fiexp_ttm = Factor('FIEXP_TTM', get_TTM('FinancialExpense', 'IS'), pd.to_datetime('2017-07-25'),
                    desc='财务费用TTM')
+# 营业成本TTM
+opcost_ttm = Factor('OPCOST_TTM', get_TTM('OperatingCost', 'IS'), pd.to_datetime('2017-07-28'),
+                    desc='营业成本')
 # 经营活动中的现金流净额
 opnetcf_ttm = Factor('OPNETCF_TTM', get_TTM('NetOperateCashFlow', 'CFS'),
                      pd.to_datetime('2017-07-25'), desc='经营活动中的现金流净额')
@@ -360,6 +363,6 @@ oprev_5y = Factor('OPREV_5Y', get_year_nshift('OperatingRevenue', 'IS', 5),
 # --------------------------------------------------------------------------------------------------
 
 factor_list = [ni_ttm, oprev_ttm, opprofit_ttm, opexp_ttm, adminexp_ttm, fiexp_ttm, opnetcf_ttm,
-               TA, TNCL, TCA, TCL, equity, cash, ni_1s, ni_5s, oprev_1s, oprev_5s,
+               TA, TNCL, TCA, TCL, equity, cash, ni_1s, ni_5s, oprev_1s, oprev_5s, opcost_ttm,
                ni_1y, ni_2y, ni_3y, ni_4y, ni_5y, oprev_1y, oprev_2y, oprev_3y, oprev_4y, oprev_5y]
 check_duplicate_factorname(factor_list, __name__)
