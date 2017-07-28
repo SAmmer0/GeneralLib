@@ -16,16 +16,18 @@ __version__ = 1.0.0
 __version__ = '1.0.0'
 
 from collections import deque
-from .const import UNIVERSE_FILE_PATH, START_TIME
+from .const import UNIVERSE_FILE_PATH, START_TIME, FACTOR_FILE_PATH
 from . import database
-from .factors.dictionary import get_factor_dict, update_factordict
 import datatoolkits
 import dateshandle
 import datetime as dt
+from .factors.dictionary import get_factor_dict, update_factordict
 import fdgetter
+import logging
 from os.path import exists
-from os import makedirs
+from os import makedirs, system
 import pdb
+import time
 
 
 def update_universe(path=UNIVERSE_FILE_PATH):
@@ -222,15 +224,19 @@ def update_all_factors(factor_dict, max_iter=300, order=None, show_progress=Fals
             break
         iter_num += 1   # 更新循环次数
         factor_name = factor_queue.pop()
+        msg = 'Iter Num: {iter_num}, Factor Name: {name},'.format(iter_num=iter_num,
+                                                                  name=factor_name)
+        logging.info(msg)
         if show_progress:
-            print('Iter Num: {iter_num},\nFactor Name: {name},'.format(iter_num=iter_num,
-                                                                       name=factor_name))
+            print(msg)
         update_res = update_factor(factor_name, factor_dict, universe)
         if not update_res:  # 未成功更新
             factor_queue.appendleft(factor_name)
         update_res_str = 'success' if update_res else 'fail'
+        res_msg = 'Result: {res}'.format(res=update_res_str)
+        logging.info(res_msg)
         if show_progress:
-            print('Result: {res}'.format(res=update_res_str))
+            print(res_msg)
     else:
         return True
     return False
@@ -271,3 +277,22 @@ def gen_folders(fd):
         if exists(folder):
             continue
         makedirs(folder)
+
+if __name__ == '__main__':
+    logging.basicConfig(filename=FACTOR_FILE_PATH + '\\' + 'update_log.log',
+                        format='%(asctime)s: %(message)s', level=logging.INFO)
+    logging.info('-' * 10 + 'START UPDATING' + '-' * 10)
+    now = dt.datetime.now()
+    if now.hour < 19:
+        target_time = now.replace(hour=19, minute=0)
+        seconds = (target_time - now).seconds
+        logging.info("Wait for {second}s".format(seconds))
+        time.sleep(seconds)
+    try:
+        fmanager.update.auto_update_all(show_progress=True)
+    except Exception as e:
+        logging.exception(e)
+        raise e
+    finally:
+        logging.info('-' * 10 + 'COMPLETE UPDATING' + '-' * 10)
+        os.system('shutdown -s -t 100')
