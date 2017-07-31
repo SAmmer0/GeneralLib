@@ -262,10 +262,10 @@ def auto_update_all(max_iter=100, show_progress=False):
     '''
     all_factors = get_factor_dict()
     gen_folders(all_factors)
+    update_factordict()  # 每次更新前先更新因子字典
     success = update_all_factors(all_factors, max_iter=max_iter, show_progress=show_progress)
     if not success:
         print('Updating process FAILED')
-    update_factordict()
 
 
 def gen_folders(fd):
@@ -292,7 +292,7 @@ if __name__ == '__main__':
     if now.hour < 19:
         target_time = now.replace(hour=19, minute=0)
         seconds = (target_time - now).seconds
-        logging.info("Wait for {second}s".format(seconds))
+        logging.info("Wait for {second}s".format(second=seconds))
         time.sleep(seconds)
     try:
         auto_update_all(show_progress=True)

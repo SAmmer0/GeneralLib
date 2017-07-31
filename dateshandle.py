@@ -36,6 +36,11 @@ __version__ = 1.1.2
 修改日期：2017-07-19
 修改内容：
     添加get_recent_td用于获取最近的交易日
+
+__version__ = 1.1.2
+修改日期：2017-07-31
+修改内容：
+    添加tds_count函数，用于计算时间段内交易日数量
 '''
 __version__ = '1.1.2'
 
@@ -326,6 +331,24 @@ def get_recent_td(day):
     assert len(tds) > 0, "Error, time duration too short"
     return tds[-1]
 
+
+def tds_count(start_time, end_time):
+    '''
+    获取给定时间段内的交易日的数量
+
+    Parameter
+    ---------
+    start_time: type that can be converted by pd.to_datetime
+        开始时间
+    end_time: type that can be converted by pd.to_datetime
+        结束时间
+
+    Notes
+    -----
+    计数包含起始的时间
+    '''
+    tds = get_tds(start_time, end_time)
+    return len(tds)
 
 if __name__ == '__main__':
     res = get_recent_td('2017-01-31')

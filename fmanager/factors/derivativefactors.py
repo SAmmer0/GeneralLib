@@ -252,7 +252,7 @@ roa = Factor('ROA', get_roa, pd.to_datetime('2017-07-28'),
 # 营业利润率
 
 
-def get_grossmargin(universe, start_time, end_time):
+def get_opprofitmargin(universe, start_time, end_time):
     '''
     营业利润率 = (营业收入-营业成本-销售费用-管理费用-财务费用) / abs(营业收入)
     '''
@@ -266,12 +266,146 @@ def get_grossmargin(universe, start_time, end_time):
     assert check_indexorder(data), 'Error, data order is mixed!'
     return data
 
-gross_margin = Factor('GROSS_MARGIN', get_grossmargin, pd.to_datetime('2017-07-28'),
-                      dependency=['OPREV_TTM', 'OPCOST_TTM', 'OPEXP_TTM', 'ADMINEXP_TTM',
-                                  'FIEXP_TTM'],
-                      desc='营业利润率 = (营业收入-营业成本-销售费用-管理费用-财务费用) / abs(营业收入)')
+
+opprofit_margin = Factor('OPPROFIT_MARGIN', get_opprofitmargin, pd.to_datetime('2017-07-28'),
+                         dependency=['OPREV_TTM', 'OPCOST_TTM', 'OPEXP_TTM', 'ADMINEXP_TTM',
+                                     'FIEXP_TTM'],
+                         desc='营业利润率 = (营业收入-营业成本-销售费用-管理费用-财务费用) / abs(营业收入)')
+
+# 毛利率
+
+
+def get_grossmargin(universe, start_time, end_time):
+    '''
+    毛利率 = (营业收入 - 营业成本) / abs(营业收入)
+    '''
+    oprev = query('OPREV_TTM', (start_time, end_time))
+    opcost = query('OPCOST_TTM', (start_time, end_time))
+    data = (oprev - opcost) / np.abs(oprev)
+    data = data.loc[:, sorted(universe)]
+    assert check_indexorder(data), 'Error, data order is mixed!'
+    return data
+
+
+gross_margin = Factor('GROSS_MARGIN', get_grossmargin, pd.to_datetime('2017-07-31'),
+                      dependency=['OPREV_TTM', 'OPCOST_TTM'],
+                      desc='毛利率 = (营业收入 - 营业成本) / abs(营业收入)')
+
+# 资产周转率
+
+
+def get_tato(universe, start_time, end_time):
+    '''
+    资产周转率 = 营业收入TTM / 最新总资产
+    '''
+    oprev = query('OPREV_TTM', (start_time, end_time))
+    ta = query('TA', (start_time, end_time))
+    data = oprev / ta
+    data = data.loc[:, sorted(universe)]
+    assert check_indexorder(data), 'Error, data order is mixed!'
+    return data
+
+
+tato = Factor('TATO', get_tato, pd.to_datetime('2017-07-31'),
+              dependency=['OPREV_TTM', 'TA'], desc='营业收入TTM / 最新总资产')
+
+# 流动比率
+
+
+def get_currentratio(universe, start_time, end_time):
+    '''
+    流动比率 = 流动资产 / 流动负债
+    '''
+    ca = query('TCA', (start_time, end_time))
+    cl = query('TCL', (start_time, end_time))
+    data = ca / cl
+    data = data.loc[:, sorted(universe)]
+    assert check_indexorder(data), 'Error, data order is mixed!'
+    return data
+
+
+current_ratio = Factor('CURRENT_RATIO', get_currentratio, pd.to_datetime('2017-07-31'),
+                       dependency=['TCA', 'TCL'], desc='流动比率 = 流动资产 / 流动负债')
+
+# 现金流净额与营业利润比
+
+
+def get_nopcf2opprofit(universe, start_time, end_time):
+    '''
+    ratio = 经营活动中产生的现金流净额TTM / 营业利润TTM
+    '''
+    cf = query('OPNETCF_TTM', (start_time, end_time))
+    opprofit = query('OPPROFIT_TTM', (start_time, end_time))
+    data = cf / opprofit
+    data = data.loc[:, sorted(universe)]
+    assert check_indexorder(data), 'Error, data order is mixed!'
+    return data
+
+
+opnetcf2opprofit = Factor('OPNETCF2OPPROFIT', get_nopcf2opprofit, pd.to_datetime('2017-07-31'),
+                          dependency=['OPNETCF_TTM', 'OPPROFIT_TTM'],
+                          desc='经营活动中产生的现金流净额TTM / 营业利润TTM')
+
+# 三费（财务费、管理费、销售费用）占销售比例
+
+
+def get_3fee2sale(universe, start_time, end_time):
+    '''
+    ratio = (销售费用TTM+管理费用TTM+财务费用TTM) / abs(营业收入)
+    '''
+    oprev = query('OPREV_TTM', (start_time, end_time))
+    opexp = query('OPEXP_TTM', (start_time, end_time))
+    adexp = query('ADMINEXP_TTM', (start_time, end_time))
+    fiexp = query('FIEXP_TTM', (start_time, end_time))
+    data = (opexp + adexp + fiexp) / np.abs(oprev)
+    data = data.loc[:, sorted(universe)]
+    assert check_indexorder(data), 'Error, data order is mixed!'
+    return data
+
+threefee2sale = Factor('FEE2SALE', get_3fee2sale, pd.to_datetime('2017-07-31'),
+                       dependency=['OPREV_TTM', 'OPEXP_TTM', 'ADMINEXP_TTM', 'FIEXP_TTM'],
+                       desc='(销售费用TTM+管理费用TTM+财务费用TTM) / abs(营业收入)')
+# --------------------------------------------------------------------------------------------------
+# 动量因子
+
+
+def get_momentum(days):
+    '''
+    母函数，用于生成计算动量的函数
+
+    Parameter
+    ---------
+    days: int
+        计算动量的交易日间隔
+    '''
+    def _inner(universe, start_time, end_time):
+        start_time = pd.to_datetime(start_time)
+        shift_days = int(days / 20 * 31)
+        new_start = start_time - pd.Timedelta('30 day') - pd.Timedelta('%d day' % shift_days)
+        quote = query('ADJ_CLOSE', (new_start, end_time))
+        # pdb.set_trace()
+        data = quote.pct_change(days).dropna(how='all')
+        mask = (data.index >= start_time) & (data.index <= end_time)
+        data = data.loc[mask, sorted(universe)]
+        tds_cnt = dateshandle.tds_count(start_time, end_time)
+        assert len(data) == tds_cnt,\
+            'Error, trading day number does not match, ' +\
+            'len(data)={dl}, while len(tds)={tl}'.format(dl=len(data), tl=tds_cnt)
+        return data
+    return _inner
+
+# 1月动量，假设一个月有20个交易日
+momentum_1m = Factor('MOM_1M', get_momentum(20), pd.to_datetime('2017-07-31'),
+                     dependency=['ADJ_CLOSE'])
+# 3月动量
+momentum_3m = Factor('MOM_3M', get_momentum(60), pd.to_datetime('2017-07-31'),
+                     dependency=['ADJ_CLOSE'])
+# 60个月动量
+momentum_60m = Factor('MOM_60M', get_momentum(1200), pd.to_datetime('2017-07-31'),
+                      dependency=['ADJ_CLOSE'])
 # --------------------------------------------------------------------------------------------------
 
 factor_list = [ep_ttm, bp, sp_ttm, cfp_ttm, sale2ev, oprev_yoy, ni_yoy, ni_5yg, oprev_5yg,
-               roe, roa, gross_margin]
+               roe, roa, opprofit_margin, gross_margin, tato, current_ratio, threefee2sale,
+               momentum_1m, momentum_3m, momentum_60m]
 check_duplicate_factorname(factor_list, __name__)
