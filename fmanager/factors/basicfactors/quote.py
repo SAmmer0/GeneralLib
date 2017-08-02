@@ -17,7 +17,9 @@ __version__ = '1.0.0'
 import datatoolkits
 import dateshandle
 import fdgetter
+import numpy as np
 import pandas as pd
+from ...const import START_TIME
 from ..utils import check_indexorder, Factor, check_duplicate_factorname
 from ..query import query
 # --------------------------------------------------------------------------------------------------
@@ -236,11 +238,52 @@ def get_torate(universe, start_time, end_time):
     res = res.loc[:, sorted(universe)]
     return res
 
+
 to_rate = Factor('TO_RATE', get_torate, pd.to_datetime('2017-07-24'),
                  dependency=['TO_VOLUME', 'FLOAT_SHARE'])
 
+
+# 过去一个月日均换手率
+def get_avgtorate(universe, start_time, end_time):
+    '''
+    指过去20个交易日平均换手率
+    '''
+    start_time = pd.to_datetime(start_time)
+    new_start = start_time - pd.Timedelta('60 day')
+    daily_torate = query('TO_RATE', (new_start, end_time))
+    data = daily_torate.rolling(20, min_periods=20).mean().dropna(how='all')
+    mask = (data.index >= start_time) & (data.index <= end_time)
+    data = data.loc[mask, sorted(universe)]
+    if start_time > pd.to_datetime(START_TIME):     # 第一次更新从START_TIME开始，必然会有缺失数据
+        tds_cnt = dateshandle.tds_count(start_time, end_time)
+        assert len(data) == tds_cnt,\
+            'Error, trading day number does not match, ' +\
+            'len(data)={dl}, while len(tds)={tl}'.format(dl=len(data), tl=tds_cnt)
+    return data
+
+
+avg_torate = Factor('TOAVG_1M', get_avgtorate, pd.to_datetime('2017-08-02'),
+                    dependency=['TO_RATE'], desc='过去一个月（20交易日）日均换手率')
+
 # --------------------------------------------------------------------------------------------------
+# 对数市值
+
+
+def get_lnfloatmktv(universe, start_time, end_time):
+    '''
+    对数市值
+    '''
+    fmktv = query('FLOAT_MKTVALUE', (start_time, end_time))
+    data = np.log(fmktv)
+    data = data.loc[:, sorted(universe)]
+    return data
+
+
+ln_flmv = Factor('LN_FMKV', get_lnfloatmktv, pd.to_datetime('2017-08-02'),
+                 dependency=['FLOAT_MKTVALUE'], desc='对数市值')
+# --------------------------------------------------------------------------------------------------
+
 factor_list = [close_price, open_price, high_price, low_price, to_value, to_volume, adj_factor,
                float_shares, total_shares, total_mktvalue, float_mktvalue, adj_close,
-               daily_ret, to_rate]
+               daily_ret, to_rate, ln_flmv, avg_torate]
 check_duplicate_factorname(factor_list, __name__)

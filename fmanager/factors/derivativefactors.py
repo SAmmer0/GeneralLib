@@ -13,11 +13,13 @@ __version__ = 1.0.0
 修改内容：
     初始化
 '''
-import pdb
+
 import datatoolkits
 import dateshandle
 import numpy as np
 import pandas as pd
+import pdb
+from ..const import START_TIME
 from .utils import Factor, check_indexorder, check_duplicate_factorname, convert_data
 from .query import query
 
@@ -362,6 +364,7 @@ def get_3fee2sale(universe, start_time, end_time):
     assert check_indexorder(data), 'Error, data order is mixed!'
     return data
 
+
 threefee2sale = Factor('FEE2SALE', get_3fee2sale, pd.to_datetime('2017-07-31'),
                        dependency=['OPREV_TTM', 'OPEXP_TTM', 'ADMINEXP_TTM', 'FIEXP_TTM'],
                        desc='(销售费用TTM+管理费用TTM+财务费用TTM) / abs(营业收入)')
@@ -388,11 +391,13 @@ def get_momentum(days):
         mask = (data.index >= start_time) & (data.index <= end_time)
         data = data.loc[mask, sorted(universe)]
         tds_cnt = dateshandle.tds_count(start_time, end_time)
-        assert len(data) == tds_cnt,\
-            'Error, trading day number does not match, ' +\
-            'len(data)={dl}, while len(tds)={tl}'.format(dl=len(data), tl=tds_cnt)
+        if start_time > pd.to_datetime(START_TIME):     # 第一次更新从START_TIME开始，必然会有缺失数据
+            assert len(data) == tds_cnt,\
+                'Error, trading day number does not match, ' +\
+                'len(data)={dl}, while len(tds)={tl}'.format(dl=len(data), tl=tds_cnt)
         return data
     return _inner
+
 
 # 1月动量，假设一个月有20个交易日
 momentum_1m = Factor('MOM_1M', get_momentum(20), pd.to_datetime('2017-07-31'),
@@ -404,6 +409,46 @@ momentum_3m = Factor('MOM_3M', get_momentum(60), pd.to_datetime('2017-07-31'),
 momentum_60m = Factor('MOM_60M', get_momentum(1200), pd.to_datetime('2017-07-31'),
                       dependency=['ADJ_CLOSE'])
 # --------------------------------------------------------------------------------------------------
+# 偏度峰度因子
+# 偏度
+
+
+def gen_skfunc(days, func_name):
+    '''
+    母函数，用于生成计算偏度或者峰度的函数
+
+    Parameter
+    ---------
+    days: int
+        计算相关数据的交易日间隔
+    func_name: str
+        计算的数据结果类型，只支持skew和kurt
+    '''
+    def _inner(universe, start_time, end_time):
+        start_time = pd.to_datetime(start_time)
+        shift_days = int(days / 20 * 31)
+        new_start = start_time - pd.Timedelta('30 day') - pd.Timedelta('%d day' % shift_days)
+        data = query('DAILY_RET', (new_start, end_time))
+        rolling = data.rolling(days, min_periods=days)
+        data = getattr(rolling, func_name)()
+        data = data.dropna(how='all')
+        mask = (data.index >= start_time) & (data.index <= end_time)
+        data = data.loc[mask, sorted(universe)]
+        if start_time > pd.to_datetime(START_TIME):     # 第一次更新从START_TIME开始，必然会有缺失数据
+            tds_cnt = dateshandle.tds_count(start_time, end_time)
+            assert len(data) == tds_cnt,\
+                'Error, trading day number does not match, ' +\
+                'len(data)={dl}, while len(tds)={tl}'.format(dl=len(data), tl=tds_cnt)
+        return data
+    return _inner
+
+
+skew_1m = Factor('SKEW_1M', gen_skfunc(20, 'skew'), pd.to_datetime('2017-08-02'),
+                 dependency=['DAILY_RET'], desc='过去20个交易日收益率的skew')
+kurtosis_1m = Factor('KURTOSIS_1M', gen_skfunc(20, 'kurt'), pd.to_datetime('2017-08-02'),
+                     dependency=['DAILY_RET'], desc='过去20个交易日收益率的kurtosis')
+# --------------------------------------------------------------------------------------------------
+
 
 factor_list = [ep_ttm, bp, sp_ttm, cfp_ttm, sale2ev, oprev_yoy, ni_yoy, ni_5yg, oprev_5yg,
                roe, roa, opprofit_margin, gross_margin, tato, current_ratio, threefee2sale,
