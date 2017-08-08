@@ -448,9 +448,28 @@ skew_1m = Factor('SKEW_1M', gen_skfunc(20, 'skew'), pd.to_datetime('2017-08-02')
 kurtosis_1m = Factor('KURTOSIS_1M', gen_skfunc(20, 'kurt'), pd.to_datetime('2017-08-02'),
                      dependency=['DAILY_RET'], desc='过去20个交易日收益率的kurtosis')
 # --------------------------------------------------------------------------------------------------
+# 一致预期价格距离因子
+
+
+def get_conexpprice(universe, start_time, end_time):
+    '''
+    一致预期价格距离因子 = 一致预期目标价（在other因子模块中） / close - 1
+    '''
+    conprice = query('TARGET_PRICE', (start_time, end_time))
+    close = query('CLOSE', (start_time, end_time))
+    data = conprice / close - 1
+    data = data.loc[:, sorted(universe)]
+    assert check_indexorder(data), 'Error, data order is mixed!'
+    return data
+
+
+conexp_dis = Factor('CONEXP_DIS', get_conexpprice, pd.to_datetime('2017-08-04'),
+                    dependency=['TARGET_PRICE', 'CLOSE'],
+                    desc="一致预期价格距离因子 = 一致预期目标价（在other因子模块中） / close - 1")
+# --------------------------------------------------------------------------------------------------
 
 
 factor_list = [ep_ttm, bp, sp_ttm, cfp_ttm, sale2ev, oprev_yoy, ni_yoy, ni_5yg, oprev_5yg,
                roe, roa, opprofit_margin, gross_margin, tato, current_ratio, threefee2sale,
-               momentum_1m, momentum_3m, momentum_60m]
+               momentum_1m, momentum_3m, momentum_60m, conexp_dis]
 check_duplicate_factorname(factor_list, __name__)

@@ -239,6 +239,9 @@ def update_all_factors(factor_dict, max_iter=300, order=None, show_progress=Fals
         update_res = update_factor(factor_name, factor_dict, universe)
         if not update_res:  # 未成功更新
             factor_queue.appendleft(factor_name)
+            # 日志中添加添加队列的操作提示
+            queue_msg = "Append \"{fct}\" to the left of the queue".format(fct=factor_name)
+            logging.info(queue_msg)
         update_res_str = 'success' if update_res else 'fail'
         res_msg = 'Result: {res}'.format(res=update_res_str)
         logging.info(res_msg)
@@ -249,13 +252,13 @@ def update_all_factors(factor_dict, max_iter=300, order=None, show_progress=Fals
     return False
 
 
-def auto_update_all(max_iter=100, show_progress=False):
+def auto_update_all(max_iter=200, show_progress=False):
     '''
     自动化更新所有因子，并更新因子字典
 
     Parameter
     ---------
-    max_iter: int, default 100
+    max_iter: int, default 200
         最大循环次数，超过这个次数更新过程被强制中断
     show_progress: boolean, default False
         显示更新进度，默认为不显示
@@ -266,6 +269,7 @@ def auto_update_all(max_iter=100, show_progress=False):
     success = update_all_factors(all_factors, max_iter=max_iter, show_progress=show_progress)
     if not success:
         print('Updating process FAILED')
+        logging.info('Updating process FAILED')
 
 
 def gen_folders(fd):

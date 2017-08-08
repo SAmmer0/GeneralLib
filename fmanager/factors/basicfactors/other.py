@@ -57,5 +57,5 @@ target_price = Factor('TARGET_PRICE', get_ctargetprice, pd.to_datetime('2017-07-
                       desc='一致预期目标价')
 # --------------------------------------------------------------------------------------------------
 
-factor_list = []
+factor_list = [target_price]
 check_duplicate_factorname(factor_list, __name__)
