@@ -6,8 +6,11 @@
 # @Version : $Id$
 
 from collections import defaultdict
-import pandas as pd
 import pdb
+
+import pandas as pd
+
+import dateshandle
 '''
 提供因子计算的一些基本工具
 '''
@@ -144,3 +147,20 @@ def convert_data(dfs, indices):
         out = out.append(df)
         # pdb.set_trace()
     return out
+
+
+def checkdata_completeness(data, start_time, end_time):
+    '''
+    检查数据的完整性，保证数据的长度与期间交易日的长度相同
+
+    Parameter
+    ---------
+    data: pd.DataFrame
+        需要检测完整性的数据
+    start_time: str or datetime or other type that can be converted by pd.to_datetime
+        起始时间
+    end_time: str or datetime or other type that can be converted by pd.to_datetime
+        终止时间
+    '''
+    tds = dateshandle.get_tds(start_time, end_time)
+    return len(data) == len(tds)
