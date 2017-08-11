@@ -15,7 +15,7 @@ import fdgetter
 import pandas as pd
 import pdb
 
-from ..utils import Factor, check_duplicate_factorname, check_indexorder
+from ..utils import Factor, check_duplicate_factorname, check_indexorder, checkdata_completeness
 # --------------------------------------------------------------------------------------------------
 # 常量和功能函数
 NAME = 'other'
@@ -50,6 +50,7 @@ def get_ctargetprice(universe, start_time, end_time):
     data = data.pivot_table('data', index='time', columns='code')
     data = data.loc[:, sorted(universe)]
     assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 

@@ -21,7 +21,7 @@ import pandas as pd
 import pdb
 
 from ...database import NaS
-from ..utils import Factor, ZXIND_TRANS_DICT, check_duplicate_factorname
+from ..utils import Factor, ZXIND_TRANS_DICT, check_duplicate_factorname, checkdata_completeness
 
 # --------------------------------------------------------------------------------------------------
 # 常量和功能函数
@@ -53,6 +53,7 @@ def get_zxind(universe, start_time, end_time):
     ind_data = ind_data.reset_index(drop=True).set_index(['time', 'code'])
     ind_data = ind_data.loc[:, 'ind'].unstack()
     ind_data = ind_data.loc[:, sorted(universe)].dropna(axis=0, how='all').fillna(NaS)
+    assert checkdata_completeness(ind_data, start_time, end_time), "Error, data missed!"
     return ind_data
 
 
@@ -82,6 +83,7 @@ def get_liststatus(universe, start_time, end_time):
     ls_data = ls_data.pivot_table('list_status', index='time',
                                   columns='code').dropna(axis=0, how='all')
     ls_data = ls_data.loc[:, sorted(universe)]
+    assert checkdata_completeness(ls_data, start_time, end_time), "Error, data missed!"
     return ls_data
 
 
@@ -131,6 +133,7 @@ def get_st(universe, start_time, end_time):
     # st_data = st_data.loc[:, 'tag'].unstack()
     st_data = st_data.pivot_table('tag', index='time', columns='code').dropna(axis=0, how='all')
     st_data = st_data.loc[:, sorted(universe)].fillna(0)
+    assert checkdata_completeness(st_data, start_time, end_time), "Error, data missed!"
     return st_data
 
 
@@ -166,6 +169,7 @@ def get_tradeable(universe, start_time, end_time):
     data.loc[data.vol > 0, 'vol'] = 1
     data = data.pivot_table('vol', index='time', columns='code')
     data = data.loc[:, sorted(universe)]
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 
@@ -193,6 +197,7 @@ def get_iconstituents(index_code):
         data = datatoolkits.map_data(data, days=tds, fromNowOn=True)
         data = data.set_index('time').dropna(axis=0, how='all')
         data = data.loc[(data.index >= start_time) & (data.index <= end_time)]
+        assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
         return data
     return _inner
 

@@ -18,7 +18,7 @@ import dateshandle
 import fdgetter
 import fdmutils
 import pandas as pd
-from ..utils import Factor, check_indexorder, check_duplicate_factorname
+from ..utils import Factor, check_indexorder, check_duplicate_factorname, checkdata_completeness
 # from ..query import query
 
 # --------------------------------------------------------------------------------------------------
@@ -118,6 +118,7 @@ def get_TTM(fd_type, sql_type):
         data = data.pivot_table('data', index='time', columns='code')
         data = data.loc[:, sorted(universe)]
         assert check_indexorder(data), 'Error, data order is mixed!'
+        assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
         return data
     return _inner
 
@@ -185,6 +186,7 @@ def get_BS_latest(fd_type):
         data = data.pivot_table('data', index='time', columns='code')
         data = data.loc[:, sorted(universe)]
         assert check_indexorder(data), 'Error, data order is mixed!'
+        assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
         return data
     return _inner
 
@@ -260,6 +262,7 @@ def get_season_nshift(data_type, sql_type, n):
         data = data.pivot_table('data', index='time', columns='code')
         data = data.loc[:, sorted(universe)]
         assert check_indexorder(data), 'Error, data order is mixed!'
+        assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
         return data
     return _inner
 
@@ -324,6 +327,7 @@ def get_year_nshift(data_type, sql_type, n):
         # pdb.set_trace()
         data = data.loc[:, sorted(universe)]
         assert check_indexorder(data), 'Error, data order is mixed!'
+        assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
         return data
     return _inner
 

@@ -20,7 +20,7 @@ import fdgetter
 import numpy as np
 import pandas as pd
 from ...const import START_TIME
-from ..utils import check_indexorder, Factor, check_duplicate_factorname
+from ..utils import check_indexorder, Factor, check_duplicate_factorname, checkdata_completeness
 from ..query import query
 # --------------------------------------------------------------------------------------------------
 # 常量和功能函数
@@ -74,6 +74,7 @@ def get_quote(data_type):
         data = data.pivot_table('data', index='time', columns='code')
         data = data.loc[:, sorted(universe)]
         assert check_indexorder(data), 'Error, data order is mixed!'
+        assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
         return data
     return _inner
 
@@ -120,6 +121,7 @@ def get_adjfactor(universe, start_time, end_time):
     data = data.pivot_table('data', index='time', columns='code')
     data = data.loc[:, sorted(universe)]
     assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 
@@ -152,6 +154,7 @@ def get_shares(share_type):
         data = data.pivot_table('data', index='time', columns='code')
         data = data.loc[:, sorted(universe)]
         assert check_indexorder(data), 'Error, data order is mixed!'
+        assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
         return data
     return _inner
 
@@ -176,6 +179,7 @@ def get_mktvalue(share_factor_name):
                                                                         cd_len=len(close_data))
         res = share_data * close_data
         res = res.loc[:, sorted(universe)]
+        assert checkdata_completeness(res, start_time, end_time), "Error, data missed!"
         return res
     return _inner
 
@@ -200,6 +204,7 @@ def get_adjclose(universe, start_time, end_time):
                                                                          cd_len=len(close_data))
     res = adj_factor * close_data
     res = res.loc[:, sorted(universe)]
+    assert checkdata_completeness(res, start_time, end_time), "Error, data missed!"
     return res
 
 
@@ -219,6 +224,7 @@ def get_dailyret(universe, start_time, end_time):
     data = data.pct_change()
     mask = data.index >= start_time
     data = data.loc[mask, sorted(universe)]
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 
@@ -236,6 +242,7 @@ def get_torate(universe, start_time, end_time):
     float_shares = query('FLOAT_SHARE', (start_time, end_time))
     res = volume / float_shares
     res = res.loc[:, sorted(universe)]
+    assert checkdata_completeness(res, start_time, end_time), "Error, data missed!"
     return res
 
 
@@ -255,10 +262,7 @@ def get_avgtorate(universe, start_time, end_time):
     mask = (data.index >= start_time) & (data.index <= end_time)
     data = data.loc[mask, sorted(universe)]
     if start_time > pd.to_datetime(START_TIME):     # 第一次更新从START_TIME开始，必然会有缺失数据
-        tds_cnt = dateshandle.tds_count(start_time, end_time)
-        assert len(data) == tds_cnt,\
-            'Error, trading day number does not match, ' +\
-            'len(data)={dl}, while len(tds)={tl}'.format(dl=len(data), tl=tds_cnt)
+        assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 
@@ -276,6 +280,7 @@ def get_lnfloatmktv(universe, start_time, end_time):
     fmktv = query('FLOAT_MKTVALUE', (start_time, end_time))
     data = np.log(fmktv)
     data = data.loc[:, sorted(universe)]
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 

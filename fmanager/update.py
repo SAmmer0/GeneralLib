@@ -195,7 +195,11 @@ def update_factor(factor_name, factor_dict, universe):
         else:
             start_time = START_TIME
     factor_func = factor_msg['factor'].calc_method
-    factor_data = factor_func(universe, start_time, end_time)
+    try:
+        factor_data = factor_func(universe, start_time, end_time)
+    except AssertionError as e:  # 如果出现意外的错误，将该错误写入到日志中，并返回True，进行下一个更新
+        logging.exception(e)
+        return True
     # pdb.set_trace()
     connector.insert_df(factor_data, data_dtype=factor_msg['factor'].data_type)
     return True

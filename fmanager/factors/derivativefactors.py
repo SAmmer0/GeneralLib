@@ -20,7 +20,8 @@ import numpy as np
 import pandas as pd
 import pdb
 from ..const import START_TIME
-from .utils import Factor, check_indexorder, check_duplicate_factorname, convert_data
+from .utils import (Factor, check_indexorder, check_duplicate_factorname, convert_data,
+                    checkdata_completeness)
 from .query import query
 
 # --------------------------------------------------------------------------------------------------
@@ -47,6 +48,7 @@ def get_ep(universe, start_time, end_time):
     ep = ni_data / tmktv_data
     ep = ep.loc[:, sorted(universe)]
     assert check_indexorder(ep), 'Error, data order is mixed!'
+    assert checkdata_completeness(ep, start_time, end_time), "Error, data missed!"
     return ep
 
 
@@ -65,6 +67,7 @@ def get_bp(universe, start_time, end_time):
     bp = bv_data / tmktv_data
     bp = bp.loc[:, sorted(universe)]
     assert check_indexorder(bp), 'Error, data order is mixed!'
+    assert checkdata_completeness(bp, start_time, end_time), "Error, data missed!"
     return bp
 
 
@@ -83,6 +86,7 @@ def get_sp(universe, start_time, end_time):
     sp = sale_data / tmktv_data
     sp = sp.loc[:, sorted(universe)]
     assert check_indexorder(sp), 'Error, data order is mixed!'
+    assert checkdata_completeness(sp, start_time, end_time), "Error, data missed!"
     return sp
 
 
@@ -101,6 +105,7 @@ def get_cfp(universe, start_time, end_time):
     cfp = cf_data / tmktv_data
     cfp = cfp.loc[:, sorted(universe)]
     assert check_indexorder(cfp), 'Error, data order is mixed!'
+    assert checkdata_completeness(cfp, start_time, end_time), "Error, data missed!"
     return cfp
 
 
@@ -121,6 +126,7 @@ def get_sale2ev(universe, start_time, end_time):
     data = sale_data / (tmktv_data + ncdebt_data - cash_data)
     data = data.loc[:, sorted(universe)]
     assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 
@@ -141,6 +147,7 @@ def get_oprev_yoy(universe, start_time, end_time):
     data = (oprev_lq - oprev_lyq) / np.abs(oprev_lyq) - 1
     data = data.loc[:, sorted(universe)]
     assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 
@@ -159,6 +166,7 @@ def get_ni_yoy(universe, start_time, end_time):
     data = (ni_lq - ni_lyq) / np.abs(ni_lyq) - 1
     data = data.loc[:, sorted(universe)]
     assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 
@@ -203,6 +211,7 @@ def get_p5ygrowth(factor_type):
         data = by_date.apply(calc_growth)
         data = data.loc[:, sorted(universe)]
         assert check_indexorder(data), 'Error, data order is mixed!'
+        assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
         return data
     return _inner
 
@@ -228,6 +237,7 @@ def get_roe(universe, start_time, end_time):
     data = ni_data / equity_data
     data = data.loc[:, sorted(universe)]
     assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 
@@ -245,6 +255,7 @@ def get_roa(universe, start_time, end_time):
     data = ni_data / ta_data
     data = data.loc[:, sorted(universe)]
     assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 
@@ -266,6 +277,7 @@ def get_opprofitmargin(universe, start_time, end_time):
     data = (oprev - opcost - opsale - adminexp - fiexp) / np.abs(oprev)
     data = data.loc[:, sorted(universe)]
     assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 
@@ -286,6 +298,7 @@ def get_grossmargin(universe, start_time, end_time):
     data = (oprev - opcost) / np.abs(oprev)
     data = data.loc[:, sorted(universe)]
     assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 
@@ -305,6 +318,7 @@ def get_tato(universe, start_time, end_time):
     data = oprev / ta
     data = data.loc[:, sorted(universe)]
     assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 
@@ -323,6 +337,7 @@ def get_currentratio(universe, start_time, end_time):
     data = ca / cl
     data = data.loc[:, sorted(universe)]
     assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 
@@ -341,6 +356,7 @@ def get_nopcf2opprofit(universe, start_time, end_time):
     data = cf / opprofit
     data = data.loc[:, sorted(universe)]
     assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 
@@ -362,6 +378,7 @@ def get_3fee2sale(universe, start_time, end_time):
     data = (opexp + adexp + fiexp) / np.abs(oprev)
     data = data.loc[:, sorted(universe)]
     assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 
@@ -390,11 +407,8 @@ def get_momentum(days):
         data = quote.pct_change(days).dropna(how='all')
         mask = (data.index >= start_time) & (data.index <= end_time)
         data = data.loc[mask, sorted(universe)]
-        tds_cnt = dateshandle.tds_count(start_time, end_time)
         if start_time > pd.to_datetime(START_TIME):     # 第一次更新从START_TIME开始，必然会有缺失数据
-            assert len(data) == tds_cnt,\
-                'Error, trading day number does not match, ' +\
-                'len(data)={dl}, while len(tds)={tl}'.format(dl=len(data), tl=tds_cnt)
+            assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
         return data
     return _inner
 
@@ -435,10 +449,7 @@ def gen_skfunc(days, func_name):
         mask = (data.index >= start_time) & (data.index <= end_time)
         data = data.loc[mask, sorted(universe)]
         if start_time > pd.to_datetime(START_TIME):     # 第一次更新从START_TIME开始，必然会有缺失数据
-            tds_cnt = dateshandle.tds_count(start_time, end_time)
-            assert len(data) == tds_cnt,\
-                'Error, trading day number does not match, ' +\
-                'len(data)={dl}, while len(tds)={tl}'.format(dl=len(data), tl=tds_cnt)
+            checkdata_completeness(data, start_time, end_time)
         return data
     return _inner
 
@@ -460,6 +471,7 @@ def get_conexpprice(universe, start_time, end_time):
     data = conprice / close - 1
     data = data.loc[:, sorted(universe)]
     assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
 
 
@@ -471,5 +483,5 @@ conexp_dis = Factor('CONEXP_DIS', get_conexpprice, pd.to_datetime('2017-08-04'),
 
 factor_list = [ep_ttm, bp, sp_ttm, cfp_ttm, sale2ev, oprev_yoy, ni_yoy, ni_5yg, oprev_5yg,
                roe, roa, opprofit_margin, gross_margin, tato, current_ratio, threefee2sale,
-               momentum_1m, momentum_3m, momentum_60m, conexp_dis]
+               momentum_1m, momentum_3m, momentum_60m, conexp_dis, skew_1m, kurtosis_1m]
 check_duplicate_factorname(factor_list, __name__)
