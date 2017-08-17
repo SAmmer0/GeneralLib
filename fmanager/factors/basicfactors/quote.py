@@ -19,6 +19,7 @@ import dateshandle
 import fdgetter
 import numpy as np
 import pandas as pd
+import pdb
 from ...const import START_TIME
 from ..utils import check_indexorder, Factor, check_duplicate_factorname, checkdata_completeness
 from ..query import query
@@ -287,8 +288,58 @@ def get_lnfloatmktv(universe, start_time, end_time):
 ln_flmv = Factor('LN_FMKV', get_lnfloatmktv, pd.to_datetime('2017-08-02'),
                  dependency=['FLOAT_MKTVALUE'], desc='对数市值')
 # --------------------------------------------------------------------------------------------------
+# 指数行情
+
+
+def gen_indexquotegetter(index_code):
+    '''
+    母函数，用于生成获取指数行情数据的函数
+    '''
+    sql_tmplate = '''
+            SELECT S.ClosePrice, S.TradingDay
+            FROM QT_IndexQuote S, secuMain M
+            WHERE
+                S.innerCode = M.innerCode AND
+                M.secuCode = 'code' AND
+                M.secuCategory = 4 AND
+                S.TradingDay >= \'{start_time}\' AND
+                S.TradingDay <= \'{end_time}\'
+            ORDER BY S.TradingDay ASC
+        '''
+    def _inner(universe, start_time, end_time):
+        '''
+        上证综指
+        '''
+        sql = sql_tmplate.replace('code', index_code)
+        data = fdgetter.get_db_data(sql, cols=('close', 'time'), start_time=start_time,
+                                    end_time=end_time, add_stockcode=False)
+        # pdb.set_trace()
+        data = pd.DataFrame(np.repeat([data.close.values], len(universe), axis=0).T,
+                            index=data.time, columns=sorted(universe))
+        checkdata_completeness(data, start_time, end_time)
+        check_indexorder(data)
+        return data
+    return _inner
+
+
+# 上证综指
+SSEC = Factor('SSEC_CLOSE', gen_indexquotegetter('000001'), pd.to_datetime('2017-08-14'),
+              desc='上证综指收盘价')
+# 上证50
+SSE50 = Factor('SSE50_CLOSE', gen_indexquotegetter('000016'), pd.to_datetime('2017-08-14'),
+               desc='上证50收盘价')
+# 中证500
+CS500 = Factor('CS500_CLOSE', gen_indexquotegetter('000905'), pd.to_datetime('2017-08-14'),
+               desc='中证500收盘价')
+# 沪深300
+SSZ300 = Factor('SSZ300_CLOSE', gen_indexquotegetter('000300'), pd.to_datetime('2017-08-14'),
+                desc='沪深300收盘价')
+# 中证全指
+CSI985 = Factor('CSI985_CLOSE', gen_indexquotegetter('000985'), pd.to_datetime('2017-08-14'),
+                desc='中证全指收盘价')
+# --------------------------------------------------------------------------------------------------
 
 factor_list = [close_price, open_price, high_price, low_price, to_value, to_volume, adj_factor,
                float_shares, total_shares, total_mktvalue, float_mktvalue, adj_close,
-               daily_ret, to_rate, ln_flmv, avg_torate]
+               daily_ret, to_rate, ln_flmv, avg_torate, SSEC, SSE50, CS500, SSZ300, CSI985]
 check_duplicate_factorname(factor_list, __name__)
