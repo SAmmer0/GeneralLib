@@ -120,7 +120,7 @@ def get_adjfactor(universe, start_time, end_time):
                          fillna={'code': lambda x: x.code.iloc[0], 'data': lambda x: 1})
     data = data.reset_index(drop=True)
     data = data.pivot_table('data', index='time', columns='code')
-    data = data.loc[:, sorted(universe)]
+    data = data.loc[:, sorted(universe)].fillna(1)    # 因为新股大多数情况下没有分红记录
     assert check_indexorder(data), 'Error, data order is mixed!'
     assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
@@ -306,6 +306,7 @@ def gen_indexquotegetter(index_code):
                 S.TradingDay <= \'{end_time}\'
             ORDER BY S.TradingDay ASC
         '''
+
     def _inner(universe, start_time, end_time):
         '''
         上证综指

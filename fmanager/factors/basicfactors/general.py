@@ -149,10 +149,10 @@ def get_tradeable(universe, start_time, end_time):
     获取股票的交易状态
     Notes
     -----
-    将成交量为0视为不能交易，返回值为1表示正常交易，0表示不能交易，NA表示未上市而不能交易
+    将成交量为0或者最高价等于最低价视为不能交易，返回值为1表示正常交易，0表示不能交易，NA表示未上市而不能交易
     '''
     sql = '''
-    SELECT S.TradingDay, S.TurnoverVolume, M.Secucode
+    SELECT S.TradingDay, S.TurnoverVolume, S.HighPrice, S.LowPrice, M.Secucode
     FROM QT_DailyQuote S, SecuMain M
     WHERE
         S.InnerCode = M.InnerCode AND
@@ -162,11 +162,12 @@ def get_tradeable(universe, start_time, end_time):
         M.SecuCategory = 1
     ORDER BY S.TradingDay ASC, M.Secucode ASC
     '''
-    data = fdgetter.get_db_data(sql, cols=('time', 'vol', 'code'), start_time=start_time,
-                                end_time=end_time, add_stockcode=False)
+    data = fdgetter.get_db_data(sql, cols=('time', 'vol', 'high', 'low', 'code'),
+                                start_time=start_time, end_time=end_time, add_stockcode=False)
     # pdb.set_trace()
     data['code'] = data.code.apply(datatoolkits.add_suffix)
     data.loc[data.vol > 0, 'vol'] = 1
+    data.loc[(data.vol > 0) & (data.high == data.low), 'vol'] = 0
     data = data.pivot_table('vol', index='time', columns='code')
     data = data.loc[:, sorted(universe)]
     assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
