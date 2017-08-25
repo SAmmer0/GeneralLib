@@ -4,3 +4,6 @@
 # @Author  : Li Hao (howardlee_h@outlook.com)
 # @Link    : https://github.com/SAmmer0
 # @Version : $Id$
+
+from . import utils
+from . import test

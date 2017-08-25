@@ -130,6 +130,13 @@ class DataProvider(object, metaclass=ABCMeta):
         从数据文件中加载数据
         '''
         pass
+    
+    @abstractmethod
+    def copy(self):
+        '''
+        拷贝，返回没有数据缓存的新的DataProvider对象
+        '''
+        pass
 
 
 class HDFDataProvider(DataProvider):
@@ -158,8 +165,13 @@ class HDFDataProvider(DataProvider):
         '''
         从数据文件中加载数据
         '''
-        self._db = DBConnector(self._data_path)
-        self.loaded = True
+        if not self.loaded:
+            self._db = DBConnector(self._data_path)
+            self._data = self._db.query((self._start_time, self._end_time))
+            if self._data is None:
+                self.loaded = False
+            else:
+                self.loaded = True
 
     def get_csdata(self, date):
         '''
@@ -169,22 +181,21 @@ class HDFDataProvider(DataProvider):
         ---------
         date: types that are compatible to datetime
             需要获取的数据的时间
-        
+
         Return
         ------
         out: pd.Series
             横截面数据，index为股票代码，name为时间
         '''
-        if not self.loaded:
-            self.load_data()
-        date = pd.to_datetime(date)
-        data = self._db.query(date)
-        if data is None:
+        self.load_data()
+        if self.loaded:
+            date = pd.to_datetime(date)
+            data = self._data.loc[date]
+            data.name = date.strftime('%Y-%m-%d')
+            return data
+        else:
             return None
-        data = data.iloc[0]
-        data.name = date.strftime('%Y-%m-%d')
-        return data
-    
+
     def get_paneldata(self, start_date, end_date):
         '''
         获取面板数据
@@ -195,26 +206,27 @@ class HDFDataProvider(DataProvider):
             面板的起始日期
         end_date: types that are compatible to datetime
             面板的终止日期
-            
+
         Return
         ------
         out: pd.DataFrame
-            面板数据，index为时间，columns为股票代码
+            面板数据，index为时间，columns为股票代码，如果没有相应的数据，返回None
 
         Notes
         -----
                 结果会含起始和终止日期这两天的数据（如果这两天有数据）
         '''
-        if not self.loaded:
-            self.load_data()
-        start_date = pd.to_datetime(start_date)
-        end_date = pd.to_datetime(end_date)
-        data = self._db.query((start_date, end_date))
-        if data is None:
+        self.load_data()
+        if self.loaded:
+            start_date = pd.to_datetime(start_date)
+            end_date = pd.to_datetime(end_date)
+            mask = (self._data.index >= start_date) & (self._data.index <= end_date)
+            data = self._data.loc[mask]
+            return data
+        else:
             return None
-        return data
-    
-    def get_tsdata(self, start_time, end_time, item):
+
+    def get_tsdata(self, start_date, end_date, item):
         '''
         获取某一个项目的时间序列数据
 
@@ -226,7 +238,7 @@ class HDFDataProvider(DataProvider):
             时间序列的终止日期
         item: str
             需要获取数据的项目的名称
-        
+
         Return
         ------
         out: pd.Series
@@ -235,16 +247,16 @@ class HDFDataProvider(DataProvider):
         -----
         结果会含起始和终止日期这两天的数据（如果这两天有数据）
         '''
-        if not self.loaded:
-            self.load_data()
-        start_time = pd.to_datetime(start_time)
-        end_time = pd.to_datetime(end_time)
-        data = self._db.query((start_time, end_time), [item])
-        if data is None:
+        self.load_data()
+        if self.loaded:
+            start_date = pd.to_datetime(start_date)
+            end_date = pd.to_datetime(end_date)
+            mask = (self._data.index >= start_date) & (self._data.index <= end_date)
+            data = self._data.loc[mask, item]    # 将结果转换为pd.Series
+            data.name = item
+            return data
+        else:
             return None
-        data = data.loc[:, item]    # 将结果转换为pd.Series
-        data.name = item
-        return data
 
     def get_data(self, date, item):
         '''
@@ -256,16 +268,47 @@ class HDFDataProvider(DataProvider):
             数据的时间点
         item: str
             数据的项目名称
-        
+
         Return
         ------
         out: float or str or other types
         '''
-        if not self.loaded:
-            self.load_data()
-        date = pd.to_datetime(date)
-        data = self._db.query(date, [item])
-        if data is None:
+        self.load_data()
+        if self.loaded:
+            date = pd.to_datetime(date)
+            data = self._data.loc[date, item]
+            return data
+        else:
             return None
-        data = data.iloc[0, 0]
-        return data
+    
+    def copy(self):
+        '''
+        拷贝，返回的对象数据未加载
+        '''
+        return HDFDataProvider(self._data_path, self._start_time, self._end_time)
+    
+class NoneDataProvider(DataProvider):
+    '''
+    用于对于所有的数据请求都返回None值
+    使用情景主要在没有股票池或者行业限制等情况下
+    '''
+    def __init__(self):
+        super().__init__()
+    
+    def load_data(self):
+        self.loaded = True
+    
+    def get_csdata(self, date):
+        return None
+    
+    def get_paneldata(self, start_date, end_date):
+        return None
+    
+    def get_tsdata(self, start_date, end_date, item):
+        return None
+    
+    def get_data(self, date, item):
+        return None
+        
+    def copy(self):
+        return NoneDataProvider()

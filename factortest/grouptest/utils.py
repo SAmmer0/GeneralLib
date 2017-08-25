@@ -14,9 +14,13 @@ __version__ = 1.0.0
 '''
 # 标准库
 from abc import ABCMeta, abstractclassmethod
+import pdb
 # 第三方库
 import pandas as pd
 from datatoolkits import isclose
+import numpy as np
+# 本地库
+from dateshandle import get_tds
 # ------------------------------------------------------------------------------
 # 常量定义
 CASH = 'Cash'
@@ -105,10 +109,10 @@ class Instrument(object, metaclass=ABCMeta):
         '''
         assert num > 0, 'Error, descrease number({num}) should be positive'.format(num=num)
         if not self.allow_short:
-            assert num < self._num,\
-                ('Short is not allowed, ',
-                 'you cannot descrease instrument number below ZERO',
-                 '(max_num={mm}, you provide={yp})'.format(mm=self._num, yp=num))
+            assert num <= self._num,\
+                'Short is not allowed, ' + \
+                'you cannot descrease instrument number below ZERO' + \
+                '(max_num={mm}, you provide={yp})'.format(mm=self._num, yp=num)
         self._num -= num
 
     def sell(self, num, date):
@@ -131,16 +135,45 @@ class Instrument(object, metaclass=ABCMeta):
         sell_value = self.unit_price * num
         self.descrease_num(num)
         return sell_value
+    
+    def construct_from_value(self, value, date):
+        '''
+        按照价值构造该金融工具
+        
+        Parameter
+        ---------
+        value: float
+            需要买入的市值
+        date: datetime or other compatible types
+            买入的时间
+        
+        Return
+        ------
+        out: Instrument
+            将本实例返回
+        '''
+        self.refresh_price(date)
+        if self.unit_price is None:
+            pdb.set_trace()
+        self._num = value / self.unit_price
+        return self
 
     @property
     def num(self):
         return self._num
+    
 
     def copy(self):
         '''
         返回一个金融工具的拷贝
         '''
         return Instrument(code=self.code, num=self._num, quote_provider=self.quote_provider)
+
+    def __repr__(self):
+        return 'Instrument Code: {code},\nNumber: {num}'.format(code=self.code, num=self.num)
+
+    def __str__(self):
+        return self.__repr__()
 
 
 class Cash(Instrument):
@@ -194,7 +227,9 @@ class Stock(Instrument):
         '''
         if self._last_refresh_time is None or self._last_refresh_time != pd.to_datetime(date):
             # 表示当前缓存已经过时或者没有缓存
-            self.unit_price = self.quote_provider.get_data(self.code, date)
+            tmp = self.quote_provider.get_data(date, self.code)
+            if not pd.isnull(tmp): # 只有价格不为NA时才更新价格，否则沿用之前的价格（为了处理退市的情况）
+                self.unit_price = tmp
             self._last_refresh_time = pd.to_datetime(date)
 
 
@@ -263,7 +298,7 @@ class Portfolio(object):
         instrmt = self.positions[instrmt_name]
         tmp_cash = instrmt.sell(num, date)
         cash = self.positions[CASH]
-        cash.inscrease_num(tmp_cash)
+        cash.increase_num(tmp_cash)
         if isclose(instrmt.num, 0, abs_tol=1e-5):  # 当前持仓接近于0
             self.remove_instrument(instrmt_name)
 
@@ -282,11 +317,227 @@ class Portfolio(object):
         instrumt_value = instrmt.refresh_value(date)
         cash_value = self.positions[CASH].refresh_value(date)
         assert instrumt_value <= cash_value, 'Error, cash is not enough'
-        self.positions[CASH].descrease_num(cash_value)
+        # pdb.set_trace()
+        self.positions[CASH].descrease_num(instrumt_value)
         self.add_instrument(instrmt)
 
     def refresh_value(self, date):
+        '''
+        计算当前资产组合的价值（市值）
+
+        Parameter
+        ---------
+        date: str, datetime or other compatible type
+            计算组合市值的时间
+
+        Return
+        ------
+        out: float
+            组合包含的所有金融工具的价值（市值）
+        '''
         value = 0
         for instrmt in self.positions:
             value += self.positions[instrmt].refresh_value(date)
         return value
+
+    def to_list(self):
+        '''
+        将Portfolio转换为证券代码列表，列表中只包含非现金项目
+
+        Return
+        ------
+        out: list
+            当前组合中的证券代码列表
+        '''
+        return list(self.positions.keys())
+    
+    def sell_all(self, date):
+        '''
+        将组合中的所有金融工具卖出
+        
+        Parameter
+        ---------
+        date: datetime or other compatible types
+            卖出金融工具的时间
+        
+        Return
+        ------
+        out: float
+            当前组合的总价值（市值）
+        '''
+        pos_codes = sorted(self.positions.keys())
+        for pos_code in pos_codes:
+            if pos_code != CASH:
+                self.sell_instrument(pos_code, date, self.positions[pos_code].num)
+        return self.refresh_value(date)
+    
+    def buy_seculist(self, secu_list, date):
+        '''
+        买入证券列表中所有的证券
+        
+        Parameter
+        ---------
+        secu_list: list like
+            证券列表，内容为[Instrument, ...]
+        date: datetime or compatible types
+            买入的时间
+        '''
+        for secu in secu_list:
+            self.buy_instrument(secu, date)
+
+    def __repr__(self):
+        res = list()
+        for instrumt in self.positions.values():
+            res.append(str(instrumt))
+        return '\n'.join(res)
+
+    def __str__(self):
+        return self.__repr__()
+
+
+class EqlWeightCalc(object):
+    '''
+    等权重持仓计算器
+    '''
+
+    def __init__(self):
+        pass
+
+    def calc_weight(self, secu_list, **kwargs):
+        '''
+        权重计算函数
+
+        Parameter
+        ---------
+        secu_list: list like
+            需要分配权重的证券列表
+        kwargs: dict like arguments
+            其他计算权重需要的参数，比如说市值加权时需要时间
+
+        Return
+        ------
+        out: dict
+            权重分配结果，格式为{secu_code: w}
+        '''
+        avg_w = 1. / len(secu_list)
+        return dict(zip(secu_list, [avg_w] * len(secu_list)))
+    
+    def __call__(self, secu_list, **kwargs):
+        '''
+        功能同calc_weight，方便调用
+        权重计算函数
+
+        Parameter
+        ---------
+        secu_list: list like
+            需要分配权重的证券列表
+        kwargs: dict like arguments
+            其他计算权重需要的参数，比如说市值加权时需要时间
+
+        Return
+        ------
+        out: dict
+            权重分配结果，格式为{secu_code: w}
+        '''
+        return self.calc_weight(secu_list, **kwargs)
+
+class MkvWeightCalc(EqlWeightCalc):
+    '''
+    市值加权权重计算器
+    '''
+    def __init__(self, mkv_provider):
+        '''
+        Parameter
+        ---------
+        mkv_provider: DataProvider
+            用于获取市值的数据提供器
+        '''
+        self._mkv_provider = mkv_provider
+    
+    def calc_weight(self, secu_list, **kwargs):
+        '''
+        权重计算函数
+        
+        Parameter
+        ---------
+        secu_list: list like
+            需要分配权重的证券列表
+        kwargs: dict like parameter
+            其他计算权重所需的参数，必须包含'date'参数，'date'参数的类型为与datetime相兼容的类型
+        
+        Return
+        ------
+        out: dict
+            权重分配结果，格式为{code: w}
+        '''
+        assert 'date' in kwargs, 'Error, "date" parameter must be provided!'
+        date = pd.to_datetime(kwargs.get('date'))
+        mkv = {code: self._mkv_provider.get_data(date, code) for code in secu_list}
+        #pdb.set_trace()
+        total_mkv = np.sum(list(mkv.values()))
+        out = {code: mkv[code] / total_mkv for code in mkv}
+        return out
+
+class RebCalcu(object, metaclass=ABCMeta):
+    '''
+    用于计算换仓日的类
+    '''
+    def __init__(self, start_date, end_date):
+        '''
+        Parameter
+        ---------
+        start_date: datetime or other compatible types
+            整体时间区间的起始时间
+        end_date: datetime or other compatible types
+            整体时间的终止时间
+        '''
+        self._start_time = pd.to_datetime(start_date)
+        self._end_time = pd.to_datetime(end_date)
+        self._rebdates = None
+    
+    @abstractclassmethod
+    def _calc_rebdates(self):
+        '''
+        用于计算给定的时间区间内的再平衡日（指因子计算日，且类型为datetime），并将其存储在_rebdates中
+        '''
+        pass
+    
+    def __call__(self, date):
+        '''
+        判断给定的日期是否为再平衡日
+        
+        Parameter
+        ---------
+        date: datetime or other compatible types
+        '''
+        if self._rebdates is None:
+            self._calc_rebdates()
+        date = pd.to_datetime(date)
+        return date in self._rebdates
+
+class MonRebCalcu(RebCalcu):
+    '''
+    每个月的最后一个交易日作为再平衡日
+    '''
+    
+    def _calc_rebdates(self):
+        '''
+        用于计算给定的时间区间内的再平衡日（指因子计算日，且类型为datetime），并将其存储在_rebdates中
+        '''   
+        tds = pd.Series(get_tds(self._start_time, self._end_time))
+        tds.index = tds.dt.strftime('%Y-%m')
+        self._rebdates = tds.groupby(lambda x: x).apply(lambda y: y.iloc[-1]).tolist()
+    
+
+class WeekRebCalcu(RebCalcu):
+    '''
+    每个周的最后一个交易日作为再平衡日
+    '''
+    def _calc_rebdates(self):
+        '''
+        用于计算给定的时间区间内的再平衡日（指因子计算日，且类型为datetime），并将其存储在_rebdates中
+        '''
+        tds = pd.Series(get_tds(self._start_time, self._end_time))
+        tds.index = tds.dt.strftime('%Y-%W')
+        self._rebdates = tds.groupby(lambda x: x).apply(lambda y: y.iloc[-1]).tolist()
+        
