@@ -15,6 +15,7 @@ __version__ = 1.0.0
 # 标准库
 from abc import ABCMeta, abstractclassmethod
 import pdb
+from functools import wraps
 # 第三方库
 import pandas as pd
 from datatoolkits import isclose
@@ -135,18 +136,18 @@ class Instrument(object, metaclass=ABCMeta):
         sell_value = self.unit_price * num
         self.descrease_num(num)
         return sell_value
-    
+
     def construct_from_value(self, value, date):
         '''
         按照价值构造该金融工具
-        
+
         Parameter
         ---------
         value: float
             需要买入的市值
         date: datetime or other compatible types
             买入的时间
-        
+
         Return
         ------
         out: Instrument
@@ -161,7 +162,6 @@ class Instrument(object, metaclass=ABCMeta):
     @property
     def num(self):
         return self._num
-    
 
     def copy(self):
         '''
@@ -228,7 +228,7 @@ class Stock(Instrument):
         if self._last_refresh_time is None or self._last_refresh_time != pd.to_datetime(date):
             # 表示当前缓存已经过时或者没有缓存
             tmp = self.quote_provider.get_data(date, self.code)
-            if not pd.isnull(tmp): # 只有价格不为NA时才更新价格，否则沿用之前的价格（为了处理退市的情况）
+            if not pd.isnull(tmp):  # 只有价格不为NA时才更新价格，否则沿用之前的价格（为了处理退市的情况）
                 self.unit_price = tmp
             self._last_refresh_time = pd.to_datetime(date)
 
@@ -350,16 +350,16 @@ class Portfolio(object):
             当前组合中的证券代码列表
         '''
         return list(self.positions.keys())
-    
+
     def sell_all(self, date):
         '''
         将组合中的所有金融工具卖出
-        
+
         Parameter
         ---------
         date: datetime or other compatible types
             卖出金融工具的时间
-        
+
         Return
         ------
         out: float
@@ -370,11 +370,11 @@ class Portfolio(object):
             if pos_code != CASH:
                 self.sell_instrument(pos_code, date, self.positions[pos_code].num)
         return self.refresh_value(date)
-    
+
     def buy_seculist(self, secu_list, date):
         '''
         买入证券列表中所有的证券
-        
+
         Parameter
         ---------
         secu_list: list like
@@ -421,7 +421,7 @@ class EqlWeightCalc(object):
         '''
         avg_w = 1. / len(secu_list)
         return dict(zip(secu_list, [avg_w] * len(secu_list)))
-    
+
     def __call__(self, secu_list, **kwargs):
         '''
         功能同calc_weight，方便调用
@@ -441,10 +441,12 @@ class EqlWeightCalc(object):
         '''
         return self.calc_weight(secu_list, **kwargs)
 
+
 class MkvWeightCalc(EqlWeightCalc):
     '''
     市值加权权重计算器
     '''
+
     def __init__(self, mkv_provider):
         '''
         Parameter
@@ -453,18 +455,18 @@ class MkvWeightCalc(EqlWeightCalc):
             用于获取市值的数据提供器
         '''
         self._mkv_provider = mkv_provider
-    
+
     def calc_weight(self, secu_list, **kwargs):
         '''
         权重计算函数
-        
+
         Parameter
         ---------
         secu_list: list like
             需要分配权重的证券列表
         kwargs: dict like parameter
             其他计算权重所需的参数，必须包含'date'参数，'date'参数的类型为与datetime相兼容的类型
-        
+
         Return
         ------
         out: dict
@@ -473,15 +475,17 @@ class MkvWeightCalc(EqlWeightCalc):
         assert 'date' in kwargs, 'Error, "date" parameter must be provided!'
         date = pd.to_datetime(kwargs.get('date'))
         mkv = {code: self._mkv_provider.get_data(date, code) for code in secu_list}
-        #pdb.set_trace()
+        # pdb.set_trace()
         total_mkv = np.sum(list(mkv.values()))
         out = {code: mkv[code] / total_mkv for code in mkv}
         return out
+
 
 class RebCalcu(object, metaclass=ABCMeta):
     '''
     用于计算换仓日的类
     '''
+
     def __init__(self, start_date, end_date):
         '''
         Parameter
@@ -494,18 +498,18 @@ class RebCalcu(object, metaclass=ABCMeta):
         self._start_time = pd.to_datetime(start_date)
         self._end_time = pd.to_datetime(end_date)
         self._rebdates = None
-    
+
     @abstractclassmethod
     def _calc_rebdates(self):
         '''
         用于计算给定的时间区间内的再平衡日（指因子计算日，且类型为datetime），并将其存储在_rebdates中
         '''
         pass
-    
+
     def __call__(self, date):
         '''
         判断给定的日期是否为再平衡日
-        
+
         Parameter
         ---------
         date: datetime or other compatible types
@@ -515,24 +519,26 @@ class RebCalcu(object, metaclass=ABCMeta):
         date = pd.to_datetime(date)
         return date in self._rebdates
 
+
 class MonRebCalcu(RebCalcu):
     '''
     每个月的最后一个交易日作为再平衡日
     '''
-    
+
     def _calc_rebdates(self):
         '''
         用于计算给定的时间区间内的再平衡日（指因子计算日，且类型为datetime），并将其存储在_rebdates中
-        '''   
+        '''
         tds = pd.Series(get_tds(self._start_time, self._end_time))
         tds.index = tds.dt.strftime('%Y-%m')
         self._rebdates = tds.groupby(lambda x: x).apply(lambda y: y.iloc[-1]).tolist()
-    
+
 
 class WeekRebCalcu(RebCalcu):
     '''
     每个周的最后一个交易日作为再平衡日
     '''
+
     def _calc_rebdates(self):
         '''
         用于计算给定的时间区间内的再平衡日（指因子计算日，且类型为datetime），并将其存储在_rebdates中
@@ -540,4 +546,25 @@ class WeekRebCalcu(RebCalcu):
         tds = pd.Series(get_tds(self._start_time, self._end_time))
         tds.index = tds.dt.strftime('%Y-%W')
         self._rebdates = tds.groupby(lambda x: x).apply(lambda y: y.iloc[-1]).tolist()
-        
+
+
+def stock_filter_template(st_provider, tradedata_provider, group_num):
+    '''
+    模板函数，用于生成一般排序回测函数
+    '''
+    def _warpper(func):
+        @wraps
+        def _inner(date, fd_provider):
+            st_data = st_provider.get_csdata(date)
+            trade_data = tradedata_provider.get_csdata(date)
+            factor_data = fd_provider.get_csdata(date)
+            data = pd.DataFrame({'data': factor_data, 'st_data': st_data, 'trade_data': trade_data})
+            data = data.loc[(data.trade_data == 1) & (data.st_data == 0), :].\
+                dropna(subset=['data'], axis=0)
+            data = data.assign(datag=pd.qcut(data.data, group_num, labels=range(1, group_num+1)))
+            by_group_id = data.groupby('datag')
+            out = {g: by_group_id.get_group(g).index.tolist()
+                   for g in by_group_id.groups}
+            return out
+        return _inner
+    return _warpper
