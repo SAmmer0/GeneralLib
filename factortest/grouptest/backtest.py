@@ -14,9 +14,13 @@ import pandas as pd
 from tqdm import tqdm
 
 # 本地库
-from .utils import Stock, Portfolio
+from .utils import (Stock, Portfolio, WeekRebCalcu,
+                    MonRebCalcu, EqlWeightCalc, MkvWeightCalc,
+                    stock_filter_template)
 from ..utils import HDFDataProvider, NoneDataProvider
 from dateshandle import get_tds
+from fmanager.api import get_factor_dict
+from .const import *
 
 # ------------------------------------------------------------------------------
 
@@ -26,7 +30,7 @@ class BacktestConfig(object):
     回测配置设置类
     '''
 
-    def __init__(self, start_date, end_date, quote_provider, weight_calculator, 
+    def __init__(self, start_date, end_date, quote_provider, weight_calculator,
                  tradedata_provider, reb_calculator, group_num=10, commission_rate=0.,
                  init_cap=1e10, show_progress=True):
         '''
@@ -94,11 +98,11 @@ class Backtest(object):
         self._ports = {i: Portfolio(self._config.init_cap) for i in range(self._config.group_num)}
         self._navs_pd = None
         self._offset = 10    # 避免满仓是因为小数点的问题导致资金溢出
-    
+
     def build_portfolio(self, port_id, secu_list, date):
         '''
         建仓函数
-        
+
         Parameter
         ---------
         port_id: str
@@ -112,17 +116,17 @@ class Backtest(object):
         tradeable_stocks = self._config.tradedata_provider.get_csdata(date)
         tradeable_stocks = tradeable_stocks.loc[tradeable_stocks == 1].index.tolist()
         secu_list = list(set(secu_list).intersection(tradeable_stocks))
-        #if len(secu_list) == 0:
-            #pdb.set_trace()
+        # if len(secu_list) == 0:
+        # pdb.set_trace()
         weights = self._config.weight_calculator(secu_list, date=date)  # 计算权重
         port = self._ports[port_id]
         port_mkv = port.sell_all(date) - self._offset    # 卖出全部金融工具
-        weights = {code: Stock(code, quote_provider=self._config.quote_provider).\
+        weights = {code: Stock(code, quote_provider=self._config.quote_provider).
                    construct_from_value(weights[code] * port_mkv, date)
                    for code in weights}
         # pdb.set_trace()
         port.buy_seculist(weights.values(), date)
-        
+
     def run_bt(self):
         '''
         开启回测
@@ -138,17 +142,17 @@ class Backtest(object):
                 for port_id in self._ports:
                     self.build_portfolio(port_id, chg_pos[port_id], td)
                 chg_pos_tag = False
-                    
+
             if self._config.reb_calculator(td):     # 当前为计算日
                 chg_pos = self._stock_filter(td, *self._args, **self._kwargs)
                 chg_pos_tag = True
                 self.holding_result[td] = chg_pos
-            
+
             # 记录净值信息
             nav = {port_id: self._ports[port_id].refresh_value(td)
                    for port_id in self._ports}
             self.navs[td] = nav
-    
+
     @property
     def navpd(self):
         '''
@@ -158,5 +162,116 @@ class Backtest(object):
             return self._navs_pd
         else:
             self._navs_pd = pd.DataFrame(self.navs).T
+            self._navs_pd = self._navs_pd / self._navs_pd.iloc[0]   # 转化为净值
             return self._navs_pd
-        
+
+
+class BacktestTemplate(object):
+    '''
+    简易的回测模板，包含回测和分析功能
+    '''
+
+    def __init__(self, start_time, end_time, factor_name, weight_method='equal-weighted',
+                 reb_method='monthly', group_num=10):
+        '''
+        Parameter
+        ---------
+        start_time: datetime or other compatible types
+            回测的开始时间
+        end_time: datetime or other compatible types
+            回测的结束时间
+        factor_name: str
+            需要测试的因子，必须在fmanager.api.get_factor_dict的返回值中可以找到
+        weight_method: str, default equal-weighted
+            权重计算方法，目前支持equal-weighted、totalmkv-weighted和floatmkv-weighted
+            也可以通过const文件中的方法设置
+        reb_mothod: str, default monthly
+            换仓频率，目前支持weekly和monthly
+        group_num: int, default 10
+            分组的数量
+        '''
+        self._factor_dict = get_factor_dict()
+        self.start_time = start_time
+        self.end_time = end_time
+        self.factordata_provider = HDFDataProvider(self._factor_dict[factor_name]['abs_path'],
+                                                   self.start_time, self.end_time)
+        self.weight_method = weight_method
+        self.reb_method = reb_method
+        self.group_num = group_num
+        # 参数检查
+        self._check_parameter()
+        # 加载ST和TRADEABLE数据
+        self._st_provider = HDFDataProvider(self._factor_dict['ST_TAG']['abs_path'],
+                                            self.start_time, self.end_time)
+        self._tradeable_provider = HDFDataProvider(self._factor_dict['TRADEABLE']['abs_path'],
+                                                   self.start_time, self.end_time)
+        # 加载价格数据
+        self._price_provider = HDFDataProvider(self._factor_dict['ADJ_CLOSE']['abs_path'],
+                                               self.start_time, self.end_time)
+
+    def _check_parameter(self):
+        '''
+        检查权重和换仓频率参数是否设置正确，并设置好相关数据
+        '''
+        valid_weighted_methods = [EQUAL_WEIGHTED, TOTALMKV_WEIGHTED, FLOATMKV_WEIGHTED]
+        valid_reb_motheds = [WEEKLY, MONTHLY]
+        assert self.weight_method in valid_weighted_methods,\
+            'Weighted method setting ERROR, you provide {yp},'.format(yp=self.weight_method) +\
+            'right choices are {rc}'.format(rc=valid_weighted_methods)
+        assert self.reb_method in valid_reb_motheds,\
+            'Rebalance date method setting ERROR, you provide {yp},'.format(yp=self.reb_method) +\
+            'right choices are {rc}'.format(rc=valid_reb_motheds)
+        self.reb_method_obj = self._rebstr2obj(self.reb_method)
+        self.weight_method_obj = self._weightstr2obj(self.weight_method)
+
+    def _rebstr2obj(self, reb_method):
+        '''
+        将换仓频率设置转换为对应的对象
+        Parameter
+        ---------
+        reb_method: str
+            换仓频率设置
+
+        Return
+        ------
+        out: Rebcalcu
+        '''
+        if reb_method == WEEKLY:
+            return WeekRebCalcu(self.start_time, self.end_time)
+        if reb_method == MONTHLY:
+            return MonRebCalcu(self.start_time, self.end_time)
+
+    def _weightstr2obj(self, weighted_method):
+        '''
+        将计算权重的设置转换为对应的对象
+        Parameter
+        ---------
+        weighted_method: str
+
+        Return
+        ------
+        out: EqlWeightCalc
+        '''
+        if weighted_method == EQUAL_WEIGHTED:
+            return EqlWeightCalc()
+        if weighted_method == FLOATMKV_WEIGHTED:
+            float_provider = HDFDataProvider(self._factor_dict['FLOAT_MKTVALUE']['abs_path'],
+                                             self.start_time, self.end_time)
+            return MkvWeightCalc(float_provider)
+        if weighted_method == TOTALMKV_WEIGHTED:
+            total_provider = HDFDataProvider(self._factor_dict['TOTAL_MKTVALUE']['abs_path'],
+                                             self.start_time, self.end_time)
+            return MkvWeightCalc(total_provider)
+
+    def run_test(self):
+        '''
+        启动回测
+        '''
+        stock_filter = stock_filter_template(self._st_provider, self._tradeable_provider,
+                                             self.group_num)
+        conf = BacktestConfig(self.start_time, self.end_time, self._price_provider,
+                              self.weight_method_obj, self._tradeable_provider,
+                              self.reb_method_obj, self.group_num)
+        bt = Backtest(conf, stock_filter, fd_provider=self.factordata_provider)
+        bt.run_bt()
+        return bt

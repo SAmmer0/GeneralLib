@@ -15,18 +15,18 @@ __version__ = 1.0.0
 # 标准库
 from abc import ABCMeta, abstractclassmethod
 import pdb
-from functools import wraps
+# from functools import wraps
 # 第三方库
 import pandas as pd
 from datatoolkits import isclose
 import numpy as np
 # 本地库
 from dateshandle import get_tds
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------
 # 常量定义
 CASH = 'Cash'
 
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------
 # 证券类
 
 
@@ -170,7 +170,7 @@ class Instrument(object, metaclass=ABCMeta):
         return Instrument(code=self.code, num=self._num, quote_provider=self.quote_provider)
 
     def __repr__(self):
-        return 'Instrument Code: {code},\nNumber: {num}'.format(code=self.code, num=self.num)
+        return 'Instrument(Code={code}, Number:={num})'.format(code=self.code, num=self.num)
 
     def __str__(self):
         return self.__repr__()
@@ -389,7 +389,7 @@ class Portfolio(object):
         res = list()
         for instrumt in self.positions.values():
             res.append(str(instrumt))
-        return '\n'.join(res)
+        return str(res)
 
     def __str__(self):
         return self.__repr__()
@@ -547,24 +547,24 @@ class WeekRebCalcu(RebCalcu):
         tds.index = tds.dt.strftime('%Y-%W')
         self._rebdates = tds.groupby(lambda x: x).apply(lambda y: y.iloc[-1]).tolist()
 
+# --------------------------------------------------------------------------------------------------
+# 函数
+
 
 def stock_filter_template(st_provider, tradedata_provider, group_num):
     '''
     模板函数，用于生成一般排序回测函数
     '''
-    def _warpper(func):
-        @wraps
-        def _inner(date, fd_provider):
-            st_data = st_provider.get_csdata(date)
-            trade_data = tradedata_provider.get_csdata(date)
-            factor_data = fd_provider.get_csdata(date)
-            data = pd.DataFrame({'data': factor_data, 'st_data': st_data, 'trade_data': trade_data})
-            data = data.loc[(data.trade_data == 1) & (data.st_data == 0), :].\
-                dropna(subset=['data'], axis=0)
-            data = data.assign(datag=pd.qcut(data.data, group_num, labels=range(1, group_num+1)))
-            by_group_id = data.groupby('datag')
-            out = {g: by_group_id.get_group(g).index.tolist()
-                   for g in by_group_id.groups}
-            return out
-        return _inner
-    return _warpper
+    def _inner(date, fd_provider):
+        st_data = st_provider.get_csdata(date)
+        trade_data = tradedata_provider.get_csdata(date)
+        factor_data = fd_provider.get_csdata(date)
+        data = pd.DataFrame({'data': factor_data, 'st_data': st_data, 'trade_data': trade_data})
+        data = data.loc[(data.trade_data == 1) & (data.st_data == 0), :].\
+            dropna(subset=['data'], axis=0)
+        data = data.assign(datag=pd.qcut(data.data, group_num, labels=range(group_num)))
+        by_group_id = data.groupby('datag')
+        out = {g: by_group_id.get_group(g).index.tolist()
+               for g in by_group_id.groups}
+        return out
+    return _inner
