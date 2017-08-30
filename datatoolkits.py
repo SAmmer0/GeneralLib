@@ -114,6 +114,11 @@ __version__ = 1.10.6
 修改日期：2017-06-27
 修改内容：
     添加计算加权平均值的wmean函数
+
+__version__ = 1.10.7
+修改日期：2017-08-28
+修改内容：
+    添加将（价格）数据转换为净值数据的函数price2nav
 '''
 __version__ = '1.10.5'
 
@@ -641,6 +646,22 @@ def orthogonalize_lstsq(a, b, weight=None):
     out = a - b.dot(param)
     return out
 
+
+def price2nav(price_data):
+    '''
+    将价格数据转换为净值数据
+
+    Parameter
+    ---------
+    price_data: pd.DataFrame or pd.Series
+        需要转换的原始数据，要求数据按照时间纵向排列
+
+    Return
+    ------
+    out: pd.DataFrame or pd.Series, dependent to input
+    '''
+    out = price_data / price_data.iloc[0]
+    return out
 
 # --------------------------------------------------------------------------------------------------
 # 类

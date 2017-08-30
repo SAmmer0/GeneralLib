@@ -750,7 +750,7 @@ def build_pos(pos, cash, quotes, date, price_col='open', buildpos_type='money-we
 
 def cal_turnover(port_ante, port_post, quote, date, price_type='open', include_cash=True):
     '''
-    计算组合的换手率，换手率定义为T = 1/2 * sum(w_i^new - w_i^old)
+    计算组合的换手率，换手率定义为T = 1/2 * sum(abs(w_i^new - w_i^old))
     Parameter
     ---------
     port_ante: Portfolio

@@ -54,6 +54,7 @@ import numpy as np
 import matplotlib.pylab as plt
 from math import sqrt
 import datatoolkits
+import pdb
 
 
 def cal_ret(net_value, period=1):
@@ -91,6 +92,35 @@ def max_drawn_down(netValues, columnName=None):
     mddEndTime = dd.idxmax()
     mddStartTime = nav[nav == cumMax[mddEndTime]].index[0]
     return mdd, mddStartTime, mddEndTime
+
+
+def max_drawn_down_time(nav_values):
+    '''
+    计算净值序列的最长回撤时间
+
+    Parameter
+    ---------
+    nav_values: pd.Series
+        净值数据
+
+    Return
+    ------
+    mddt: int
+        回撤期的长度
+    mddt_start: datetime
+        最长回撤期开始时间
+    mddt_end: datetime
+        最长回撤期终止时间
+    '''
+    cum_max = nav_values.cummax()
+    cum_max = pd.DataFrame({'nav': cum_max})
+    # pdb.set_trace()
+    localmax_cnt = cum_max.groupby('nav').nav.\
+        transform(lambda x: pd.Series(np.ones(x.count()) * x.count()))
+    mddt = localmax_cnt.max()
+    mddt_start = localmax_cnt.loc[localmax_cnt == mddt].index.min()
+    mddt_end = localmax_cnt.loc[localmax_cnt == mddt].index.max()
+    return mddt, mddt_start, mddt_end
 
 
 def ret_stats(net_value, columnName=None, displayHist=False):
@@ -240,6 +270,7 @@ def brief_report(net_value, benchmark, riskfree_rate, freq):
     alpha = cal_rawalpha(net_value, benchmark, freq, riskfree_rate)
     beta = cal_rawbeta(net_value, benchmark)
     mdd, mdd_start, mdd_end = max_drawn_down(net_value)
+    mddt, mddt_start, mddt_end = max_drawn_down_time(net_value)
     sharp = sharp_ratio(ret, freq, riskFreeRate=riskfree_rate)
     info = info_ratio(ret, freq, benchMark=benchmark_ret)
     if freq == 250:
@@ -247,7 +278,8 @@ def brief_report(net_value, benchmark, riskfree_rate, freq):
     else:
         sr = np.nan
     return pd.Series({'alpha': alpha, 'beta': beta, 'mdd': mdd, 'mdd_start': mdd_start,
-                      'mdd_end': mdd_end, 'sharp_ratio': sharp, 'info_ratio': info,
+                      'mdd_end': mdd_end, 'mddt': mddt, 'mddt_start': mddt_start,
+                      'mddt_end': mddt_end, 'sharp_ratio': sharp, 'info_ratio': info,
                       'sortino_ratio': sr})
 
 
@@ -435,8 +467,8 @@ if __name__ == '__main__':
     test_data = datatoolkits.load_pickle(r"F:\GeneralLib\CONST_DATAS\htmltable.pickle")
     res = table_convertor.format_df(test_data.reset_index(),
                                     formater=trans2formater(
-                                        {'nav': 'pct2p', 'CSI700': ('pctnp', 4)}),
-                                    order=['nav', 'index', 'CSI700'])
+        {'nav': 'pct2p', 'CSI700': ('pctnp', 4)}),
+        order=['nav', 'index', 'CSI700'])
     # ret = datatoolkits.load_pickle(r"F:\GeneralLib\CONST_DATAS\sample_ret.pickle")
     # sr = sortino_ratio(ret.group_05.pct_change().dropna(), 0.04)
     # print(sr)

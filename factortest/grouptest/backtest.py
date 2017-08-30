@@ -163,6 +163,7 @@ class Backtest(object):
         else:
             self._navs_pd = pd.DataFrame(self.navs).T
             self._navs_pd = self._navs_pd / self._navs_pd.iloc[0]   # 转化为净值
+            self._navs_pd.columns = ['group_%02d' % c for c in self._navs_pd.columns]
             return self._navs_pd
 
 
@@ -171,8 +172,8 @@ class BacktestTemplate(object):
     简易的回测模板，包含回测和分析功能
     '''
 
-    def __init__(self, start_time, end_time, factor_name, weight_method='equal-weighted',
-                 reb_method='monthly', group_num=10):
+    def __init__(self, start_time, end_time, factor_name, weight_method=TOTALMKV_WEIGHTED,
+                 reb_method=MONTHLY, group_num=10, stock_pool=None):
         '''
         Parameter
         ---------
@@ -189,6 +190,8 @@ class BacktestTemplate(object):
             换仓频率，目前支持weekly和monthly
         group_num: int, default 10
             分组的数量
+        stock_pool: str, default None
+            股票池限制规则，要求能够在fmanager.apo.get_factor_dict的返回值中可以找到
         '''
         self._factor_dict = get_factor_dict()
         self.start_time = start_time
@@ -208,7 +211,13 @@ class BacktestTemplate(object):
         # 加载价格数据
         self._price_provider = HDFDataProvider(self._factor_dict['ADJ_CLOSE']['abs_path'],
                                                self.start_time, self.end_time)
-
+        # 加载股票池相关数据
+        if stock_pool is not None:
+            self._stockpool_provider = HDFDataProvider(self._factor_dict[stock_pool]['abs_path'],
+                                                       self.start_time, self.end_time)
+        else:
+            self._stockpool_provider = NoneDataProvider()
+            
     def _check_parameter(self):
         '''
         检查权重和换仓频率参数是否设置正确，并设置好相关数据
@@ -268,7 +277,7 @@ class BacktestTemplate(object):
         启动回测
         '''
         stock_filter = stock_filter_template(self._st_provider, self._tradeable_provider,
-                                             self.group_num)
+                                             self._stockpool_provider, self.group_num)
         conf = BacktestConfig(self.start_time, self.end_time, self._price_provider,
                               self.weight_method_obj, self._tradeable_provider,
                               self.reb_method_obj, self.group_num)

@@ -13,7 +13,7 @@ __version__ = 1.0.0
     初始化
 '''
 # 标准库
-from abc import ABCMeta, abstractclassmethod
+from abc import ABCMeta, abstractmethod
 import pdb
 # from functools import wraps
 # 第三方库
@@ -22,6 +22,7 @@ from datatoolkits import isclose
 import numpy as np
 # 本地库
 from dateshandle import get_tds
+from ..utils import NoneDataProvider
 # --------------------------------------------------------------------------------------------------
 # 常量定义
 CASH = 'Cash'
@@ -54,7 +55,7 @@ class Instrument(object, metaclass=ABCMeta):
         self.quote_provider = quote_provider  # 行情数据提供器
         self.allow_short = allow_short  # 是否允许卖空
 
-    @abstractclassmethod
+    @abstractmethod
     def refresh_price(self, date):
         '''
         更新该工具的最新价格
@@ -499,7 +500,7 @@ class RebCalcu(object, metaclass=ABCMeta):
         self._end_time = pd.to_datetime(end_date)
         self._rebdates = None
 
-    @abstractclassmethod
+    @abstractmethod
     def _calc_rebdates(self):
         '''
         用于计算给定的时间区间内的再平衡日（指因子计算日，且类型为datetime），并将其存储在_rebdates中
@@ -551,15 +552,35 @@ class WeekRebCalcu(RebCalcu):
 # 函数
 
 
-def stock_filter_template(st_provider, tradedata_provider, group_num):
+def stock_filter_template(st_provider, tradedata_provider, stockpool_provider, group_num):
     '''
     模板函数，用于生成一般排序回测函数
+    
+    Parameter
+    ---------
+    st_provider: HDFDataProvider
+        记录ST数据的数据提供器
+    tradedata_provider: HDFDataProvider
+        记录是否可以交易的数据提供器
+    stockpool_provider: DataProvider
+        记录股票池的数据提供器，可以是NoneDataProvider，表明当前没有股票池的限制
+    group_num: int
+        分组数量
+    
+    Return
+    ------
+    out: function
+        可供BackTest类作为参数的stock_filter函数
     '''
     def _inner(date, fd_provider):
         st_data = st_provider.get_csdata(date)
         trade_data = tradedata_provider.get_csdata(date)
         factor_data = fd_provider.get_csdata(date)
+        stockpool_data = stockpool_provider.get_csdata(date)
         data = pd.DataFrame({'data': factor_data, 'st_data': st_data, 'trade_data': trade_data})
+        if stockpool_data is not None:    # 表示当前有股票池的限制
+            data = data.assign(stockpool=stockpool_data)
+            data = data.loc[data.stockpool == 1]
         data = data.loc[(data.trade_data == 1) & (data.st_data == 0), :].\
             dropna(subset=['data'], axis=0)
         data = data.assign(datag=pd.qcut(data.data, group_num, labels=range(group_num)))
