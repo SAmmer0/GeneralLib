@@ -167,9 +167,9 @@ class Backtest(object):
             return self._navs_pd
 
 
-class BacktestTemplate(object):
+class FactortestTemplate(object):
     '''
-    简易的回测模板，包含回测和分析功能
+    简易的因子测试模板，仅包含回测功能
     '''
 
     def __init__(self, start_time, end_time, factor_name, weight_method=TOTALMKV_WEIGHTED,
