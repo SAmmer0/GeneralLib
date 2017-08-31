@@ -173,7 +173,7 @@ class BacktestTemplate(object):
     '''
 
     def __init__(self, start_time, end_time, factor_name, weight_method=TOTALMKV_WEIGHTED,
-                 reb_method=MONTHLY, group_num=10, stock_pool=None):
+                 reb_method=MONTHLY, group_num=10, stock_pool=None, industry_neutral=None):
         '''
         Parameter
         ---------
@@ -192,6 +192,8 @@ class BacktestTemplate(object):
             分组的数量
         stock_pool: str, default None
             股票池限制规则，要求能够在fmanager.apo.get_factor_dict的返回值中可以找到
+        industry_neutral: str, default None
+            行业中性化的行业分类规则，要求能够在fmanager.apo.get_factor_dict的返回值中可以找到
         '''
         self._factor_dict = get_factor_dict()
         self.start_time = start_time
@@ -217,7 +219,13 @@ class BacktestTemplate(object):
                                                        self.start_time, self.end_time)
         else:
             self._stockpool_provider = NoneDataProvider()
-            
+        # 加载行业分类数据
+        if industry_neutral is not None:
+            self._industry_provider = HDFDataProvider(self._factor_dict[industry_neutral]['abs_path'],
+                                                      self.start_time, self.end_time)
+        else:
+            self._industry_provider = NoneDataProvider()
+
     def _check_parameter(self):
         '''
         检查权重和换仓频率参数是否设置正确，并设置好相关数据
@@ -277,7 +285,8 @@ class BacktestTemplate(object):
         启动回测
         '''
         stock_filter = stock_filter_template(self._st_provider, self._tradeable_provider,
-                                             self._stockpool_provider, self.group_num)
+                                             self._stockpool_provider, self._industry_provider,
+                                             self.group_num)
         conf = BacktestConfig(self.start_time, self.end_time, self._price_provider,
                               self.weight_method_obj, self._tradeable_provider,
                               self.reb_method_obj, self.group_num)

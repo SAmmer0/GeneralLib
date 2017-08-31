@@ -22,7 +22,8 @@ from datatoolkits import isclose
 import numpy as np
 # 本地库
 from dateshandle import get_tds
-from ..utils import NoneDataProvider
+# from ..utils import NoneDataProvider
+from fmanager.database import NaS
 # --------------------------------------------------------------------------------------------------
 # 常量定义
 CASH = 'Cash'
@@ -552,10 +553,11 @@ class WeekRebCalcu(RebCalcu):
 # 函数
 
 
-def stock_filter_template(st_provider, tradedata_provider, stockpool_provider, group_num):
+def stock_filter_template(st_provider, tradedata_provider, stockpool_provider,
+                          industry_provider, group_num):
     '''
     模板函数，用于生成一般排序回测函数
-    
+
     Parameter
     ---------
     st_provider: HDFDataProvider
@@ -564,9 +566,11 @@ def stock_filter_template(st_provider, tradedata_provider, stockpool_provider, g
         记录是否可以交易的数据提供器
     stockpool_provider: DataProvider
         记录股票池的数据提供器，可以是NoneDataProvider，表明当前没有股票池的限制
+    industry_provider: DataProvider
+        记录股票所属行业的数据提供器，可以是NoneDataProvider，表明当前不用对数据进行行业中性化
     group_num: int
         分组数量
-    
+
     Return
     ------
     out: function
@@ -577,11 +581,18 @@ def stock_filter_template(st_provider, tradedata_provider, stockpool_provider, g
         trade_data = tradedata_provider.get_csdata(date)
         factor_data = fd_provider.get_csdata(date)
         stockpool_data = stockpool_provider.get_csdata(date)
+        industry_data = industry_provider.get_csdata(date)
         data = pd.DataFrame({'data': factor_data, 'st_data': st_data, 'trade_data': trade_data})
         if stockpool_data is not None:    # 表示当前有股票池的限制
             data = data.assign(stockpool=stockpool_data)
-            data = data.loc[data.stockpool == 1]
-        data = data.loc[(data.trade_data == 1) & (data.st_data == 0), :].\
+        else:
+            data = data.assign(stockpool=[1] * len(data))
+        if industry_data is not None:   # 表明当前要求数据进行行业中性化
+            data = data.assign(industry=industry_data)
+            data = data.loc[data.industry != NaS]
+            data['data'] = data.groupby('industry').data.transform(lambda x: x - x.mean())
+        #pdb.set_trace()
+        data = data.loc[(data.trade_data == 1) & (data.st_data == 0) & (data.stockpool == 1), :].\
             dropna(subset=['data'], axis=0)
         data = data.assign(datag=pd.qcut(data.data, group_num, labels=range(group_num)))
         by_group_id = data.groupby('datag')
