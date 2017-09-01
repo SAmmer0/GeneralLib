@@ -57,8 +57,8 @@ class BacktestConfig(object):
         show_progress: bool, default True
             是否显示回测进度，默认显示
         '''
-        self.start_date = start_date
-        self.end_date = end_date
+        self.start_date = pd.to_datetime(start_date)
+        self.end_date = pd.to_datetime(end_date)
         self.quote_provider = quote_provider
         self.weight_calculator = weight_calculator
         self.tradedata_provider = tradedata_provider
@@ -90,7 +90,10 @@ class Backtest(object):
         '''
         self._config = config
         self._tds = get_tds(config.start_date, config.end_date)
-        self.holding_result = OrderedDict()
+        self.holding_result = OrderedDict()    # 用于记录各组持仓的股票
+        # 用于记录附带权重的持仓，这个数据每组的持仓可能跟holding_result中不同，
+        # 因为该持仓会考虑到能否交易等相关问题
+        self.weighted_holding = OrderedDict()  
         self.navs = OrderedDict()
         self._stock_filter = stock_filter
         self._args = args
@@ -99,7 +102,7 @@ class Backtest(object):
         self._navs_pd = None
         self._offset = 10    # 避免满仓是因为小数点的问题导致资金溢出
 
-    def build_portfolio(self, port_id, secu_list, date):
+    def build_portfolio(self, port_id, secu_list, date, last_td):
         '''
         建仓函数
 
@@ -111,6 +114,8 @@ class Backtest(object):
             需要加入组合的证券
         date: datetime or other compatible types
             加入组合的时间
+        last_td: datetime or other compatible types
+            持仓计算日的时间
         '''
         # 只买入今日能够交易的股票
         tradeable_stocks = self._config.tradedata_provider.get_csdata(date)
@@ -118,7 +123,15 @@ class Backtest(object):
         secu_list = list(set(secu_list).intersection(tradeable_stocks))
         # if len(secu_list) == 0:
         # pdb.set_trace()
-        weights = self._config.weight_calculator(secu_list, date=date)  # 计算权重
+        
+        # 这个地方使用如果使用当天的市值计算权重是有问题的，因为当前收盘前不知道当天的市值
+        # 应当使用上个交易日的市值计算相关的权重
+        weights = self._config.weight_calculator(secu_list, date=last_td)  # 计算权重
+        # 记录权重
+        weights_recorder = self.weighted_holding.get(date, {})
+        weights_recorder[port_id] = weights
+        if date not in self.weighted_holding:
+            self.weighted_holding[date] = weights_recorder
         port = self._ports[port_id]
         port_mkv = port.sell_all(date) - self._offset    # 卖出全部金融工具
         weights = {code: Stock(code, quote_provider=self._config.quote_provider).
@@ -133,6 +146,7 @@ class Backtest(object):
         '''
         chg_pos_tag = False     # 用于标记是否到了换仓日
         chg_pos = None      # 用于记录下次换仓时持仓，类型为dict
+        last_td = None      # 用于记录换仓日前的数据持仓计算日
         if self._config.show_progress:    # 需要显示进度
             tds_iter = zip(self._tds, tqdm(self._tds))
         else:
@@ -140,12 +154,13 @@ class Backtest(object):
         for _idx, td in tds_iter:
             if chg_pos_tag:     # 表明当前需要换仓
                 for port_id in self._ports:
-                    self.build_portfolio(port_id, chg_pos[port_id], td)
+                    self.build_portfolio(port_id, chg_pos[port_id], td, last_td)
                 chg_pos_tag = False
 
             if self._config.reb_calculator(td):     # 当前为计算日
                 chg_pos = self._stock_filter(td, *self._args, **self._kwargs)
                 chg_pos_tag = True
+                last_td = td
                 self.holding_result[td] = chg_pos
 
             # 记录净值信息
@@ -165,6 +180,30 @@ class Backtest(object):
             self._navs_pd = self._navs_pd / self._navs_pd.iloc[0]   # 转化为净值
             self._navs_pd.columns = ['group_%02d' % c for c in self._navs_pd.columns]
             return self._navs_pd
+    
+    @property
+    def start_date(self):
+        '''
+        返回当前回测的开始时间
+        Return
+        ------
+        out: datetime like
+            回测的开始时间
+        '''
+        return self._config.start_date
+    
+    @property
+    def end_date(self):
+        '''
+        返回当前回测的结束时间
+        Return
+        ------
+        out: datetime like
+            回测的结束时间
+        '''
+        return self._config.end_date
+    
+    
 
 
 class FactortestTemplate(object):
@@ -191,9 +230,9 @@ class FactortestTemplate(object):
         group_num: int, default 10
             分组的数量
         stock_pool: str, default None
-            股票池限制规则，要求能够在fmanager.apo.get_factor_dict的返回值中可以找到
+            股票池限制规则，要求能够在fmanager.api.get_factor_dict的返回值中可以找到
         industry_neutral: str, default None
-            行业中性化的行业分类规则，要求能够在fmanager.apo.get_factor_dict的返回值中可以找到
+            行业中性化的行业分类规则，要求能够在fmanager.api.get_factor_dict的返回值中可以找到
         '''
         self._factor_dict = get_factor_dict()
         self.start_time = start_time
