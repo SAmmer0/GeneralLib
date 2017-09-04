@@ -14,10 +14,9 @@ import pandas as pd
 from tqdm import tqdm
 
 # 本地库
-from .utils import (Stock, Portfolio, WeekRebCalcu,
-                    MonRebCalcu, EqlWeightCalc, MkvWeightCalc,
+from .utils import (Stock, Portfolio, EqlWeightCalc, MkvWeightCalc,
                     stock_filter_template)
-from ..utils import HDFDataProvider, NoneDataProvider
+from ..utils import HDFDataProvider, NoneDataProvider, WeekRebCalcu, MonRebCalcu
 from dateshandle import get_tds
 from fmanager.api import get_factor_dict
 from .const import *
@@ -93,7 +92,7 @@ class Backtest(object):
         self.holding_result = OrderedDict()    # 用于记录各组持仓的股票
         # 用于记录附带权重的持仓，这个数据每组的持仓可能跟holding_result中不同，
         # 因为该持仓会考虑到能否交易等相关问题
-        self.weighted_holding = OrderedDict()  
+        self.weighted_holding = OrderedDict()
         self.navs = OrderedDict()
         self._stock_filter = stock_filter
         self._args = args
@@ -123,7 +122,7 @@ class Backtest(object):
         secu_list = list(set(secu_list).intersection(tradeable_stocks))
         # if len(secu_list) == 0:
         # pdb.set_trace()
-        
+
         # 这个地方使用如果使用当天的市值计算权重是有问题的，因为当前收盘前不知道当天的市值
         # 应当使用上个交易日的市值计算相关的权重
         weights = self._config.weight_calculator(secu_list, date=last_td)  # 计算权重
@@ -180,7 +179,7 @@ class Backtest(object):
             self._navs_pd = self._navs_pd / self._navs_pd.iloc[0]   # 转化为净值
             self._navs_pd.columns = ['group_%02d' % c for c in self._navs_pd.columns]
             return self._navs_pd
-    
+
     @property
     def start_date(self):
         '''
@@ -191,7 +190,7 @@ class Backtest(object):
             回测的开始时间
         '''
         return self._config.start_date
-    
+
     @property
     def end_date(self):
         '''
@@ -202,8 +201,6 @@ class Backtest(object):
             回测的结束时间
         '''
         return self._config.end_date
-    
-    
 
 
 class FactortestTemplate(object):

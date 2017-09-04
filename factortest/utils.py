@@ -18,6 +18,7 @@ from abc import abstractmethod, ABCMeta
 import pandas as pd
 # 本地库
 from fmanager.database import DBConnector
+from dateshandle import get_tds
 # --------------------------------------------------------------------------------------------------
 # 常量定义
 QUOTE_BEGIN_TIME = pd.to_datetime('1990-01-01')     # 定义最早的有数据的时间
@@ -130,7 +131,7 @@ class DataProvider(object, metaclass=ABCMeta):
         从数据文件中加载数据
         '''
         pass
-    
+
     @abstractmethod
     def copy(self):
         '''
@@ -280,35 +281,117 @@ class HDFDataProvider(DataProvider):
             return data
         else:
             return None
-    
+
     def copy(self):
         '''
         拷贝，返回的对象数据未加载
         '''
         return HDFDataProvider(self._data_path, self._start_time, self._end_time)
-    
+
+
 class NoneDataProvider(DataProvider):
     '''
     用于对于所有的数据请求都返回None值
     使用情景主要在没有股票池或者行业限制等情况下
     '''
+
     def __init__(self):
         super().__init__()
-    
+
     def load_data(self):
         self.loaded = True
-    
+
     def get_csdata(self, date):
         return None
-    
+
     def get_paneldata(self, start_date, end_date):
         return None
-    
+
     def get_tsdata(self, start_date, end_date, item):
         return None
-    
+
     def get_data(self, date, item):
         return None
-        
+
     def copy(self):
         return NoneDataProvider()
+
+
+class RebCalcu(object, metaclass=ABCMeta):
+    '''
+    用于计算换仓日的类
+    '''
+
+    def __init__(self, start_date, end_date):
+        '''
+        Parameter
+        ---------
+        start_date: datetime or other compatible types
+            整体时间区间的起始时间
+        end_date: datetime or other compatible types
+            整体时间的终止时间
+        '''
+        self._start_time = pd.to_datetime(start_date)
+        self._end_time = pd.to_datetime(end_date)
+        self._rebdates = None
+
+    @abstractmethod
+    def _calc_rebdates(self):
+        '''
+        用于计算给定的时间区间内的再平衡日（指因子计算日，且类型为datetime），并将其存储在_rebdates中
+        '''
+        pass
+
+    def __call__(self, date):
+        '''
+        判断给定的日期是否为再平衡日
+
+        Parameter
+        ---------
+        date: datetime or other compatible types
+        '''
+        if self._rebdates is None:
+            self._calc_rebdates()
+        date = pd.to_datetime(date)
+        return date in self._rebdates
+
+    @property
+    def reb_points(self):
+        '''
+        返回所有的换仓日，且换仓日按照升序排列
+        Return
+        ------
+        out: list
+            所有的换仓日
+        '''
+        if self._rebdates is None:
+            self._calc_rebdates()
+        return sorted(self._rebdates)
+
+
+class MonRebCalcu(RebCalcu):
+    '''
+    每个月的最后一个交易日作为再平衡日
+    '''
+
+    def _calc_rebdates(self):
+        '''
+        用于计算给定的时间区间内的再平衡日（指因子计算日，且类型为datetime），并将其存储在_rebdates中
+        '''
+        tds = pd.Series(get_tds(self._start_time, self._end_time))
+        tds.index = tds.dt.strftime('%Y-%m')
+        self._rebdates = tds.groupby(lambda x: x).apply(lambda y: y.iloc[-1]).tolist()
+
+
+class WeekRebCalcu(RebCalcu):
+    '''
+    每个周的最后一个交易日作为再平衡日
+    '''
+
+    def _calc_rebdates(self):
+        '''
+        用于计算给定的时间区间内的再平衡日（指因子计算日，且类型为datetime），并将其存储在_rebdates中
+        '''
+        tds = pd.Series(get_tds(self._start_time, self._end_time))
+        tds.index = tds.dt.strftime('%Y-%W')
+        self._rebdates = tds.groupby(lambda x: x).apply(lambda y: y.iloc[-1]).tolist()

@@ -6,4 +6,7 @@
 # @Version : $Id$
 
 from . import utils
-from . import test
+# from . import test
+from . import analysis
+from . import backtest
+from . import const

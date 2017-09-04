@@ -21,7 +21,6 @@ import pandas as pd
 from datatoolkits import isclose
 import numpy as np
 # 本地库
-from dateshandle import get_tds
 # from ..utils import NoneDataProvider
 from fmanager.database import NaS
 # --------------------------------------------------------------------------------------------------
@@ -483,72 +482,6 @@ class MkvWeightCalc(EqlWeightCalc):
         return out
 
 
-class RebCalcu(object, metaclass=ABCMeta):
-    '''
-    用于计算换仓日的类
-    '''
-
-    def __init__(self, start_date, end_date):
-        '''
-        Parameter
-        ---------
-        start_date: datetime or other compatible types
-            整体时间区间的起始时间
-        end_date: datetime or other compatible types
-            整体时间的终止时间
-        '''
-        self._start_time = pd.to_datetime(start_date)
-        self._end_time = pd.to_datetime(end_date)
-        self._rebdates = None
-
-    @abstractmethod
-    def _calc_rebdates(self):
-        '''
-        用于计算给定的时间区间内的再平衡日（指因子计算日，且类型为datetime），并将其存储在_rebdates中
-        '''
-        pass
-
-    def __call__(self, date):
-        '''
-        判断给定的日期是否为再平衡日
-
-        Parameter
-        ---------
-        date: datetime or other compatible types
-        '''
-        if self._rebdates is None:
-            self._calc_rebdates()
-        date = pd.to_datetime(date)
-        return date in self._rebdates
-
-
-class MonRebCalcu(RebCalcu):
-    '''
-    每个月的最后一个交易日作为再平衡日
-    '''
-
-    def _calc_rebdates(self):
-        '''
-        用于计算给定的时间区间内的再平衡日（指因子计算日，且类型为datetime），并将其存储在_rebdates中
-        '''
-        tds = pd.Series(get_tds(self._start_time, self._end_time))
-        tds.index = tds.dt.strftime('%Y-%m')
-        self._rebdates = tds.groupby(lambda x: x).apply(lambda y: y.iloc[-1]).tolist()
-
-
-class WeekRebCalcu(RebCalcu):
-    '''
-    每个周的最后一个交易日作为再平衡日
-    '''
-
-    def _calc_rebdates(self):
-        '''
-        用于计算给定的时间区间内的再平衡日（指因子计算日，且类型为datetime），并将其存储在_rebdates中
-        '''
-        tds = pd.Series(get_tds(self._start_time, self._end_time))
-        tds.index = tds.dt.strftime('%Y-%W')
-        self._rebdates = tds.groupby(lambda x: x).apply(lambda y: y.iloc[-1]).tolist()
-
 # --------------------------------------------------------------------------------------------------
 # 函数
 
@@ -591,7 +524,7 @@ def stock_filter_template(st_provider, tradedata_provider, stockpool_provider,
             data = data.assign(industry=industry_data)
             data = data.loc[data.industry != NaS]
             data['data'] = data.groupby('industry').data.transform(lambda x: x - x.mean())
-        #pdb.set_trace()
+        # pdb.set_trace()
         data = data.loc[(data.trade_data == 1) & (data.st_data == 0) & (data.stockpool == 1), :].\
             dropna(subset=['data'], axis=0)
         data = data.assign(datag=pd.qcut(data.data, group_num, labels=range(group_num)))
