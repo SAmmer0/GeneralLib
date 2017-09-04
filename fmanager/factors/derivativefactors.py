@@ -578,23 +578,26 @@ def get_beta(universe, start_time, end_time):
         '''
         # 添加截距项
         x = pd.DataFrame({'constant': [1] * len(x), 'x': x}, columns=['constant', 'x'])
+        # pdb.set_trace()
         # 计算累计的xx和xy
-        last_xx = np.zeros((len(x.columns), len(x.columns)))
-        last_xy = np.zeros(len(x.columns))
+        K = len(x.columns)
+        N = len(x)
+        last_xx = np.zeros((K, K))
+        last_xy = np.zeros(K)
         cum_xx = []
         cum_xy = []
-        for i in range(len(x)):
+        for i in range(N):
             data_x = x.values[i: i + 1]
             data_y = y.values[i: i + 1]
             last_xy = last_xy + np.dot(data_x.T, data_y)
             last_xx = last_xx + np.dot(data_x.T, data_x)
             cum_xy.append(last_xy)
             cum_xx.append(last_xx)
-
+        # pdb.set_trace()
         # 计算滚动beta
         betas = np.empty(x.shape, dtype=float)
         betas[:] = np.NaN
-        for i in range(len(x)):
+        for i in range(N):
             if i < window or np.any(pd.isnull(x.iloc[i])):
                 continue
             xx = cum_xx[i] - cum_xx[i - window]
@@ -603,6 +606,7 @@ def get_beta(universe, start_time, end_time):
                 betas[i] = linalg.solve(xx, xy)
             except LinAlgError as e:    # 因为停牌等因素，股价一直都不变，此时的beta没有意义
                 continue
+        # pdb.set_trace()
         return pd.Series(betas[:, 1], index=x.index)
 
     days = 252
@@ -613,6 +617,7 @@ def get_beta(universe, start_time, end_time):
     benchmark_data = query('SSEC_CLOSE', (new_start, end_time))
     stock_data = stock_data.pct_change().dropna(how='all').dropna(how='all', axis=1)
     benchmark_data = benchmark_data.iloc[:, 0].pct_change().dropna()
+    pdb.set_trace()
     data = stock_data.apply(lambda x: moving_OLS(benchmark_data, x, days))
     mask = (data.index >= start_time) & (data.index <= end_time)
     data = data.loc[mask, sorted(universe)]
