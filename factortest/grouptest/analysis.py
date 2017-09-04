@@ -11,6 +11,11 @@ __version__ = 1.0.0
 修改日期：2017-09-01
 修改内容：
     添加分析器基类、净值分析器和行业分析器
+
+__version__ = 1.0.1
+修改日期：2017-09-04
+修改内容：
+    添加换手率分析器
 '''
 
 # 系统模块
@@ -20,6 +25,7 @@ import pdb
 # 第三方模块
 from scipy.stats import ttest_1samp
 import pandas as pd
+import numpy as np
 # 本地模块
 from ..utils import HDFDataProvider
 from datatoolkits import price2nav
@@ -209,7 +215,8 @@ class IndustryAnalysor(Analysor):
 
     def analyse(self):
         '''
-        针对每一个分组，主要是统计每组所选出股票的行业分布，包括股票数量分布和相关持仓权重的分布
+        针对每一个分组，主要是统计每组所选出股票的行业分布，包括股票数量分布和相关持仓权重的分布，
+        具体数据为holding_result（股票数量分布），weighted_holding（持仓权重分布）
         '''
         self.holding_result = self._calc_industry_dis(self._bt.holding_result)
         self.weighted_holding = self._calc_industry_dis(self._bt.weighted_holding)
@@ -298,7 +305,7 @@ class IndustryAnalysor(Analysor):
         out: dict
             字典结构包含的数据为industry_distribution和weighted_industry_distribution
         '''
-        return {'industry_distritution': self.holding_result,
+        return {'industry_distribution': self.holding_result,
                 'weighted_industry_distribution': self.weighted_holding}
 
     @property
@@ -316,3 +323,126 @@ class IndustryAnalysor(Analysor):
             return self._result_cache
         else:
             return self._result_cache
+
+
+class TOAnalysor(Analysor):
+    '''
+    换手率分析器，用于计算每个分组的换手率情况
+    '''
+
+    def __init__(self, bt):
+        '''
+        Parameter
+        ---------
+        bt: BackTest
+            需要被分析的回测实例
+        '''
+        super().__init__(bt)
+        self._result_cache = None
+
+    def analyse(self):
+        '''
+        计算换手率，换手率的定义为T = 1/2 * sum(abs(w_i ^ new - w_i ^ old))，
+        对应的结果为pd.DataFrame格式，shape为(time_length, group_num)，对应的每个时间点（换仓日）
+        的换手率表示本次持仓与上次持仓对比计算的换手率（第一个换仓日换手率必然为0.5或者说50%）
+        注：换手率之所以要乘以1/2是因为有的股票的权重增加了必然有股票的权重减小，二者都计算则重复
+        '''
+        holding_data = self._transholding(self._bt.weighted_holding)
+        to_res = dict()
+        for port_id in holding_data:
+            to_res[port_id] = self._calc_groupto(holding_data[port_id])
+        self.to_result = pd.DataFrame(to_res)
+
+    def output(self):
+        '''
+        Return
+        ------
+        out: pd.DataFrame
+            换手率分析结果
+        '''
+        return self.to_result
+
+    @property
+    def analysis_result(self):
+        '''
+        相关分析结果
+        Return
+        ------
+        out: dict
+            换手率分析结果
+        '''
+        if self._result_cache is None:
+            self.analyse()
+            self._result_cache = self.output()
+            return self._result_cache
+        else:
+            return self._result_cache
+
+    def _transholding(self, holding):
+        '''
+        因为回测实例中记录的股票权重数据的格式为{time: {port_id: dict}}，需要将其转换为
+        {port_id: {time: dict}}
+
+        Parameter
+        ---------
+        holding: dict
+            结构为{time: {port_id: dict}}
+
+        Return
+        ------
+        out: dict
+            结构为{port_id: {time: dict}}
+        '''
+        tmp_df = pd.DataFrame(holding)
+        tmp_df = tmp_df.T.to_dict()
+        return tmp_df
+
+    def _calc_groupto(self, holdings):
+        '''
+        计算单个分组（组合）的换手率
+        Parameter
+        ---------
+        holdings: dict
+            持仓权重的原始数据，格式为{time: {code: weight}}
+
+        Return
+        ------
+        out: pd.Series
+            长度与holdings相同，索引为time，数据为换手率
+        '''
+        times = sorted(holdings.keys())
+        times = zip([None] + times[:-1], times)
+        res = dict()
+        for last_t, cur_t in times:
+            last_h = holdings.get(last_t, None)
+            cur_h = holdings[cur_t]
+            #pdb.set_trace()
+            res[cur_t] = self._calc_to(last_h, cur_h)
+        return pd.Series(res)
+
+    def _calc_to(self, last_holding, cur_holding):
+        '''
+        计算单个换仓时间点的换手率
+        Parameter
+        ---------
+        last_holding: dict
+            上次的持仓，dict的结构为{code: weight}或者None
+        cur_holding: dict
+            本次的持仓，dict的结构为{code: weight}
+
+        Return
+        ------
+        out: float
+            换手率
+        '''
+        if last_holding is None:
+            last_holding = pd.Series()
+        else:
+            last_holding = pd.Series(last_holding)
+        cur_holding = pd.Series(cur_holding)
+        # 融合两次持仓的股票
+        #pdb.set_trace()
+        codes_merge = last_holding.index.union(cur_holding.index)
+        last_holding = last_holding.reindex(codes_merge).fillna(0)
+        cur_holding = cur_holding.reindex(codes_merge).fillna(0)
+        return np.sum(np.abs(cur_holding - last_holding)) * 0.5
