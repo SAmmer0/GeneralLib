@@ -41,6 +41,11 @@ __version__ = 1.1.2
 修改日期：2017-07-31
 修改内容：
     添加tds_count函数，用于计算时间段内交易日数量
+
+__version__ = 1.1.3
+修改日期：2017-09-04
+修改内容：
+    添加tds_shift函数，用于将交易日往前推给定个交易日的数量
 '''
 __version__ = '1.1.2'
 
@@ -349,6 +354,23 @@ def tds_count(start_time, end_time):
     '''
     tds = get_tds(start_time, end_time)
     return len(tds)
+
+
+def tds_shift(date, offset):
+    '''
+    将给定的交易日往前推，使得得到的结果到当前交易日这段时间（包含首尾）至少包含offset+1个交易日
+    Parameter
+    ---------
+    date: datetime like
+        锚定的开始往前推的时间
+    offset: int
+        期间至少需要包含的交易日的数量
+    '''
+    shift_days = int(offset / 20 * 31)
+    date = pd.to_datetime(date)
+    res = date - pd.Timedelta('30 day') - pd.Timedelta('%d day' % shift_days)
+    return res
+
 
 if __name__ == '__main__':
     res = get_recent_td('2017-01-31')
