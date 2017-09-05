@@ -14,7 +14,7 @@ __version__ = 1.0.0
     初始化
 '''
 
-import datatoolkits
+# import datatoolkits
 import dateshandle
 import numpy as np
 from numpy.linalg import linalg, LinAlgError
@@ -24,7 +24,7 @@ from ..const import START_TIME
 from .utils import (Factor, check_indexorder, check_duplicate_factorname, convert_data,
                     checkdata_completeness)
 from .query import query
-from statsmodels.api import add_constant
+# from statsmodels.api import add_constant
 
 # --------------------------------------------------------------------------------------------------
 # 常量和功能函数
@@ -617,8 +617,8 @@ def get_beta(universe, start_time, end_time):
     benchmark_data = query('SSEC_CLOSE', (new_start, end_time))
     stock_data = stock_data.pct_change().dropna(how='all').dropna(how='all', axis=1)
     benchmark_data = benchmark_data.iloc[:, 0].pct_change().dropna()
-    pdb.set_trace()
-    data = stock_data.apply(lambda x: moving_OLS(benchmark_data, x, days))
+    # pdb.set_trace()
+    data = stock_data.apply(lambda x: moving_OLS(x, benchmark_data, days))
     mask = (data.index >= start_time) & (data.index <= end_time)
     data = data.loc[mask, sorted(universe)]
     if start_time > pd.to_datetime(START_TIME):     # 第一次更新从START_TIME开始，必然会有缺失数据
@@ -635,5 +635,5 @@ beta = Factor('BETA', get_beta, pd.to_datetime('2017-09-04'),
 factor_list = [ep_ttm, bp, sp_ttm, cfp_ttm, sale2ev, oprev_yoy, ni_yoy, ni_5yg, oprev_5yg,
                roe, roa, opprofit_margin, gross_margin, tato, current_ratio, threefee2sale,
                momentum_1m, momentum_3m, momentum_60m, conexp_dis, skew_1m, kurtosis_1m,
-               ptvalue]
+               ptvalue, beta]
 check_duplicate_factorname(factor_list, __name__)
