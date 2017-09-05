@@ -20,6 +20,7 @@ import numpy as np
 from numpy.linalg import linalg, LinAlgError
 import pandas as pd
 import pdb
+# from tqdm import tqdm
 from ..const import START_TIME
 from .utils import (Factor, check_indexorder, check_duplicate_factorname, convert_data,
                     checkdata_completeness)
@@ -629,11 +630,79 @@ def get_beta(universe, start_time, end_time):
 beta = Factor('BETA', get_beta, pd.to_datetime('2017-09-04'),
               dependency=['ADJ_CLOSE', 'SSEC_CLOSE'], desc='252交易日滚动beta系数')
 
+
+# 特质波动率因子
+def get_specialvol(universe, start_time, end_time):
+    '''
+    特质波动率因子，为计算beta的副产物；同样以上证综指作为市场收益基准
+    '''
+    def moving_specvol(y, x, window):
+        '''
+        滚动快速计算特质波动率
+        '''
+        # 添加截距项
+        x = pd.DataFrame({'constant': [1] * len(x), 'x': x}, columns=['constant', 'x'])
+        # pdb.set_trace()
+        # 计算累计的xx和xy
+        K = len(x.columns)
+        N = len(x)
+        last_xx = np.zeros((K, K))
+        last_xy = np.zeros(K)
+        cum_xx = []
+        cum_xy = []
+        for i in range(N):
+            data_x = x.values[i: i + 1]
+            data_y = y.values[i: i + 1]
+            last_xy = last_xy + np.dot(data_x.T, data_y)
+            last_xx = last_xx + np.dot(data_x.T, data_x)
+            cum_xy.append(last_xy)
+            cum_xx.append(last_xx)
+        # pdb.set_trace()
+        # 计算滚动特质波动率
+        resids = np.empty(N, dtype=float)
+        resids[:] = np.NaN
+        for i in range(N):
+            if i < window or np.any(pd.isnull(x.iloc[i])):
+                continue
+            xx = cum_xx[i] - cum_xx[i - window]
+            xy = cum_xy[i] - cum_xy[i - window]
+            try:
+                beta = linalg.solve(xx, xy)
+                tmp_x = x.values[i + 1 - window: i + 1]
+                tmp_y = y.values[i + 1 - window: i + 1]
+                resid = tmp_y - np.dot(tmp_x, beta)
+                # pdb.set_trace()
+                resids[i] = np.std(resid)
+            except LinAlgError as e:    # 因为停牌等因素，股价一直都不变，此时的波动率没有意义
+                continue
+        # pdb.set_trace()
+        return pd.Series(resids, index=x.index)
+
+    days = 252
+    start_time = pd.to_datetime(start_time)
+    end_time = pd.to_datetime(end_time)
+    new_start = dateshandle.tds_shift(start_time, days)
+    stock_data = query('ADJ_CLOSE', (new_start, end_time))
+    benchmark_data = query('SSEC_CLOSE', (new_start, end_time))
+    stock_data = stock_data.pct_change().dropna(how='all').dropna(how='all', axis=1)
+    benchmark_data = benchmark_data.iloc[:, 0].pct_change().dropna()
+    # pdb.set_trace()
+    # tqdm.pandas()
+    data = stock_data.apply(lambda x: moving_specvol(x, benchmark_data, days))
+    mask = (data.index >= start_time) & (data.index <= end_time)
+    data = data.loc[mask, sorted(universe)]
+    if start_time > pd.to_datetime(START_TIME):     # 第一次更新从START_TIME开始，必然会有缺失数据
+        checkdata_completeness(data, start_time, end_time)
+    return data
+
+
+specialvol = Factor('SPECIAL_VOL', get_specialvol, pd.to_datetime('2017-09-05'),
+                    dependency=['ADJ_CLOSE', 'SSEC_CLOSE'], desc='特质波动率')
 # --------------------------------------------------------------------------------------------------
 
 
 factor_list = [ep_ttm, bp, sp_ttm, cfp_ttm, sale2ev, oprev_yoy, ni_yoy, ni_5yg, oprev_5yg,
                roe, roa, opprofit_margin, gross_margin, tato, current_ratio, threefee2sale,
                momentum_1m, momentum_3m, momentum_60m, conexp_dis, skew_1m, kurtosis_1m,
-               ptvalue, beta]
+               ptvalue, beta, specialvol]
 check_duplicate_factorname(factor_list, __name__)
