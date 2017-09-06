@@ -14,12 +14,12 @@ import pandas as pd
 from tqdm import tqdm
 
 # 本地库
-from .utils import (Stock, Portfolio, EqlWeightCalc, MkvWeightCalc,
-                    stock_filter_template)
-from ..utils import HDFDataProvider, NoneDataProvider, WeekRebCalcu, MonRebCalcu
+from factortest.grouptest.utils import (Stock, Portfolio, EqlWeightCalc, MkvWeightCalc,
+                                        stock_filter_template)
+from factortest.utils import HDFDataProvider, NoneDataProvider, WeekRebCalcu, MonRebCalcu
 from dateshandle import get_tds
 from fmanager.api import get_factor_dict
-from .const import *
+from factortest.const import *
 
 # ------------------------------------------------------------------------------
 

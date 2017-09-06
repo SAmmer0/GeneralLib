@@ -5,8 +5,4 @@
 # @Link    : https://github.com/SAmmer0
 # @Version : $Id$
 
-from . import utils
-# from . import test
-from . import analysis
-from . import backtest
-from . import const
+from factortest.grouptest import utils, analysis, backtest

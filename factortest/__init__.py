@@ -5,6 +5,10 @@
 # @Link    : https://github.com/SAmmer0
 # @Version : $Id$
 
-from . import grouptest
-from . import utils
-from . import correlation
+from factortest import grouptest
+from factortest import utils
+from factortest import correlation
+from factortest import const
+from factortest.grouptest.analysis import NavAnalysor, IndustryAnalysor, TOAnalysor
+from factortest.grouptest.backtest import BacktestConfig, BacktestConfig, FactortestTemplate
+from factortest.correlation import FactorICTemplate, ICCalculator

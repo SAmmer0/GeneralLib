@@ -27,7 +27,7 @@ from scipy.stats import ttest_1samp
 import pandas as pd
 import numpy as np
 # 本地模块
-from ..utils import HDFDataProvider
+from factortest.utils import HDFDataProvider
 from datatoolkits import price2nav
 from report import brief_report, trans2formater, table_convertor
 from fmanager.api import get_factor_dict
@@ -167,7 +167,7 @@ class NavAnalysor(Analysor):
                                                   'mdd_start', 'mdd_end', 'mddt', 'mddt_start',
                                                   'mddt_end'])
 
-        res = dict(momthly_ret=self.monthly_ret, mexcess_ret=self.mexcess_ret,
+        res = dict(monthly_ret=self.monthly_ret, mexcess_ret=self.mexcess_ret,
                    yearly_data=yearly_data, basic_msg=self.basic_msg,
                    ttest=self.t_test, bm_table=basicmsg_tab, yearly_table=yearly_tab,
                    ttest_table=ttest_tab)
@@ -416,7 +416,7 @@ class TOAnalysor(Analysor):
         for last_t, cur_t in times:
             last_h = holdings.get(last_t, None)
             cur_h = holdings[cur_t]
-            #pdb.set_trace()
+            # pdb.set_trace()
             res[cur_t] = self._calc_to(last_h, cur_h)
         return pd.Series(res)
 
@@ -441,7 +441,7 @@ class TOAnalysor(Analysor):
             last_holding = pd.Series(last_holding)
         cur_holding = pd.Series(cur_holding)
         # 融合两次持仓的股票
-        #pdb.set_trace()
+        # pdb.set_trace()
         codes_merge = last_holding.index.union(cur_holding.index)
         last_holding = last_holding.reindex(codes_merge).fillna(0)
         cur_holding = cur_holding.reindex(codes_merge).fillna(0)

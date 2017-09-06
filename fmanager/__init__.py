@@ -4,7 +4,15 @@
 # @Author  : Li Hao (howardlee_h@outlook.com)
 # @Link    : https://github.com/SAmmer0
 # @Version : $Id$
-from . import database
-from . import factors
-from . import const
-from . import update
+from fmanager import database
+from fmanager import factors
+from fmanager import const
+from fmanager import update
+
+from fmanager.factors.dictionary import (get_factor_dict,
+                                         check_dict,
+                                         update_factordict)
+from fmanager.factors.query import query
+from fmanager.update import (auto_update_all,
+                             update_universe,
+                             auto_update_all)

@@ -11,7 +11,7 @@
 # 本地文件
 from fmanager.factors.utils import convert_data
 from fmanager.api import get_factor_dict
-from factortest.grouptest.const import WEEKLY, MONTHLY
+from factortest.const import WEEKLY, MONTHLY
 from factortest.utils import HDFDataProvider, MonRebCalcu, WeekRebCalcu
 
 
