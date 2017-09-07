@@ -7,6 +7,10 @@
 
 '''
 因子字典模块，用于从各个因子模块中读取因子，并构造因子字典，写入文件中
+__version__ = 1.0.1
+修改日期：2017-09-07
+修改内容：
+    添加list_allfactor和get_factor_detail函数
 '''
 
 from copy import deepcopy
@@ -42,6 +46,36 @@ def get_factor_dict():
     factors = add_abs_path(factors)
     # pdb.set_trace()
     return factors
+
+
+def list_allfactor():
+    '''
+    列出当前因子库中的所有因子名称
+    Return
+    ------
+    out: list
+        所有因子的名称
+    '''
+    fd = get_factor_dict()
+    return sorted(fd.keys())
+
+
+def get_factor_detail(factor_name):
+    '''
+    获取某个因子的详细信息
+    Parameter
+    ---------
+    factor_name: str
+        需要查询的因子的名称
+
+    Return
+    ------
+    out: dict
+        因子相关的信息
+    '''
+    fd = get_factor_dict()
+    assert factor_name in fd, "Error, {fn} NOT FOUND!".format(fn=factor_name)
+    return fd[factor_name]
 
 
 def add_abs_path(factor_dict):

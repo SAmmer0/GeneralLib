@@ -66,10 +66,13 @@ class Factor(object):
         self.data_type = data_type
 
     def __str__(self):
-        return self.name
+        data = {'name': self.name, 'dep': self.dependency, 'desc': self.desc,
+                'at': self.addtime.strftime('%Y-%m-%d')}
+        res = 'Factor(name={name}, dependency={dep}, describe={desc}, addtime={at})'.format(**data)
+        return res
 
     def __repr__(self):
-        return self.name
+        return str(self)
 
     def __eq__(self, other):
         return self.name == other.name
