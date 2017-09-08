@@ -533,3 +533,23 @@ def stock_filter_template(st_provider, tradedata_provider, stockpool_provider,
                for g in by_group_id.groups}
         return out
     return _inner
+
+
+def transholding(holding):
+    '''
+    因为回测实例中记录的持仓数据的格式为{time: {port_id: list or dict}}，需要将其转换为
+    {port_id: {time: dict or list}}
+
+    Parameter
+    ---------
+    holding: dict
+        结构为{time: {port_id: list or dict}}
+
+    Return
+    ------
+    out: dict
+        结构为{port_id: {time: dict or list}}
+    '''
+    tmp_df = pd.DataFrame(holding)
+    tmp_df = tmp_df.T.to_dict()
+    return tmp_df

@@ -18,7 +18,7 @@ from factortest.grouptest.utils import (Stock, Portfolio, EqlWeightCalc, MkvWeig
                                         stock_filter_template)
 from factortest.utils import HDFDataProvider, NoneDataProvider, WeekRebCalcu, MonRebCalcu
 from dateshandle import get_tds
-from fmanager.api import get_factor_dict
+from fmanager import get_factor_dict
 from factortest.const import *
 
 # ------------------------------------------------------------------------------

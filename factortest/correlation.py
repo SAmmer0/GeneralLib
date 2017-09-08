@@ -8,9 +8,11 @@
 '''
 本模块用于计算因子的IC和自相关性
 '''
+# 系统库文件
+from collections import namedtuple
 # 本地文件
 from fmanager.factors.utils import convert_data
-from fmanager.api import get_factor_dict
+from fmanager import get_factor_dict
 from factortest.const import WEEKLY, MONTHLY
 from factortest.utils import HDFDataProvider, MonRebCalcu, WeekRebCalcu
 
@@ -40,14 +42,20 @@ class ICCalculator(object):
         计算IC
         Return
         ------
-        out: pd.Series
-            Index为升序排序后的换仓时间，数据为对应的IC值，最后一个换仓日没有对应的收益，值设置为NA，
-            后续时间内，如果有股票退市，直接将其收益和因子值做提出处理
+        out: namedtuple(ICAnalysisResult)
+            包含两个结果，IC和Rank IC，对于每个数据Index为升序排序后的换仓时间，数据为对应的IC值，
+            最后一个换仓日没有对应的收益，值设置为NA，后续时间内，如果有股票退市，直接将其收益和因子值做剔除处理
         '''
         def calc_IC(df):
             f = df.xs('factor', level=1).iloc[0]
             p = df.xs('quote', level=1).iloc[0]
             return f.corr(p)
+        
+        def calc_RankIC(df):
+            f = df.xs('factor', level=1).iloc[0].rank()
+            p = df.xs('quote', level=1).iloc[0].rank()
+            return f.corr(p)
+            
         # 加载数据
         start_time = min(self._reb_dates)
         end_time = max(self._reb_dates)
@@ -58,7 +66,10 @@ class ICCalculator(object):
         quote_data = quote_data.pct_change().shift(-1)
         merged_data = convert_data([factor_data, quote_data], ['factor', 'quote'])
         by_time = merged_data.groupby(level=0)
-        out = by_time.apply(calc_IC)
+        ic = by_time.apply(calc_IC)
+        rank_ic = by_time.apply(calc_RankIC)
+        ICAnalysisResult = namedtuple('ICAnalysisResult', ['IC', 'Rank_IC'])
+        out = ICAnalysisResult(IC=ic, Rank_IC=rank_ic)
         return out
 
 

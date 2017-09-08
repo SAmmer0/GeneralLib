@@ -21,16 +21,17 @@ __version__ = 1.0.1
 # 系统模块
 from abc import ABCMeta, abstractmethod
 import pdb
-# from collections import namedtuple
+from collections import namedtuple
 # 第三方模块
 from scipy.stats import ttest_1samp
 import pandas as pd
 import numpy as np
 # 本地模块
 from factortest.utils import HDFDataProvider
+from factortest.grouptest.utils import transholding
 from datatoolkits import price2nav
 from report import brief_report, trans2formater, table_convertor
-from fmanager.api import get_factor_dict
+from fmanager import get_factor_dict
 
 
 class Analysor(object, metaclass=ABCMeta):
@@ -132,7 +133,7 @@ class NavAnalysor(Analysor):
         将指标信息转换为可在markdown中展示的字符串
         Return
         ------
-        out: dict
+        out: namedtuple(NavAnalysisResult)
             返回相关的分析结果，包含有monthly_ret, mexcess_ret, yearly_data, basic_msg,
             ttest, bm_table, yearly_table, ttest_table，其中后缀为_table的表示为HTML标记
             字符串，用于在日志中写入相关信息，其他均为pd.DataFrame格式
@@ -171,6 +172,8 @@ class NavAnalysor(Analysor):
                    yearly_data=yearly_data, basic_msg=self.basic_msg,
                    ttest=self.t_test, bm_table=basicmsg_tab, yearly_table=yearly_tab,
                    ttest_table=ttest_tab)
+        NavAnalysisResult = namedtuple('NavAnalysisResult', res.keys())
+        res = NavAnalysisResult(**res)
         return res
 
     @property
@@ -233,10 +236,10 @@ class IndustryAnalysor(Analysor):
         Return
         ------
         out: dict
-            行业分布数据，结构为{port_id: pd.Series({industry_name: weight, ...})
+            行业分布数据，结构为{port_id: pd.DataFrame(index=time, columns=industry))
         '''
         # 将原始数据进行转换
-        data = self._transholding(data)
+        data = transholding(data)
 
         res = dict()
         # 循环计算行业分布
@@ -250,25 +253,6 @@ class IndustryAnalysor(Analysor):
             tmp_data.index = time_idx
             res[port_id] = tmp_data
         return res
-
-    def _transholding(self, holding):
-        '''
-        因为回测实例中记录的持仓数据的格式为{time: {port_id: list or dict}}，需要将其转换为
-        {port_id: {time: dict or list}}
-
-        Parameter
-        ---------
-        holding: dict
-            结构为{time: {port_id: list or dict}}
-
-        Return
-        ------
-        out: dict
-            结构为{port_id: {time: dict or list}}
-        '''
-        tmp_df = pd.DataFrame(holding)
-        tmp_df = tmp_df.T.to_dict()
-        return tmp_df
 
     def _calc_industry_weight(self, holding_data, date):
         '''
@@ -302,11 +286,21 @@ class IndustryAnalysor(Analysor):
         '''
         Return
         ------
-        out: dict
-            字典结构包含的数据为industry_distribution和weighted_industry_distribution
+        out: namedtuple
+            字典结构包含的数据为plain_industry_distribution_num，plain_industry_distribution_weight
+            和weighted_industry_distribution_weight，分别表示行业个数分布、行业个数占比分布和行业市值
+            加权分布
         '''
-        return {'industry_distribution': self.holding_result,
-                'weighted_industry_distribution': self.weighted_holding}
+        plain_inddis_weight = {}
+        for port_id in self.holding_result:
+            plain_inddis_weight[port_id] = self.holding_result[port_id].\
+                transform(lambda x: x / x.sum(), axis=1)
+        res = {'plain_industry_distribution_num': self.holding_result,
+               'plain_industry_distribution_weight': plain_inddis_weight,
+               'weighted_industry_distribution_weight': self.weighted_holding}
+        IndustryAnalysisResult = namedtuple('IndustryAnalysisResult', res.keys())
+        res = IndustryAnalysisResult(**res)
+        return res
 
     @property
     def analysis_result(self):
@@ -347,7 +341,7 @@ class TOAnalysor(Analysor):
         的换手率表示本次持仓与上次持仓对比计算的换手率（第一个换仓日换手率必然为0.5或者说50%）
         注：换手率之所以要乘以1/2是因为有的股票的权重增加了必然有股票的权重减小，二者都计算则重复
         '''
-        holding_data = self._transholding(self._bt.weighted_holding)
+        holding_data = transholding(self._bt.weighted_holding)
         to_res = dict()
         for port_id in holding_data:
             to_res[port_id] = self._calc_groupto(holding_data[port_id])
@@ -377,25 +371,6 @@ class TOAnalysor(Analysor):
             return self._result_cache
         else:
             return self._result_cache
-
-    def _transholding(self, holding):
-        '''
-        因为回测实例中记录的股票权重数据的格式为{time: {port_id: dict}}，需要将其转换为
-        {port_id: {time: dict}}
-
-        Parameter
-        ---------
-        holding: dict
-            结构为{time: {port_id: dict}}
-
-        Return
-        ------
-        out: dict
-            结构为{port_id: {time: dict}}
-        '''
-        tmp_df = pd.DataFrame(holding)
-        tmp_df = tmp_df.T.to_dict()
-        return tmp_df
 
     def _calc_groupto(self, holdings):
         '''
