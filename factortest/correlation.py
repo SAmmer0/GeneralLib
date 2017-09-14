@@ -10,6 +10,8 @@
 '''
 # 系统库文件
 from collections import namedtuple
+# 第三方库
+from scipy.stats import spearmanr
 # 本地文件
 from fmanager.factors.utils import convert_data
 from fmanager import get_factor_dict
@@ -50,12 +52,11 @@ class ICCalculator(object):
             f = df.xs('factor', level=1).iloc[0]
             p = df.xs('quote', level=1).iloc[0]
             return f.corr(p)
-        
+
         def calc_RankIC(df):
-            f = df.xs('factor', level=1).iloc[0].rank()
-            p = df.xs('quote', level=1).iloc[0].rank()
-            return f.corr(p)
-            
+            df = df.dropna(axis=1)
+            return spearmanr(df.iloc[0], df.iloc[1]).correlation
+
         # 加载数据
         start_time = min(self._reb_dates)
         end_time = max(self._reb_dates)
