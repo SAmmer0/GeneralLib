@@ -118,9 +118,42 @@ class FactorICTemplate(object):
         else:
             self._rebcalculator = WeekRebCalcu(self._start_time, self._end_time)
 
-    def run(self):
+    def __call__(self):
         '''
         进行IC的计算
         '''
         calculator = ICCalculator(self._factor_provider, self._quote_provider, self._rebcalculator)
         return calculator()
+
+
+class FactorAutoCorrelation(FactorICTemplate):
+    '''
+    计算因子的自相关函数
+    '''
+
+    def __init__(self, factor_name, start_time, end_time, reb_type=MONTHLY):
+        super().__init__(factor_name, start_time, end_time, reb_type)
+
+    def __call__(self):
+        '''
+        进行自相关性的计算
+        '''
+        def acf(df):    # 计算自相关系数
+            f = df.xs('now', level=1).iloc[0]
+            p = df.xs('next', level=1).iloc[0]
+            return f.corr(p)
+
+        def rank_acf(df):  # 计算排序的自相关系数
+            df = df.dropna(axis=1)
+            return spearmanr(df.iloc[0], df.iloc[1]).correlation
+        reb_dates = self._rebcalculator.reb_points
+        start_time = min(reb_dates)
+        end_time = max(reb_dates)
+        factor_data = self._factor_provider.get_paneldata(start_time, end_time).reindex(reb_dates)
+        next_factor_data = factor_data.shift(-1)
+        merged_data = convert_data([factor_data, next_factor_data], ['now', 'next'])
+        by_time = merged_data.groupby(level=0)
+        acf_res = by_time.apply(acf)
+        racf_res = by_time.apply(rank_acf)
+        AutoCorrelationResult = namedtuple('AutoCorrelationResult', ['acf', 'Rank_acf'])
+        return AutoCorrelationResult(acf=acf_res, Rank_acf=racf_res)
