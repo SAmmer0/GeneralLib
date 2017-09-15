@@ -19,8 +19,8 @@ import pandas as pd
 import pdb
 import h5py
 
-MAX_COL_SIZE = 4000
-NaS = 'NaS'
+# 本地文件
+from fmanager.database.const import *
 
 
 class DBConnector(object):
@@ -28,12 +28,14 @@ class DBConnector(object):
     负责处理底层数据的存储工作类，主要功能包含：存储文件初始化、添加初始数据，数据定期更新，数据提取
     '''
 
-    def __init__(self, path):
+    def __init__(self, path, size=MAX_COL_SIZE):
         self.path = path
         self._data_time = None   # 用于缓存数据的最新时间
         self._code_order = None  # 用于缓存数据的股票代码顺序
         self._code_dtype = 'S12'    # 用于标识标准股票代码数据格式
         self._date_dtype = 'S10'    # 用于标识标准日期数据格式
+        self._size = size   # 用于标识横截面的数据的长度
+        self._data_type = None   # 用于记录数据类型
 
     def init_dbfile(self, data_type='f8'):
         '''
@@ -41,8 +43,8 @@ class DBConnector(object):
 
         Parameter
         ---------
-        path: str
-            文件的存储路径
+        data_type: str
+            文件的类型
 
         Notes
         -----
@@ -52,10 +54,10 @@ class DBConnector(object):
         with h5py.File(self.path, 'w-') as store:
             # 考虑未来添加数据的格式改变的而需求，将数据的格式设置的更大一些
             store.create_dataset('date', shape=(1,), maxshape=(None,), dtype=self._date_dtype)
-            store.create_dataset('code', shape=(MAX_COL_SIZE,), chunks=(MAX_COL_SIZE,),
+            store.create_dataset('code', shape=(self._size,), chunks=(self._size,),
                                  dtype=self._code_dtype)
-            store.create_dataset('data', shape=(1, MAX_COL_SIZE), chunks=(1, MAX_COL_SIZE),
-                                 dtype=data_type, maxshape=(None, MAX_COL_SIZE))
+            store.create_dataset('data', shape=(1, self._size), chunks=(1, self._size),
+                                 dtype=data_type, maxshape=(None, self._size))
             if data_type.startswith('f'):   # 当数据类型时，填充数据为np.nan
                 defalut_data = np.nan
             else:   # 当数据为字符串时，填充NAS字符（not a string）
@@ -92,9 +94,9 @@ class DBConnector(object):
             assert store.attrs['data type'] == np.dtype(data.dtype), "data type error!" +\
                 "data type in dataset is {ds_type}, you provide |{p_type}".\
                 format(ds_type=data.dtype, p_type=store.attrs['data type'])
-            assert data.shape[1] < MAX_COL_SIZE,\
+            assert data.shape[1] < self._size,\
                 "data columns(len={data_len}) ".format(data_len=data.shape[1]) +\
-                "should be less than {max_len}".format(max_len=MAX_COL_SIZE)
+                "should be less than {max_len}".format(max_len=self._size)
             assert data.shape == (len(date), len(code)), "input data error, " +\
                 "data imply shape = {data_shape}, while code and date imply shape = {other_shape}".\
                 format(data_shape=data.shape, other_shape=(len(date), len(code)))
@@ -113,7 +115,7 @@ class DBConnector(object):
             data_dset = store['data']
             code_dset = store['code']
             date_dset.resize((new_datelen, ))
-            data_dset.resize((new_datelen, MAX_COL_SIZE))   # 此处resize后填充的数据为0
+            data_dset.resize((new_datelen, self._size))   # 此处resize后填充的数据为0
             date_dset[start_date:new_datelen] = date
             data_dset[start_date:new_datelen, :len(code)] = data
             data_dset[start_date:new_datelen, len(code):] = default_data    # 填充其余位置的数据
@@ -252,6 +254,18 @@ class DBConnector(object):
         out = data.loc[:, codes]
         return out
 
+    def query_all(self):
+        '''
+        查询所有的数据
+        Return
+        ------
+        out: pd.DataFrame
+            返回结果的DataFrame，index为日期，columns为股票代码。
+        '''
+        start_time = FIRST_TRADING_DAY
+        end_time = self.data_time
+        return self.query((start_time, end_time))
+
     def insert_df(self, df, data_dtype=None, filled_value=np.nan):
         '''
         将DataFrame插入数据库中
@@ -308,3 +322,43 @@ class DBConnector(object):
             data = df.values
         self.insert_data(codes, dates, data)
         return df
+
+
+# 辅助函数，将数据进行迁移或者替换
+def reshape_colsize(file_path, new_size, destination_path=None):
+    '''
+    改变原有数据的列的大小，并将其存储到（一个新的）文件中
+
+    Parameter
+    ---------
+    file_path: str
+        需要转换列大小的文件的路径
+    new_size: int
+        新的列的大小，要求必须比已经存储的数据列数要大
+    destination_path: str, default
+        新的存储路径（可选），如果为None，表示直接替代之前的文件
+    '''
+    raw_db = DBConnector(file_path)
+    data = raw_db.query_all()
+    assert len(data.columns) < new_size, \
+        "Error, new size({ns}) must be greater than data columns size({dz})!".\
+        format(ns=new_size, dz=len(data.columns))
+    with h5py.File(file_path) as store:     # 获取存储数据的相关信息
+        data_type = store.attrs['data type']
+        default_value = store.attrs['default data']
+    if destination_path is None:    # 覆盖源文件
+        print('Warning: file({fpath} is removed!'.format(fpath=file_path))
+        from os import remove
+        remove(file_path)
+        new_db = DBConnector(file_path, new_size)
+    else:
+        new_db = DBConnector(destination_path, new_size)
+    new_db.init_dbfile(data_type)
+    new_db.insert_df(data, data_type, default_value)
+
+
+if __name__ == '__main__':
+    from fmanager import get_factor_detail
+    cpath = get_factor_detail('ZX_IND')['abs_path']
+    test_path = r'C:\Users\lenovo\Desktop\test\test_db.h5'
+    reshape_colsize(cpath, 5000, test_path)

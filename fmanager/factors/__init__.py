@@ -4,8 +4,4 @@
 # @Author  : Li Hao (howardlee_h@outlook.com)
 # @Link    : https://github.com/SAmmer0
 # @Version : $Id$
-from . import utils
-from . import basicfactors
-from . import derivativefactors
-from .import query
-from . import dictionary
+from fmanager.factors import utils, basicfactors, derivativefactors, query, dictionary

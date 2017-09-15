@@ -5,4 +5,4 @@
 # @Link    : https://github.com/SAmmer0
 # @Version : $Id$
 
-from .database import *
+from fmanager.database.database import *
