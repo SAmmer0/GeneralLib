@@ -208,17 +208,17 @@ class FactortestTemplate(object):
     简易的因子测试模板，仅包含回测功能
     '''
 
-    def __init__(self, start_time, end_time, factor_name, weight_method=TOTALMKV_WEIGHTED,
+    def __init__(self, factor_name, start_time, end_time, weight_method=TOTALMKV_WEIGHTED,
                  reb_method=MONTHLY, group_num=10, stock_pool=None, industry_neutral=None):
         '''
         Parameter
         ---------
+        factor_name: str
+            需要测试的因子，必须在fmanager.api.get_factor_dict的返回值中可以找到
         start_time: datetime or other compatible types
             回测的开始时间
         end_time: datetime or other compatible types
             回测的结束时间
-        factor_name: str
-            需要测试的因子，必须在fmanager.api.get_factor_dict的返回值中可以找到
         weight_method: str, default equal-weighted
             权重计算方法，目前支持equal-weighted、totalmkv-weighted和floatmkv-weighted
             也可以通过const文件中的方法设置

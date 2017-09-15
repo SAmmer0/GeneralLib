@@ -140,7 +140,7 @@ class FactorAutoCorrelation(FactorICTemplate):
         '''
         def acf(df):    # 计算自相关系数
             f = df.xs('now', level=1).iloc[0]
-            p = df.xs('next', level=1).iloc[0]
+            p = df.xs('last', level=1).iloc[0]
             return f.corr(p)
 
         def rank_acf(df):  # 计算排序的自相关系数
@@ -150,8 +150,8 @@ class FactorAutoCorrelation(FactorICTemplate):
         start_time = min(reb_dates)
         end_time = max(reb_dates)
         factor_data = self._factor_provider.get_paneldata(start_time, end_time).reindex(reb_dates)
-        next_factor_data = factor_data.shift(-1)
-        merged_data = convert_data([factor_data, next_factor_data], ['now', 'next'])
+        last_factor_data = factor_data.shift(1)
+        merged_data = convert_data([factor_data, last_factor_data], ['now', 'last'])
         by_time = merged_data.groupby(level=0)
         acf_res = by_time.apply(acf)
         racf_res = by_time.apply(rank_acf)
