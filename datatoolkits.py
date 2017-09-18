@@ -272,12 +272,12 @@ def load_pickle(path):
         return pickle.load(f)
 
 
-def dump_pickle(data, path):
+def dump_pickle(data, path, protocol=3):
     '''
     将数据写入到pickle文件中
     '''
     with open(path, 'wb') as f:
-        pickle.dump(data, f)
+        pickle.dump(data, f, protocol=protocol)
 
 
 def retfreq_trans(init_ret, new_freq):

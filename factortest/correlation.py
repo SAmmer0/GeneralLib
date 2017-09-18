@@ -21,10 +21,10 @@ from factortest.utils import HDFDataProvider, MonRebCalcu, WeekRebCalcu
 
 class ICCalculator(object):
     '''
-    用于计算因子的IC，即期初的因子值与期末的收益率之间的相关性
+    用于计算因子的IC（包括滞后IC），即期初的因子值与期末的收益率之间的相关性
     '''
 
-    def __init__(self, factor_provider, quote_provider, reb_calc):
+    def __init__(self, factor_provider, quote_provider, reb_calc, offset=1):
         '''
         Parameter
         ---------
@@ -34,14 +34,17 @@ class ICCalculator(object):
             用于计算收益的行情数据（一般为复权后价格数据）
         reb_calc: RebCalcu
             用于获取时间分段的数据
+        offset: int, default 1
+            用于设置因子值与收益率之间相隔的期数，要求为不小于1的整数,1即表示传统的IC（滞后一期）
         '''
         self._factor_provider = factor_provider
         self._quote_provider = quote_provider
         self._reb_dates = reb_calc.reb_points
+        self._offset = offset
 
     def __call__(self):
         '''
-        计算IC
+        计算（滞后）IC
         Return
         ------
         out: namedtuple(ICAnalysisResult)
@@ -64,7 +67,7 @@ class ICCalculator(object):
             reindex(self._reb_dates)
         quote_data = self._quote_provider.get_paneldata(start_time, end_time).\
             reindex(self._reb_dates)
-        quote_data = quote_data.pct_change().shift(-1)
+        quote_data = quote_data.pct_change().shift(-self._offset)
         merged_data = convert_data([factor_data, quote_data], ['factor', 'quote'])
         by_time = merged_data.groupby(level=0)
         ic = by_time.apply(calc_IC)
@@ -79,16 +82,18 @@ class FactorICTemplate(object):
     计算因子IC的模板
     '''
 
-    def __init__(self, factor_name, start_time, end_time, reb_type=MONTHLY):
+    def __init__(self, factor_name, start_time, end_time, offset=1, reb_type=MONTHLY):
         '''
         Parameter
         ---------
         factor_name: str
-            因子的名称，要求必须能在fmanager.api.get_factor_dict中找到
+            因子的名称，要求必须能在fmanager.get_factor_dict中找到
         start_time: datetime or other compatible type
             测试的开始时间
         end_time: datetime or other compatible type
             测试的结束时间
+        offset: int, default 1
+            因子与收益率之间相隔的期数，要求为不小于1的整数，1即表示传统的IC
         reb_type: str, default MONTHLY
             换仓日计算的规则，目前只支持月度(MONTHLY)和周度(WEEKLY)
         '''
@@ -100,6 +105,7 @@ class FactorICTemplate(object):
         self._load_rebcalculator(reb_type)
         self._quote_provider = HDFDataProvider(factor_dict['ADJ_CLOSE']['abs_path'],
                                                start_time, end_time)
+        self._offset = offset
 
     def _load_rebcalculator(self, reb_type):
         '''
@@ -122,8 +128,34 @@ class FactorICTemplate(object):
         '''
         进行IC的计算
         '''
-        calculator = ICCalculator(self._factor_provider, self._quote_provider, self._rebcalculator)
+        calculator = ICCalculator(self._factor_provider, self._quote_provider, self._rebcalculator,
+                                  self._offset)
         return calculator()
+
+
+class ICDecay(object):
+    '''
+    计算因子（rank）IC的衰减情况
+    具体如下：
+        假设计算10期IC衰减情况，则分别计算每一个滞后期对应的IC的序列，然后求平均值，返回这10期的
+        所有的IC平均值
+    '''
+
+    def __init__(self, factor_name, start_time, end_time, period_num=10, reb_type=MONTHLY):
+        '''
+        Parameter
+        ---------
+        factor_name: str
+            因子名称，要求能在fmanager.get_factor_dict中找到
+        start_time: datetime like
+            测试的开始时间
+        end_time: datetime like
+            测试的结束时间
+        period_num: int, default 10
+            IC衰减的最大期数
+        reb_type: str, default MONTHLY
+            换仓日计算的规则，目前只支持月度(MONTHLY)和周度(WEEKLY)
+        '''
 
 
 class FactorAutoCorrelation(FactorICTemplate):
