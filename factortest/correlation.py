@@ -12,11 +12,12 @@
 from collections import namedtuple
 # 第三方库
 from scipy.stats import spearmanr
+import pandas as pd
 # 本地文件
 from fmanager.factors.utils import convert_data
 from fmanager import get_factor_dict
 from factortest.const import WEEKLY, MONTHLY
-from factortest.utils import HDFDataProvider, MonRebCalcu, WeekRebCalcu
+from factortest.utils import HDFDataProvider, load_rebcalculator
 
 
 class ICCalculator(object):
@@ -97,32 +98,15 @@ class FactorICTemplate(object):
         reb_type: str, default MONTHLY
             换仓日计算的规则，目前只支持月度(MONTHLY)和周度(WEEKLY)
         '''
-        self._start_time = start_time
-        self._end_time = end_time
+        # self._start_time = start_time
+        # self._end_time = end_time
         factor_dict = get_factor_dict()
         self._factor_provider = HDFDataProvider(factor_dict[factor_name]['abs_path'],
                                                 start_time, end_time)
-        self._load_rebcalculator(reb_type)
+        self._rebcalculator = load_rebcalculator(reb_type, start_time, end_time)
         self._quote_provider = HDFDataProvider(factor_dict['ADJ_CLOSE']['abs_path'],
                                                start_time, end_time)
         self._offset = offset
-
-    def _load_rebcalculator(self, reb_type):
-        '''
-        加载换仓日计算器
-        Parameter
-        ---------
-        reb_type: str
-            换仓日计算的规则，目前只支持月度(MONTHLY)和周度(WEEKLY)
-        '''
-        valid_freq = [MONTHLY, WEEKLY]
-        assert reb_type in valid_freq, \
-            'Rebalance date method setting ERROR, you provide {yp}, '.format(yp=reb_type) +\
-            'right choices are {rc}'.format(rc=valid_freq)
-        if reb_type == MONTHLY:
-            self._rebcalculator = MonRebCalcu(self._start_time, self._end_time)
-        else:
-            self._rebcalculator = WeekRebCalcu(self._start_time, self._end_time)
 
     def __call__(self):
         '''
@@ -156,6 +140,33 @@ class ICDecay(object):
         reb_type: str, default MONTHLY
             换仓日计算的规则，目前只支持月度(MONTHLY)和周度(WEEKLY)
         '''
+        factor_dict = get_factor_dict()
+        _factor_provider = HDFDataProvider(factor_dict[factor_name]['abs_path'],
+                                           start_time, end_time)
+        _rebcalculator = load_rebcalculator(reb_type, start_time, end_time)
+        _quote_provider = HDFDataProvider(factor_dict['ADJ_CLOSE']['abs_path'],
+                                          start_time, end_time)
+        self._IC_calcus = {offset: ICCalculator(_factor_provider, _quote_provider,
+                                                _rebcalculator, offset)
+                           for offset in range(1, period_num + 1)}
+
+    def __call__(self):
+        '''
+        计算不同滞后期的平均IC
+
+        Return
+        ------
+        out: pd.Series
+            index为滞后期的期数，value为平均的IC
+        '''
+        res = {offset: calculator() for offset, calculator in self._IC_calcus.items()}
+        ic_decay = {offset: result.IC for offset, result in res.items()}
+        rankic_decay = {offset: result.Rank_IC for offset, result in res.items()}
+        ic_decay = pd.DataFrame(ic_decay).mean(axis=0)
+        rankic_decay = pd.DataFrame(rankic_decay).mean(axis=0)
+        ICDecayResult = namedtuple('ICDecayResult', ['IC', 'Rank_IC'])
+        out = ICDecayResult(IC=ic_decay, Rank_IC=rankic_decay)
+        return out
 
 
 class FactorAutoCorrelation(FactorICTemplate):

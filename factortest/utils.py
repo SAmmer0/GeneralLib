@@ -18,6 +18,7 @@ from abc import abstractmethod, ABCMeta
 import pandas as pd
 # 本地库
 from fmanager.database import DBConnector
+from factortest.const import MONTHLY, WEEKLY
 from dateshandle import get_tds
 # --------------------------------------------------------------------------------------------------
 # 常量定义
@@ -395,3 +396,34 @@ class WeekRebCalcu(RebCalcu):
         tds = pd.Series(get_tds(self._start_time, self._end_time))
         tds.index = tds.dt.strftime('%Y-%W')
         self._rebdates = tds.groupby(lambda x: x).apply(lambda y: y.iloc[-1]).tolist()
+
+
+# --------------------------------------------------------------------------------------------------
+# 函数
+def load_rebcalculator(reb_type, start_time, end_time):
+    '''
+    加载指定频率的再平衡日计算器
+
+    Parameter
+    ---------
+    reb_type: str
+        换仓日计算的规则，目前只支持月度(MONTHLY)和周度(WEEKLY)
+    start_time: datetime like
+        交易日的起始时间
+    end_time: datetime like
+        交易日的终止时间
+
+    Return
+    ------
+    out: RebCalcu
+        对应频率的再平衡日计算器
+    '''
+    valid_freq = [MONTHLY, WEEKLY]
+    assert reb_type in valid_freq, \
+        'Rebalance date method setting ERROR, you provide {yp}, '.format(yp=reb_type) +\
+        'right choices are {rc}'.format(rc=valid_freq)
+    if reb_type == MONTHLY:
+        res = MonRebCalcu(start_time, end_time)
+    else:
+        res = WeekRebCalcu(start_time, end_time)
+    return res
