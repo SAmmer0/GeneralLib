@@ -21,10 +21,10 @@ from numpy.linalg import linalg, LinAlgError
 import pandas as pd
 import pdb
 # from tqdm import tqdm
-from ..const import START_TIME
-from .utils import (Factor, check_indexorder, check_duplicate_factorname, convert_data,
-                    checkdata_completeness)
-from .query import query
+from fmanager.const import START_TIME
+from fmanager.factors.utils import (Factor, check_indexorder, check_duplicate_factorname,
+                                    convert_data, checkdata_completeness)
+from fmanager.factors.query import query
 # from statsmodels.api import add_constant
 
 # --------------------------------------------------------------------------------------------------
@@ -490,11 +490,10 @@ def get_prospectfactor(universe, start_time, end_time):
     前景理论因子
     '''
     period = 60  # 因子使用的行情数据的回溯期
-    shift_days = int(period / 20 * 31)
     start_time = pd.to_datetime(start_time)
-    new_start = start_time - pd.Timedelta('30 day') - pd.Timedelta('%d day' % shift_days)
+    new_start = dateshandle.tds_shift(start_time, period)
     index_data = query('SSEC_CLOSE', (new_start, end_time))
-    data = query('CLOSE', (new_start, end_time))
+    data = query('ADJ_CLOSE', (new_start, end_time))
     # 计算对应超额收益率
     index_data = index_data.loc[:, data.columns]
     index_data = index_data.pct_change().dropna(how='all')
@@ -563,8 +562,9 @@ def get_prospectfactor(universe, start_time, end_time):
     return data
 
 
-ptvalue = Factor('PT_VALUE', get_prospectfactor, pd.to_datetime('2017-08-16'),
-                 dependency=['CLOSE', 'SSEC_CLOSE'], desc='前景理论因子')
+ptvalue1day = Factor('PT_VALUE_1D', get_prospectfactor, pd.to_datetime('2017-08-16'),
+                     dependency=['ADJ_CLOSE', 'SSEC_CLOSE'],
+                     desc='前景理论因子（日频数据计算）')
 # --------------------------------------------------------------------------------------------------
 # beta因子
 
@@ -704,5 +704,5 @@ specialvol = Factor('SPECIAL_VOL', get_specialvol, pd.to_datetime('2017-09-05'),
 factor_list = [ep_ttm, bp, sp_ttm, cfp_ttm, sale2ev, oprev_yoy, ni_yoy, ni_5yg, oprev_5yg,
                roe, roa, opprofit_margin, gross_margin, tato, current_ratio, threefee2sale,
                momentum_1m, momentum_3m, momentum_60m, conexp_dis, skew_1m, kurtosis_1m,
-               ptvalue, beta, specialvol]
+               ptvalue1day, beta, specialvol]
 check_duplicate_factorname(factor_list, __name__)
