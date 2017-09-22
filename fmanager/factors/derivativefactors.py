@@ -489,16 +489,17 @@ def get_prospectfactor(universe, start_time, end_time):
     '''
     前景理论因子
     '''
-    period = 60  # 因子使用的行情数据的回溯期
+    frequency = 5
+    period = 60 * frequency  # 因子使用的行情数据的回溯期
     start_time = pd.to_datetime(start_time)
     new_start = dateshandle.tds_shift(start_time, period)
-    index_data = query('SSEC_CLOSE', (new_start, end_time))
+    # index_data = query('SSEC_CLOSE', (new_start, end_time))
     data = query('ADJ_CLOSE', (new_start, end_time))
     # 计算对应超额收益率
-    index_data = index_data.loc[:, data.columns]
-    index_data = index_data.pct_change().dropna(how='all')
-    data = data.pct_change().dropna(how='all')
-    data = data - index_data
+    # index_data = index_data.loc[:, data.columns]
+    # index_data = index_data.pct_change(5).dropna(how='all')
+    data = data.pct_change(5).dropna(how='all')
+    # data = data - index_data
     data = data.dropna(how='all', axis=1)
 
     # 计算因子值
@@ -538,6 +539,7 @@ def get_prospectfactor(universe, start_time, end_time):
             '''
             r_k为tuple(idx, ret)
             '''
+            # pdb.set_trace()
             if r_k[1] >= 0:
                 w_func = weight_plus
                 start_idx = total_len - r_k[0]
@@ -549,10 +551,13 @@ def get_prospectfactor(universe, start_time, end_time):
 
         # 计算一只股票当前的前景值
         def cal_tk(arr):
-            arr = list(enumerate(arr))
+            # pdb.set_trace()
+            arr = arr[frequency - 1::frequency]
+            arr = list(enumerate(sorted(arr)))
             res = [tki_raw(r_k, len(arr)) for r_k in arr]
-            return sum(res)
-        return ts_arr.rolling(60, min_periods=60).apply(cal_tk)
+            # pdb.set_trace()
+            return np.sum(res)
+        return ts_arr.rolling(period, min_periods=period).apply(cal_tk)
     data = data.apply(ts_ptvalue)
     data = data.dropna(how='all')
     mask = (data.index >= start_time) & (data.index <= end_time)
@@ -562,9 +567,9 @@ def get_prospectfactor(universe, start_time, end_time):
     return data
 
 
-ptvalue1day = Factor('PT_VALUE_1D', get_prospectfactor, pd.to_datetime('2017-08-16'),
-                     dependency=['ADJ_CLOSE', 'SSEC_CLOSE'],
-                     desc='前景理论因子（日频数据计算）')
+ptvalue1week = Factor('PT_VALUE_1W', get_prospectfactor, pd.to_datetime('2017-08-16'),
+                      dependency=['ADJ_CLOSE', 'SSEC_CLOSE'],
+                      desc='前景理论因子（周频数据计算）')
 # --------------------------------------------------------------------------------------------------
 # beta因子
 
@@ -704,5 +709,5 @@ specialvol = Factor('SPECIAL_VOL', get_specialvol, pd.to_datetime('2017-09-05'),
 factor_list = [ep_ttm, bp, sp_ttm, cfp_ttm, sale2ev, oprev_yoy, ni_yoy, ni_5yg, oprev_5yg,
                roe, roa, opprofit_margin, gross_margin, tato, current_ratio, threefee2sale,
                momentum_1m, momentum_3m, momentum_60m, conexp_dis, skew_1m, kurtosis_1m,
-               ptvalue1day, beta, specialvol]
+               ptvalue1week, beta, specialvol]
 check_duplicate_factorname(factor_list, __name__)
