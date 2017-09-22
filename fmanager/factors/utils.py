@@ -143,6 +143,9 @@ def convert_data(dfs, indices):
     assert len(dfs) == len(indices), \
         'Error, DataFrame list({df_len}) should have the same length as indices({idx_len})'.\
         format(df_len=len(dfs), idx_len=len(indices))
+    _df_len = [len(df) for df in dfs]
+    assert all(ldf == _df_len[0] for ldf in _df_len), \
+        'Error, input data should have the same length!'
     out = pd.DataFrame()
     for idx, df in zip(indices, dfs):
         df = df.copy()

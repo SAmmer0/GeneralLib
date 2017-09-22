@@ -11,4 +11,4 @@ from factortest import correlation
 from factortest import const
 from factortest.grouptest.analysis import NavAnalysor, IndustryAnalysor, TOAnalysor
 from factortest.grouptest.backtest import BacktestConfig, BacktestConfig, FactortestTemplate
-from factortest.correlation import FactorICTemplate, ICCalculator
+from factortest.correlation import FactorICTemplate, ICCalculator, ICDecay, FactorAutoCorrelation
