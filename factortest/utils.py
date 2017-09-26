@@ -318,6 +318,148 @@ class NoneDataProvider(DataProvider):
         return NoneDataProvider()
 
 
+class MemoryDataProvider(DataProvider):
+    '''
+    使用内存数据作为数据源
+    要求数据的格式为一个pd.DataFrame的二维表，index为时间，column为股票代码
+    '''
+
+    def __init__(self, data_source):
+        '''
+        Parameter
+        ---------
+        data_source: pd.DataFrame
+            内存数据的数据源
+
+        Notes
+        -----
+        内部实现中使用的是数据源拷贝，但是原则上依然净值对源数据进行修改的操作
+        '''
+        super().__init__()
+        self._data = data_source.copy()
+        self.load_data()
+        self._start_time = data_source.index.min()
+        self._end_time = data_source.index.max()
+
+    def load_data(self):
+        self.loaded = True
+
+    def get_csdata(self, date):
+        '''
+        获取横截面数据
+
+        Parameter
+        ---------
+        date: types that are compatible to datetime
+            需要获取的数据的时间
+
+        Return
+        ------
+        out: pd.Series
+            横截面数据，index为股票代码，name为时间
+        '''
+        date = pd.to_datetime(date)
+        return self._data.loc[date]
+
+    def get_data(self, date, item):
+        '''
+        获取某一个项目的时点的数据
+
+        Parameter
+        ---------
+        date: types that are compatible to datetime
+            数据的时间点
+        item: str
+            数据的项目名称
+
+        Return
+        ------
+        out: float or str or other types
+        '''
+        date = pd.to_datetime(date)
+        return self._data.loc[date, item]
+
+    def get_paneldata(self, start_date, end_date):
+        '''
+        获取面板数据
+
+        Parameter
+        ---------
+        start_date: types that are compatible to datetime
+            面板的起始日期
+        end_date: types that are compatible to datetime
+            面板的终止日期
+
+        Return
+        ------
+        out: pd.DataFrame
+            面板数据，index为时间，columns为股票代码，如果没有相应的数据，返回None
+
+        Notes
+        -----
+        结果会含起始和终止日期这两天的数据（如果这两天有数据）
+        '''
+        start_date = pd.to_datetime(start_date)
+        end_date = pd.to_datetime(end_date)
+        mask = (self._data.index >= start_date) & (self._data.index <= end_date)
+        return self._data.loc[mask]
+
+    def get_tsdata(self, start_date, end_date, item):
+        '''
+        获取某一个项目的时间序列数据
+
+        Parameter
+        ---------
+        start_date: types that are compatible to datetime
+            时间序列的起始日期
+        end_date: types that are compatible to datetime
+            时间序列的终止日期
+        item: str
+            需要获取数据的项目的名称
+
+        Return
+        ------
+        out: pd.Series
+            时间序列数据的index为时间，name为item的名称
+        Notes
+        -----
+        结果会含起始和终止日期这两天的数据（如果这两天有数据）
+        '''
+        start_date = pd.to_datetime(start_date)
+        end_date = pd.to_datetime(end_date)
+        mask = (self._data.index >= start_date) & (self._data.index <= end_date)
+        return self._data.loc[mask, item]
+
+    @property
+    def start_time(self):
+        '''
+        Return
+        ------
+        out: datetime like
+            数据的开始时间
+        '''
+        return self._start_time
+
+    @property
+    def end_time(self):
+        '''
+        Return
+        ------
+        out: datetime like
+            数据的结束时间
+        '''
+        return self._end_time
+
+    def copy(self):
+        '''
+        Return
+        ------
+        out: MemoryDataProvider
+            当前实例的拷贝
+        '''
+        return MemoryDataProvider(self._data)
+
+
 class RebCalcu(object, metaclass=ABCMeta):
     '''
     用于计算换仓日的类

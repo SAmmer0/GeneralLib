@@ -23,6 +23,7 @@ import numpy as np
 # 本地库
 # from ..utils import NoneDataProvider
 from fmanager.database import NaS
+from fmanager.update import get_universe
 # --------------------------------------------------------------------------------------------------
 # 常量定义
 CASH = 'Cash'
@@ -553,3 +554,38 @@ def transholding(holding):
     tmp_df = pd.DataFrame(holding)
     tmp_df = tmp_df.T.to_dict()
     return tmp_df
+
+
+def holding2stockpool(holding, port_id, universe=None):
+    '''
+    将给定编号的持仓字典数据转换为pd.DataFrame形式的数据
+
+    Parameter
+    ---------
+    holding: dict
+        回测返回的持仓列表，结构为{time: {port_id: list}}
+
+    port_id: int
+        要求必须为有效的组合号码
+    universe: iterable, default None
+        最新的（指与因子数据同步的）universe，默认为None表示直接从存储universe的数据文件中获取
+
+    Return
+    ------
+    out: pd.DataFrame
+        其中，属于该持仓中的股票对应的值为1，不属于的为0。数据的索引上的时间与持仓的换仓时间（一般为
+        计算日）相同
+    '''
+    if universe is None:
+        universe = get_universe()
+    universe = sorted(universe)
+    holding = transholding(holding)
+    holding = holding[port_id]
+    out = dict()
+    for t in holding:
+        tmph = holding[t]
+        tmps = pd.Series(np.ones((len(tmph), )), index=tmph)
+        tmps = tmps.reindex(universe).fillna(0)
+        out[t] = tmps
+    out = pd.DataFrame(out).T
+    return out

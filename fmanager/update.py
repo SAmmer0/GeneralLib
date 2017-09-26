@@ -49,6 +49,11 @@ def update_universe(path=UNIVERSE_FILE_PATH):
     ------
     universe: list
         当前最新的universe
+
+    Notes
+    -----
+    不能自行调用该函数用于获取universe，可能造成获取的universe与因子数据的universe不一致，
+    获取当前的universe，使用get_universe函数
     '''
     new_universe = fdgetter.get_db_data(fdgetter.BASIC_SQLs['A_UNIVERSE'], cols=('code', ),
                                         add_stockcode=False)
@@ -71,6 +76,23 @@ def update_universe(path=UNIVERSE_FILE_PATH):
     data = (new_universe, dt.datetime.now())
     datatoolkits.dump_pickle(data, path)
     return new_universe
+
+
+def get_universe(path=UNIVERSE_FILE_PATH):
+    '''
+    用于获取当前数据中对应的universe
+    Parameter
+    ---------
+    path: str, default UNIVERSE_FILE_PATH
+        universe文件存储的位置
+
+    Return
+    ------
+    out: list
+        当前数据对应的universe
+    '''
+    universe = datatoolkits.load_pickle(path)[0]
+    return universe
 
 
 def get_endtime(t, threshold=18):

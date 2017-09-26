@@ -206,7 +206,7 @@ class IndustryAnalysor(Analysor):
         bt: BackTest
             需要被分析的回测实例
         industry_cls: str
-            分析行业持仓时使用的行业分类标准，要求必须能在fmanager.api.get_factor_dict中找到
+            分析行业持仓时使用的行业分类标准，要求必须能在fmanager.get_factor_dict中找到
         '''
         super().__init__(bt)
         factor_dict = get_factor_dict()
