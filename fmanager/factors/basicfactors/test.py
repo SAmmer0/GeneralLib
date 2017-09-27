@@ -5,7 +5,7 @@
 # @Link    : https://github.com/SAmmer0
 # @Version : $Id$
 
-from . import general
+from fmanager.factors.basicfactors import general
 import datatoolkits
 import sysconfiglee
 

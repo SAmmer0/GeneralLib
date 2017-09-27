@@ -18,7 +18,8 @@ import dateshandle
 import fdgetter
 import fdmutils
 import pandas as pd
-from ..utils import Factor, check_indexorder, check_duplicate_factorname, checkdata_completeness
+from fmanager.factors.utils import (Factor, check_indexorder, check_duplicate_factorname,
+                                    checkdata_completeness)
 # from ..query import query
 
 # --------------------------------------------------------------------------------------------------

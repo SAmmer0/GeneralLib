@@ -15,6 +15,7 @@ from fmanager.factors.dictionary import (get_factor_dict,
                                          list_allfactor,
                                          get_factor_detail)
 from fmanager.factors.query import query
+from fmanager.factors.utils import get_universe
 from fmanager.update import (auto_update_all,
                              update_universe,
                              auto_update_all)

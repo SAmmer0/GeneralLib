@@ -4,11 +4,11 @@
 # @Author  : Li Hao (howardlee_h@outlook.com)
 # @Link    : https://github.com/SAmmer0
 # @Version : $Id$
-from . import financialdata
-from . import general
-from . import other
-from . import quote
-from . import test
+from fmanager.factors.basicfactors import financialdata
+from fmanager.factors.basicfactors import general
+from fmanager.factors.basicfactors import other
+from fmanager.factors.basicfactors import quote
+from fmanager.factors.basicfactors import test
 
 NAME = 'basicfactors'
 FACTOR_MODULES = [financialdata, general, quote, other]

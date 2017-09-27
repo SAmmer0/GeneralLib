@@ -19,8 +19,9 @@ __version__ = 1.0.0
 __version__ = '1.0.0'
 
 from datatoolkits import load_pickle
-from ..const import FACTOR_DICT_FILE_PATH
-from .. import database
+from fmanager.const import FACTOR_DICT_FILE_PATH
+from fmanager import database
+from fmanager.factors.utils import get_universe
 
 # --------------------------------------------------------------------------------------------------
 # 常量
@@ -57,6 +58,9 @@ def query(factor_name, time, codes=None, fillna=None):
     abs_path = factor_dict[factor_name]
     db = database.DBConnector(abs_path)
     data = db.query(time, codes)
+    universe = get_universe()
+    if codes is None:   # 为了避免数据的universe不一致导致不同数据的横截面长度不同
+        data = data.reindex(columns=universe)
     if fillna is not None:
         data = data.fillna(fillna)
     return data

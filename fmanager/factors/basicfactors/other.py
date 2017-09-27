@@ -15,7 +15,8 @@ import fdgetter
 import pandas as pd
 import pdb
 
-from ..utils import Factor, check_duplicate_factorname, check_indexorder, checkdata_completeness
+from fmanager.factors.utils import (Factor, check_duplicate_factorname, check_indexorder,
+                                    checkdata_completeness)
 # --------------------------------------------------------------------------------------------------
 # 常量和功能函数
 NAME = 'other'

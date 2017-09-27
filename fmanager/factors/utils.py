@@ -11,6 +11,8 @@ import pdb
 import pandas as pd
 
 import dateshandle
+import datatoolkits
+from fmanager.const import UNIVERSE_FILE_PATH
 '''
 提供因子计算的一些基本工具
 '''
@@ -170,3 +172,20 @@ def checkdata_completeness(data, start_time, end_time):
     '''
     tds = dateshandle.get_tds(start_time, end_time)
     return len(data) == len(tds)
+
+
+def get_universe(path=UNIVERSE_FILE_PATH):
+    '''
+    用于获取当前数据中对应的universe
+    Parameter
+    ---------
+    path: str, default UNIVERSE_FILE_PATH
+        universe文件存储的位置
+
+    Return
+    ------
+    out: list
+        当前数据对应的universe（排序后）
+    '''
+    universe = datatoolkits.load_pickle(path)[0]
+    return sorted(universe)

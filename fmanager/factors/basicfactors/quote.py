@@ -20,9 +20,10 @@ import fdgetter
 import numpy as np
 import pandas as pd
 import pdb
-from ...const import START_TIME
-from ..utils import check_indexorder, Factor, check_duplicate_factorname, checkdata_completeness
-from ..query import query
+from fmanager.const import START_TIME
+from fmanager.factors.utils import (check_indexorder, Factor, check_duplicate_factorname,
+                                    checkdata_completeness)
+from fmanager.factors.query import query
 # --------------------------------------------------------------------------------------------------
 # 常量和功能函数
 NAME = 'quote'

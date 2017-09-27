@@ -20,8 +20,9 @@ import fdmutils
 import pandas as pd
 import pdb
 
-from ...database import NaS
-from ..utils import Factor, ZXIND_TRANS_DICT, check_duplicate_factorname, checkdata_completeness
+from fmanager.database import NaS
+from fmanager.factors.utils import (Factor, ZXIND_TRANS_DICT, check_duplicate_factorname,
+                                    checkdata_completeness)
 
 # --------------------------------------------------------------------------------------------------
 # 常量和功能函数

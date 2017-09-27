@@ -16,9 +16,9 @@ __version__ = 1.0.1
 from copy import deepcopy
 import pdb
 from datatoolkits import dump_pickle, load_pickle
-from . import basicfactors
-from . import derivativefactors
-from ..const import FACTOR_FILE_PATH, SUFFIX, FACTOR_DICT_FILE_PATH
+from fmanager.factors import basicfactors
+from fmanager.factors import derivativefactors
+from fmanager.const import FACTOR_FILE_PATH, SUFFIX, FACTOR_DICT_FILE_PATH
 
 
 # --------------------------------------------------------------------------------------------------
