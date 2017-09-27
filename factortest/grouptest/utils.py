@@ -23,7 +23,7 @@ import numpy as np
 # 本地库
 # from ..utils import NoneDataProvider
 from fmanager.database import NaS
-from fmanager.factors.utils import get_universe
+from fmanager import get_universe
 # --------------------------------------------------------------------------------------------------
 # 常量定义
 CASH = 'Cash'

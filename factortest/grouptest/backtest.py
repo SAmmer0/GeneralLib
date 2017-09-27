@@ -209,7 +209,8 @@ class FactortestTemplate(object):
     '''
 
     def __init__(self, factor_name, start_time, end_time, weight_method=TOTALMKV_WEIGHTED,
-                 reb_method=MONTHLY, group_num=10, stock_pool=None, industry_neutral=None):
+                 reb_method=MONTHLY, group_num=10, stock_pool=None, industry_neutral=None,
+                 show_progress=True):
         '''
         Parameter
         ---------
@@ -226,10 +227,12 @@ class FactortestTemplate(object):
             换仓频率，目前支持weekly和monthly
         group_num: int, default 10
             分组的数量
-        stock_pool: str, default None
-            股票池限制规则，要求能够在fmanager.api.get_factor_dict的返回值中可以找到
+        stock_pool: str or DataProvider, default None
+            股票池限制规则，如果参数为str，要求能够在fmanager.api.get_factor_dict的返回值中可以找到
         industry_neutral: str, default None
             行业中性化的行业分类规则，要求能够在fmanager.api.get_factor_dict的返回值中可以找到
+        show_progress: boolean, default True
+            是否显示进度
         '''
         self._factor_dict = get_factor_dict()
         self.start_time = start_time
@@ -251,8 +254,11 @@ class FactortestTemplate(object):
                                                self.start_time, self.end_time)
         # 加载股票池相关数据
         if stock_pool is not None:
-            self._stockpool_provider = HDFDataProvider(self._factor_dict[stock_pool]['abs_path'],
-                                                       self.start_time, self.end_time)
+            if isinstance(stock_pool, str):
+                self._stockpool_provider = HDFDataProvider(self._factor_dict[stock_pool]['abs_path'],
+                                                           self.start_time, self.end_time)
+            else:
+                self._stockpool_provider = stock_pool
         else:
             self._stockpool_provider = NoneDataProvider()
         # 加载行业分类数据
@@ -261,6 +267,7 @@ class FactortestTemplate(object):
                                                       self.start_time, self.end_time)
         else:
             self._industry_provider = NoneDataProvider()
+        self.show_progress = show_progress
 
     def _check_parameter(self):
         '''
@@ -325,7 +332,7 @@ class FactortestTemplate(object):
                                              self.group_num)
         conf = BacktestConfig(self.start_time, self.end_time, self._price_provider,
                               self.weight_method_obj, self._tradeable_provider,
-                              self.reb_method_obj, self.group_num)
+                              self.reb_method_obj, self.group_num, show_progress=self.show_progress)
         bt = Backtest(conf, stock_filter, fd_provider=self.factordata_provider)
         bt.run_bt()
         return bt
