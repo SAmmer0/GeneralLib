@@ -16,6 +16,7 @@ __version__ = 1.0.0
 from collections import namedtuple
 # 本地模块
 from factortest.grouptest.backtest import FactortestTemplate
+from factortest.correlation import FactorICTemplate
 from factortest.grouptest.utils import holding2stockpool
 from factortest.const import MONTHLY
 from factortest.grouptest.analysis import NavAnalysor, IndustryAnalysor, TOAnalysor
@@ -26,7 +27,8 @@ from fmanager import query
 # 函数定义
 # --------------------------------------------------------------------------------------------------
 # 类定义
-FactorTestRes = namedtuple('FactorTestRes', ['backtest', 'nav_res', 'to_res', 'ind_res'])
+FactorGroupTestRes = namedtuple('FactorGroupTestRes', ['navs', 'nav_analysis', 'to_analysis',
+                                                       'ind_analysis', 'IC', 'Rank_IC'])
 
 
 class ConditionalTest(object):
@@ -93,11 +95,30 @@ class ConditionalTest(object):
         contextf_indres = contextf_indanalysor.analysis_result
 
         # 存储中间数据
-        self.context_factor_btres = FactorTestRes(backtest=contextualfactor_bt,
-                                                  nav_res=contextf_navres,
-                                                  to_res=contextf_tores,
-                                                  ind_res=contextf_indres)
+        self.context_factor_btres = FactorGroupTestRes(navs=contextualfactor_bt.navpd,
+                                                       nav_analysis=contextf_navres,
+                                                       to_analysis=contextf_tores,
+                                                       ind_analysis=contextf_indres,
+                                                       IC=None, Rank_IC=None)
         self._contextbt = contextualfactor_bt
+
+    def _load_context_stockpool(self, context_id):
+        '''
+        加载给定上下文下的股票池
+        Parameter
+        ---------
+        context_id: int
+            上下文所属的id
+
+        Return
+        ------
+        out: MemoryDataProvider
+            包含给定上下文对应股票池的数据提供器
+        '''
+        context_holding = self._contextbt.holding_result
+        context_stockpool = holding2stockpool(context_holding, context_id)
+        context_stockpool_provider = MemoryDataProvider(context_stockpool)
+        return context_stockpool_provider
 
     def _context_grouptest(self, context_id):
         '''
@@ -108,9 +129,7 @@ class ConditionalTest(object):
             上下文所属的id
         '''
         # 给定情境下，对因子进行回测
-        context_holding = self._contextbt.holding_result
-        context_stockpool = holding2stockpool(context_holding, context_id)
-        context_stockpool_provider = MemoryDataProvider(context_stockpool)
+        context_stockpool_provider = self._load_context_stockpool(context_id)
         factor_test = FactortestTemplate(self.test_factor, self._start_time, self._end_time,
                                          group_num=self._factor_groupnum, reb_method=self._reb_type,
                                          show_progress=self.show_progress,
@@ -123,7 +142,7 @@ class ConditionalTest(object):
         # 行业分布分析
         ind_analysor = IndustryAnalysor(factor_bt, self._ind_cls)
         ind_res = ind_analysor.analysis_result
-        context_inddist = self.context_factor_btres.ind_res\
+        context_inddist = self.context_factor_btres.ind_analysis\
             .weighted_industry_distribution_weight[context_id]
         ind_diff = dict()
         # 计算各个分组与基准之间的行业差别
@@ -134,7 +153,29 @@ class ConditionalTest(object):
         # 换手率分析
         to_analysor = TOAnalysor(factor_bt)
         to_res = to_analysor.analysis_result
-        return FactorTestRes(backtest=factor_bt, nav_res=nav_res, to_res=to_res, ind_res=ind_diff)
+        tmp_nav = factor_bt.navpd.copy()
+        tmp_nav = tmp_nav.assign(benchmark=benchmark)
+        return FactorGroupTestRes(navs=tmp_nav, nav_analysis=nav_res, to_analysis=to_res,
+                                  ind_analysis=ind_diff, IC=None, Rank_IC=None)
+
+    def _context_ICtest(self, context_id):
+        '''
+        在给定的上下文下进行计算因子的IC
+        Parameter
+        ---------
+        context_id: int
+            上下文所属的id
+
+        Return
+        ------
+        out: ICAnalysisResult(IC, Rank_IC)
+        '''
+        context_stockpool_provider = self._load_context_stockpool(context_id)
+        ic_calculator = FactorICTemplate(self.test_factor, self._start_time, self._end_time,
+                                         universe=context_stockpool_provider,
+                                         reb_type=self._reb_type)
+        ic_res = ic_calculator()
+        return ic_res
 
     def run(self):
         '''
@@ -142,11 +183,14 @@ class ConditionalTest(object):
         '''
         if self.show_progress:
             print('Testing Contextual Factor...')
-            self._prepare_contextualfactor()
+        self._prepare_contextualfactor()
         grouptest_res = list()
         for context_id in range(self._context_num):
             if self.show_progress:
                 print('Testing Under Context: {context_id}'.format(context_id=context_id))
-                tmp = self._context_grouptest(context_id)
-                grouptest_res.append(tmp)
+            tmp = self._context_grouptest(context_id)._asdict()
+            tmp_ic = self._context_ICtest(context_id)._asdict()
+            tmp.update(tmp_ic)
+            tmp = FactorGroupTestRes(**tmp)
+            grouptest_res.append(tmp)
         self.grouptest_result = grouptest_res

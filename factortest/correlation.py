@@ -112,8 +112,8 @@ class FactorICTemplate(object):
             测试的开始时间
         end_time: datetime or other compatible type
             测试的结束时间
-        universe: str, default None
-            使用的universe名称，要求必须能在fmanager.list_allfactor()中找到
+        universe: str or DataProvider, default None
+            使用的universe名称，如果为str类型，要求必须能在fmanager.list_allfactor()中找到
         offset: int, default 1
             因子与收益率之间相隔的期数，要求为不小于1的整数，1即表示传统的IC
         reb_type: str, default MONTHLY
@@ -129,9 +129,11 @@ class FactorICTemplate(object):
                                                start_time, end_time)
         if universe is None:
             self._universe_provider = NoneDataProvider()
-        else:
+        elif isinstance(universe, str):
             self._universe_provider = HDFDataProvider(factor_dict[universe]['abs_path'],
                                                       start_time, end_time)
+        else:
+            self._universe_provider = universe
         self._offset = offset
 
     def __call__(self):
