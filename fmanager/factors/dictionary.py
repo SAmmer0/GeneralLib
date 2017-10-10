@@ -71,7 +71,8 @@ def get_factor_detail(factor_name):
     Return
     ------
     out: dict
-        因子相关的信息
+        因子相关的信息，结构为{'factor': factor, 'rel_path': relative path,
+        'abs_path': absolute path}
     '''
     fd = get_factor_dict()
     assert factor_name in fd, "Error, {fn} NOT FOUND!".format(fn=factor_name)

@@ -29,6 +29,7 @@ import numpy as np
 # 本地模块
 from factortest.utils import HDFDataProvider
 from factortest.grouptest.utils import transholding
+from factortest.correlation import get_group_factorcharacter
 from datatoolkits import price2nav
 from report import brief_report, trans2formater, table_convertor
 from fmanager import get_factor_dict
@@ -157,14 +158,14 @@ class NavAnalysor(Analysor):
         basicmsg_format = {'alpha': ('floatnp', 4), 'beta': ('floatnp', 4),
                            'info_ratio': ('floatnp', 4), 'mdd': 'pct2p', 'mddt': ('floatnp', 1),
                            'mdd_start': 'date', 'mdd_end': 'date', 'mddt_start': 'date',
-                           'mddt_end': 'date', 'sharp_ratio': ('floatnp', 4),
+                           'mddt_end': 'date', 'sharpe_ratio': ('floatnp', 4),
                            'sortino_ratio': ('floatnp', 4)}
         basicmsg_format = trans2formater(basicmsg_format)
         basicmsg_tab = table_convertor.format_df(self.basic_msg.reset_index().
                                                  rename(columns={'index': 'group'}),
                                                  basicmsg_format,
                                                  ['group', 'alpha', 'beta', 'info_ratio',
-                                                  'sharp_ratio', 'sortino_ratio', 'mdd',
+                                                  'sharpe_ratio', 'sortino_ratio', 'mdd',
                                                   'mdd_start', 'mdd_end', 'mddt', 'mddt_start',
                                                   'mddt_end'])
 
@@ -421,3 +422,80 @@ class TOAnalysor(Analysor):
         last_holding = last_holding.reindex(codes_merge).fillna(0)
         cur_holding = cur_holding.reindex(codes_merge).fillna(0)
         return np.sum(np.abs(cur_holding - last_holding)) * 0.5
+
+
+class CharacterAnalysor(Analysor):
+    '''
+    用于分析持仓组合的其他因子特征
+    '''
+
+    def __init__(self, bt, factors, csmethod='median', tsmethod='mean'):
+        '''
+        Parameter
+        ---------
+        bt: BackTest
+            需要分析的回测实例
+        factors: list like
+            需要计算的其他因子特征，要求能在fmanager.list_allfactor()中找到
+        csmethod: str, default median
+            横截面上综合计算组合内部因子特征的方法，支持均值（mean）和中位数（median）方法
+        tsmethod: str, default mean
+            综合组合因子时间序列数据的方法，即在时间层面上合并单个分组综合因子特征的方法，前提是已经
+            在横截面上计算过分组内部的因子特征
+        '''
+        super().__init__(bt)
+        self._factors = factors
+        self._csmethod = csmethod
+        if tsmethod == 'mean':
+            self._tsmethod = np.mean
+        elif tsmethod == 'median':
+            self._tsmethod = np.median
+        else:
+            raise ValueError('Invalid \'tsmethod\' parameter({mtd})'.format(mtd=tsmethod))
+        self._res_cache = None
+
+    def analyse(self):
+        '''
+        执行分析，即针对每个因子，先在横截面上计算每个分组因子特征值的时间序列，然后再计算时间轴上的
+        综合值
+        '''
+        holding = transholding(self._bt.holding_result)
+        factor_res = {}
+        for f in self._factors:
+            tmp = {}
+            for port_id in holding:
+                tmp[port_id] = get_group_factorcharacter(holding[port_id], f, self._csmethod)
+            factor_res[f] = pd.DataFrame(tmp)
+        self.single_factor_result = factor_res
+        out = {}
+        for f in factor_res:
+            tmp = factor_res[f]
+            out[f] = self._tsmethod(tmp, axis=0)
+        self.all_factor_result = pd.DataFrame(out)
+
+    def output(self):
+        '''
+        Return
+        ------
+        out: CharacterAnalysisResult(single_res->{factor: pd.DataFrame}, all_res->pd.DataFrame)
+            namedtuple类型，包含结果有单因子结果和所有因子的综合结果
+        '''
+        self.analyse()
+        CharacterAnalysisResult = namedtuple('CharacterAnalysisResult', ['single_res', 'all_res'])
+        self._res_cache = CharacterAnalysisResult(single_res=self.single_factor_result,
+                                                  all_res=self.all_factor_result)
+        return self._res_cache
+
+    @property
+    def analysis_result(self):
+        '''
+        Return
+        ------
+        out: CharacterAnalysisResult(single_res->{factor: pd.DataFrame}, all_res->pd.DataFrame)
+            namedtuple类型，包含结果有单因子结果和所有因子的综合结果
+        '''
+        if self._res_cache is None:
+            res = self.output()
+        else:
+            res = self._res_cache
+        return res

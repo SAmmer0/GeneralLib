@@ -9,7 +9,7 @@
 本模块用于计算因子的IC和自相关性
 '''
 # 系统库文件
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 import pdb
 # 第三方库
 from scipy.stats import spearmanr
@@ -17,9 +17,12 @@ import pandas as pd
 import numpy as np
 # 本地文件
 from fmanager.factors.utils import convert_data
-from fmanager import get_factor_dict
+from fmanager import get_factor_dict, query, get_factor_detail
 from factortest.const import WEEKLY, MONTHLY
 from factortest.utils import HDFDataProvider, load_rebcalculator, NoneDataProvider
+
+# --------------------------------------------------------------------------------------------------
+# 类
 
 
 class ICCalculator(object):
@@ -249,3 +252,96 @@ class FactorAutoCorrelation(FactorICTemplate):
         racf_res = by_time.apply(rank_acf)
         AutoCorrelationResult = namedtuple('AutoCorrelationResult', ['acf', 'Rank_acf'])
         return AutoCorrelationResult(acf=acf_res, Rank_acf=racf_res)
+
+
+# --------------------------------------------------------------------------------------------------
+# 函数
+def fv_correlation(factors, start_time, end_time, freq=MONTHLY):
+    '''
+    计算不同因子的因子值之间的相关系数矩阵
+
+    Parameter
+    ---------
+    factors: list like
+        因子名称列表，必须能够在fmanager.list_allfactor()中找到
+    start_time: datetime like
+        计算相关系数矩阵的起始时间
+    end_time: datetime like
+        计算相关系数矩阵的终止时间
+    freq: str, default const.MONTHLY
+        计算协方差矩阵的频率，目前只支持周度（WEEKLY）和月度（MONTHLY）
+
+    Return
+    ------
+    out: OrderDict
+        key为计算的时间，value为相关系数矩阵
+    '''
+    rebs = load_rebcalculator(freq, start_time, end_time)
+    datas = []
+    for f in factors:
+        tmp_data = query(f, (start_time, end_time))
+        tmp_data = tmp_data.reindex(rebs.reb_points)
+        datas.append(tmp_data)
+    datas = convert_data(datas, factors)
+    by_time = datas.groupby(level=0)
+    out = OrderedDict()
+    for t in by_time.groups:
+        tmp = by_time.get_group(t).reset_index(level=0, drop=True)
+        out[t] = tmp.T.corr()
+    return out
+
+
+def _get_stocks_character(stocks, character_data, method='median'):
+    '''
+    辅助计算函数，根据给定的股票名称和特征数据，计算该组股票对应的特征数据
+
+    Parameter
+    ---------
+    stocks: list like
+        需要计算特征数据的股票列表
+    character_data: pd.Series
+        股票特征的数据
+    method: str, default median
+        综合计算该组股票特征的方法，支持计算中位数（median）和均值(mean)，默认为中位数
+
+    Return
+    ------
+    out: float
+        对应该组股票的特征值
+    '''
+    data = character_data.reindex(stocks)
+    if method == 'median':
+        out = data.median()
+    elif method == 'mean':
+        out = data.mean()
+    else:
+        raise ValueError('Unsupported method({mtd})'.format(mtd=method))
+    return out
+
+
+def get_group_factorcharacter(group, factor_name, method='median'):
+    '''
+    计算给定组合的某个因子的特征值的时间序列
+
+    Parameter
+    ---------
+    group: dict
+        格式为{time: list}，list中的数据为股票代码
+    factor_name: str
+        需要计算的特征值的因子，要求能在fmanager.list_allfactor()中找到
+    method: str, default median
+        给每组计算对应综合特征值的方法，目前只支持均值（mean）和中位数（median），默认为中位数
+
+    Return
+    ------
+    out: pd.Series
+        给定组合的特征值时间序列，index为时间，即group中的key
+    '''
+    start_time = min(group.keys())
+    end_time = max(group.keys())
+    factor_path = get_factor_detail(factor_name)['abs_path']
+    factor_data = HDFDataProvider(factor_path, start_time, end_time)
+    out = {}
+    for t in sorted(group):
+        out[t] = _get_stocks_character(group[t], factor_data.get_csdata(t), method)
+    return pd.Series(out)

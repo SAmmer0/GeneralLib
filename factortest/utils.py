@@ -18,6 +18,7 @@ from abc import abstractmethod, ABCMeta
 import pandas as pd
 # 本地库
 from fmanager.database import DBConnector
+from fmanager import get_universe
 from factortest.const import MONTHLY, WEEKLY
 from dateshandle import get_tds
 # --------------------------------------------------------------------------------------------------
@@ -169,7 +170,10 @@ class HDFDataProvider(DataProvider):
         '''
         if not self.loaded:
             self._db = DBConnector(self._data_path)
-            self._data = self._db.query((self._start_time, self._end_time))
+            _data = self._db.query((self._start_time, self._end_time))
+            # 避免universe的冲突
+            universe = get_universe()
+            self._data = _data.reindex(columns=sorted(universe))
             if self._data is None:
                 self.loaded = False
             else:
