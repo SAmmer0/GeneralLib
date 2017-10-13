@@ -25,6 +25,8 @@ from fmanager.const import START_TIME
 from fmanager.factors.utils import (Factor, check_indexorder, check_duplicate_factorname,
                                     convert_data, checkdata_completeness)
 from fmanager.factors.query import query
+import fdgetter
+import datatoolkits
 # from statsmodels.api import add_constant
 
 # --------------------------------------------------------------------------------------------------
@@ -652,8 +654,8 @@ def get_prospectfactor1wer(universe, start_time, end_time):
 ptvalue1week = Factor('PT_VALUE_1W', get_prospectfactor1w, pd.to_datetime('2017-08-16'),
                       dependency=['ADJ_CLOSE'],
                       desc='前景理论因子（周频数据计算）')
-ptvalue1weeker = Factor('PT_VALUE_1WER', get_prospectfactor1wer, pd.to_datetime('2017-10-09'),
-                        dependency=['ADJ_CLOSE', 'SSEC_CLOSE'], desc='前景理论因子（周频超额收益计算）')
+# ptvalue1weeker = Factor('PT_VALUE_1WER', get_prospectfactor1wer, pd.to_datetime('2017-10-09'),
+#                         dependency=['ADJ_CLOSE', 'SSEC_CLOSE'], desc='前景理论因子（周频超额收益计算）')
 # --------------------------------------------------------------------------------------------------
 # beta因子
 
@@ -787,11 +789,84 @@ def get_specialvol(universe, start_time, end_time):
 
 specialvol = Factor('SPECIAL_VOL', get_specialvol, pd.to_datetime('2017-09-05'),
                     dependency=['ADJ_CLOSE', 'SSEC_CLOSE'], desc='特质波动率')
+
+# --------------------------------------------------------------------------------------------------
+# 机构持有比例
+
+
+def get_institutions_holding(data_category):
+    '''
+    母函数，用于获取给定类型的机构持有比例
+
+    Parameter
+    ---------
+    data_category: str
+        机构持有比例数据的类型，包含无限售流通A股比例和持有A股比例，输入参数的映射规则如下
+        {'unconstrained': InstitutionsHoldProp, 'all': InstitutionsHoldPropA}
+
+    Return
+    ------
+    out: function
+        获取对应数据的函数
+    '''
+    parameter_map = {'unconstrained': 'InstitutionsHoldProp', 'all': 'InstitutionsHoldPropA'}
+    sql = '''
+        SELECT M.SECUCODE, S.ENDDATE, S.data_category
+        FROM SECUMAIN M, LC_StockHoldingSt S
+        WHERE
+            M.INNERCODE = S.INNERCODE AND
+            M.SecuMarket in (83, 90) AND
+            M.SecuCategory = 1 AND
+            S.ENDDATE >= \'{start_time}\' AND
+            S.ENDDATE <= \'{end_time}\'
+        ORDER BY M.SECUCODE ASC, S.ENDDATE ASC
+        '''.replace('data_category', parameter_map[data_category])
+
+    def inner(universe, start_time, end_time):
+        new_start = dateshandle.tds_shift(start_time, 120)
+        data = fdgetter.get_db_data(sql, start_time=new_start, end_time=end_time,
+                                    cols=('code', 'time', 'data'), add_stockcode=False)
+        data['code'] = data.code.apply(datatoolkits.add_suffix)
+        data['data'] = data.data.fillna(0)
+        tds = dateshandle.get_tds(start_time, end_time)
+        data = data.groupby('code').apply(datatoolkits.map_data, days=tds, fromNowOn=True,
+                                          fillna={'code': lambda x: x.code.iloc[0]})
+        data = data.reset_index(drop=True)
+        data = data.pivot_table('data', index='time', columns='code')
+        data = data.loc[:, sorted(universe)]
+        assert check_indexorder(data), 'Error, data order is mixed!'
+        assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
+        return data
+    return inner
+
+# 聚源数据的计算方法导致无法计算限售占比
+# def get_constrained_ihr(universe, start_time, end_time):
+#     '''
+#     获取机构持有的限售A股比例
+#     '''
+#     all_data = query('ALL_INSTIHOLDING_RATIO', (start_time, end_time))
+#     uncons_data = query('UNCONS_INSTIHOLDING_RATIO', (start_time, end_time))
+#     data = all_data - uncons_data
+#     assert not np.any(np.any(data < 0, axis=0)), 'Error, negative holding ratio!'
+#     data = data.loc[:, sorted(universe)]
+#     assert check_indexorder(data), 'Error, data order is mixed!'
+#     assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
+#     return data
+
+
+uncons_instiholdingratio = Factor('UNCONS_INSTIHOLDING_RATIO', get_institutions_holding('unconstrained'),
+                                  pd.to_datetime('2017-10-13'), desc='机构非限售流通A股机构持有比例')
+all_instiholdingratio = Factor('ALL_INSTIHOLDING_RATIO', get_institutions_holding('all'),
+                               pd.to_datetime('2017-10-13'), desc='机构持有的A股比例')
+cons_instiholdingratio = Factor('CONS_INSTIHOLDING_RATIO', get_constrained_ihr,
+                                pd.to_datetime('2017-10-13'),
+                                dependency=['UNCONS_INSTIHOLDING_RATIO', 'ALL_INSTIHOLDING_RATIO'],
+                                desc='机构持有限售A股比例')
 # --------------------------------------------------------------------------------------------------
 
 
 factor_list = [ep_ttm, bp, sp_ttm, cfp_ttm, sale2ev, oprev_yoy, ni_yoy, ni_5yg, oprev_5yg,
                roe, roa, opprofit_margin, gross_margin, tato, current_ratio, threefee2sale,
                momentum_1m, momentum_3m, momentum_60m, conexp_dis, skew_1m, kurtosis_1m,
-               ptvalue1week, ptvalue1weeker, beta, specialvol]
+               ptvalue1week, beta, specialvol, uncons_instiholdingratio, all_instiholdingratio]
 check_duplicate_factorname(factor_list, __name__)

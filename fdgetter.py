@@ -39,6 +39,7 @@ __version__ = 1.3.0
 '''
 __version__ = '1.2.1'
 
+import pdb
 from collections import namedtuple
 import datatoolkits
 from decimal import Decimal
@@ -154,6 +155,7 @@ def get_db_data(sql, code='', start_time=pd.to_datetime('1990-01-01'),
     '''
     sql = format_sql(sql, code, start_time, end_time)
     data = db.fetchall(sql)
+    # pdb.set_trace()
     data_cleaned = clean_data(data, cols)
     if add_stockcode:
         data_cleaned['code'] = len(data_cleaned) * [code]
