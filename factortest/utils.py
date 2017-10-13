@@ -16,6 +16,7 @@ __version__ = 1.0.0
 from abc import abstractmethod, ABCMeta
 # 第三方库
 import pandas as pd
+import numpy as np
 # 本地库
 from fmanager.database import DBConnector
 from fmanager import get_universe
@@ -173,7 +174,10 @@ class HDFDataProvider(DataProvider):
             _data = self._db.query((self._start_time, self._end_time))
             # 避免universe的冲突
             universe = get_universe()
-            self._data = _data.reindex(columns=sorted(universe))
+            default_data = self._db.default_data
+            if isinstance(default_data, np.bytes_):
+                default_data = default_data.decode('utf8')
+            self._data = _data.reindex(columns=sorted(universe)).fillna(default_data)
             if self._data is None:
                 self.loaded = False
             else:

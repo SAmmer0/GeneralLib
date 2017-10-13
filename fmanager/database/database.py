@@ -36,6 +36,7 @@ class DBConnector(object):
         self._date_dtype = 'S10'    # 用于标识标准日期数据格式
         self._size = size   # 用于标识横截面的数据的长度
         self._data_type = None   # 用于记录数据类型
+        self._default_data = None    # 用于记录默认填充数据
 
     def init_dbfile(self, data_type='f8'):
         '''
@@ -59,16 +60,16 @@ class DBConnector(object):
             store.create_dataset('data', shape=(1, self._size), chunks=(1, self._size),
                                  dtype=data_type, maxshape=(None, self._size))
             if data_type.startswith('f'):   # 当数据类型时，填充数据为np.nan
-                defalut_data = np.nan
+                self._default_data = np.nan
             else:   # 当数据为字符串时，填充NAS字符（not a string）
-                defalut_data = np.bytes_(NaS)
-            store.attrs['default data'] = defalut_data  # 用于标识默认填充数据
+                self._default_data = np.bytes_(NaS)
+            store.attrs['default data'] = self._default_data  # 用于标识默认填充数据
             store.attrs['status'] = 'empty'     # 用于标识是否有数据填充，包含两种状态（empty, filled）
             store.attrs['data time'] = 'nat'   # 用于标识数据的最新时间，初始化填充nat，即not a time
             store.attrs['data type'] = data_type    # 用于标识存储的数据类型，用于区分数字类数据和字符串
             store.attrs['#code'] = 0    # 记录当前数据中有效的股票数量
             store.attrs['#dates'] = 0   # 记录当前数据中有效的日期数量
-            store['data'][...] = defalut_data
+            store['data'][...] = self._default_data
 
     def insert_data(self, code, date, data):
         '''
@@ -102,7 +103,7 @@ class DBConnector(object):
                 format(data_shape=data.shape, other_shape=(len(date), len(code)))
             # 查找日期索引值
             start_date = int(store.attrs['#dates'])
-            default_data = store.attrs['default data']
+            # default_data = store.attrs['default data']
             # 修改相关属性
             if store.attrs['status'] == 'empty':
                 store.attrs['status'] = 'filled'
@@ -118,7 +119,7 @@ class DBConnector(object):
             data_dset.resize((new_datelen, self._size))   # 此处resize后填充的数据为0
             date_dset[start_date:new_datelen] = date
             data_dset[start_date:new_datelen, :len(code)] = data
-            data_dset[start_date:new_datelen, len(code):] = default_data    # 填充其余位置的数据
+            data_dset[start_date:new_datelen, len(code):] = self.default_data    # 填充其余位置的数据
             code_dset[:len(code)] = code
             # 更新数据的最新时间和股票列表顺序
             self._data_time = pd.to_datetime(date[-1].decode('utf8'))
@@ -152,6 +153,16 @@ class DBConnector(object):
                 return None
             return code_order
         return self._code_order
+
+    @property
+    def default_data(self):
+        '''
+        以原始的形式返回数据库的默认填充数据
+        '''
+        if self._default_data is None:
+            with h5py.File(self.path, 'r') as store:
+                self._default_data = store.attrs['default data']
+        return self._default_data
 
     def _query_panel(self, start_time, end_time):
         '''
@@ -277,7 +288,7 @@ class DBConnector(object):
         data_dtype: str, default None
             pd.DataFrame中的数据与数据库中的数据格式不匹配，需要对pd.DataFrame进行适当的转换，默认为
             None表示不需要转换，否则则需要提供转换后的格式形式
-        filled_value: str or float or else, default np.nan
+        filled_value: str or float or else, default np.nan（目前参数已废止）
             当插入数据的列与数据文件中的数据列不匹配时，需要对源数据一些空余的列做填充，默认填充
             NA
 
@@ -308,7 +319,9 @@ class DBConnector(object):
             assert _check_date(df_dates), ValueError("Discontinuous data!")   # 检测将插入数据与数据库数据日期是否连续
             diff_codes = df.columns.difference(self.code_order)
             new_codes = self.code_order + sorted(diff_codes)
-            df = df.loc[:, new_codes].fillna(filled_value)
+            # df = df.loc[:, new_codes].fillna(filled_value)
+            # 下面这段代码应该不会起作用，因为set(diff_codes+code_order) == set(df.columns)
+            df = df.loc[:, new_codes].fillna(self.default_data)  # 采用默认数据填充
         else:
             assert _check_date(df.index.tolist()), ValueError("Discontinuous data!")
             df = df.sort_index().sort_index(axis=1)

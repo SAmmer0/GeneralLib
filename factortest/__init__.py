@@ -9,6 +9,9 @@ from factortest import grouptest
 from factortest import utils
 from factortest import correlation
 from factortest import const
-from factortest.grouptest.analysis import NavAnalysor, IndustryAnalysor, TOAnalysor
+from factortest.grouptest.analysis import (NavAnalysor, IndustryAnalysor, TOAnalysor,
+                                           CharacterAnalysor)
 from factortest.grouptest.backtest import BacktestConfig, BacktestConfig, FactortestTemplate
-from factortest.correlation import FactorICTemplate, ICCalculator, ICDecay, FactorAutoCorrelation
+from factortest.grouptest.conditionaltest import ConditionalTest
+from factortest.correlation import (FactorICTemplate, ICCalculator, ICDecay, FactorAutoCorrelation,
+                                    fv_correlation, get_group_factorcharacter)
