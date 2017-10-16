@@ -858,10 +858,10 @@ uncons_instiholdingratio = Factor('UNCONS_INSTIHOLDING_RATIO', get_institutions_
                                   pd.to_datetime('2017-10-13'), desc='机构非限售流通A股机构持有比例')
 all_instiholdingratio = Factor('ALL_INSTIHOLDING_RATIO', get_institutions_holding('all'),
                                pd.to_datetime('2017-10-13'), desc='机构持有的A股比例')
-cons_instiholdingratio = Factor('CONS_INSTIHOLDING_RATIO', get_constrained_ihr,
-                                pd.to_datetime('2017-10-13'),
-                                dependency=['UNCONS_INSTIHOLDING_RATIO', 'ALL_INSTIHOLDING_RATIO'],
-                                desc='机构持有限售A股比例')
+# cons_instiholdingratio = Factor('CONS_INSTIHOLDING_RATIO', get_constrained_ihr,
+#                                 pd.to_datetime('2017-10-13'),
+#                                 dependency=['UNCONS_INSTIHOLDING_RATIO', 'ALL_INSTIHOLDING_RATIO'],
+#                                 desc='机构持有限售A股比例')
 # --------------------------------------------------------------------------------------------------
 
 
