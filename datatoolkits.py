@@ -499,7 +499,7 @@ def wmean(data, skipna=True, weight=None):
     return out
 
 
-def extract_factor_OLS(data, factor_col, x_cols, standardization=True):
+def extract_factor_OLS(data, factor_col, x_cols, standardlization=True):
     '''
     使用OLS回归的方法，剔除新的因子中与以前因子相关的部分，即通过使用因子值对
     现有因子做回归，取残差
@@ -511,7 +511,7 @@ def extract_factor_OLS(data, factor_col, x_cols, standardization=True):
         需要进行处理的因子值的列名
     x_cols: str or list
         需要从因子中剔除影响的列的列名
-    standardization: bool, default True
+    standardlization: bool, default True
         是否对因子进行标准化处理
 
     Return
@@ -523,7 +523,7 @@ def extract_factor_OLS(data, factor_col, x_cols, standardization=True):
         x_cols = [x_cols]
     x_data = data.loc[:, x_cols]
     y_data = data.loc[:, factor_col]
-    if standardization:
+    if standardlization:
         for col in x_cols:
             x_data.loc[:, col] = standardlize(x_data[col])
         y_data = standardlize(y_data)

@@ -13,13 +13,15 @@ from collections import namedtuple, OrderedDict
 import pdb
 # 第三方库
 from scipy.stats import spearmanr
+from scipy.stats.mstats import winsorize
 import pandas as pd
 import numpy as np
 # 本地文件
 from fmanager.factors.utils import convert_data
-from fmanager import get_factor_dict, query, get_factor_detail
+from fmanager import get_factor_dict, query, get_factor_detail, get_universe
 from factortest.const import WEEKLY, MONTHLY
 from factortest.utils import HDFDataProvider, load_rebcalculator, NoneDataProvider
+from datatoolkits import winsorize, standardlize, extract_factor_OLS
 
 # --------------------------------------------------------------------------------------------------
 # 类
@@ -210,7 +212,7 @@ class ICDecay(object):
 
 class FactorAutoCorrelation(FactorICTemplate):
     '''
-    计算因子的自相关函数
+    计算因子的自相关函数，即在每个时间点本期的因子值与上期的因子值的横截面相关性
     '''
 
     def __init__(self, factor_name, start_time, end_time, universe=None, reb_type=MONTHLY):
@@ -345,3 +347,67 @@ def get_group_factorcharacter(group, factor_name, method='median'):
     for t in sorted(group):
         out[t] = _get_stocks_character(group[t], factor_data.get_csdata(t), method)
     return pd.Series(out)
+
+
+def factor_purify(tobe_purified, other_factors, start_time, end_time, normalize=True,
+                  winsorize_threshold=0.01, universe=None):
+    '''
+    使用回归的方法剔除其他因子对目标因子的影响，即使用目标因子对其他因子做横截面上的回归，
+    然后取残差，作为新的因子值
+
+    Parameter
+    ---------
+    tobe_purified: str
+        需要被纯化的因子名称
+    other_factors: list like
+        作为自变量的因子，格式为[factor1, factor2, ...]
+    start_time: datetime like
+        纯化因子数据的开始时间
+    end_time: datetime like
+        纯化因子数据的结束时间
+    normalize: boolean, default True
+        是否在回归前对异常值进行winsorize处理，并将各个因子的数据转换为z-score
+    winsorize_threshold: float, default 0.01
+        在winsorize处理时传入的参数，共2*n*winsorize_threshold个数据将会被进行winsorize处理
+    universe: iterable, default None
+        股票的universe，默认None表示从fmanager.get_universe中获取
+
+    Return
+    ------
+    out: pd.DataFrame
+        经过纯化后的因子数据，index为时间，columns为universe中的股票代码
+    '''
+    # 加载数据
+    raw_data = query(tobe_purified, (start_time, end_time))
+    factors_data = list()
+    factors_data.append(raw_data)
+    for f in other_factors:
+        tmp_data = query(f, (start_time, end_time))
+        factors_data.append(tmp_data)
+    factors_tag = [tobe_purified] + list(other_factors)
+
+    # universe获取
+    if universe is None:
+        universe = get_universe()
+    # 对数据进行正则化处理
+    if normalize:
+        new_data = list()
+        for data in factors_data:
+            tmp = data.apply(lambda x: standardlize(winsorize(x, (winsorize_threshold,
+                                                                  1-winsorize_threshold))), axis=1)
+            tmp = tmp.loc[:, sorted(universe)]
+            new_data.append(tmp)
+        factors_data = new_data
+    data = convert_data(factors_data, factors_tag)
+    by_time = data.groupby(level=0)
+
+    def calc_resid(x):
+        raw_index = x.columns
+        x = x.reset_index(level=0, drop=True).T.dropna(axis=0, how='any')
+        res = extract_factor_OLS(x, factor_col=tobe_purified, x_cols=other_factors,
+                                 standardlization=False)
+        # pdb.set_trace()
+        res = res.reindex(raw_index)
+        return res
+    out = by_time.apply(calc_resid)
+    return out
