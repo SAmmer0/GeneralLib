@@ -142,6 +142,20 @@ class DataProvider(object, metaclass=ABCMeta):
         '''
         pass
 
+    @property
+    def start_time(self):
+        '''
+        返回数据的开始时间
+        '''
+        return self._start_time
+
+    @property
+    def end_time(self):
+        '''
+        返回数据的结束时间
+        '''
+        return self._end_time
+
 
 class HDFDataProvider(DataProvider):
     '''

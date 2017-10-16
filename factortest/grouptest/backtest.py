@@ -208,14 +208,15 @@ class FactortestTemplate(object):
     简易的因子测试模板，仅包含回测功能
     '''
 
-    def __init__(self, factor_name, start_time, end_time, weight_method=TOTALMKV_WEIGHTED,
+    def __init__(self, factor, start_time, end_time, weight_method=TOTALMKV_WEIGHTED,
                  reb_method=MONTHLY, group_num=10, stock_pool=None, industry_neutral=None,
                  show_progress=True):
         '''
         Parameter
         ---------
-        factor_name: str
-            需要测试的因子，必须在fmanager.api.get_factor_dict的返回值中可以找到
+        factor: str or DataProvider
+            如果提供的是因子名称，必须在fmanager.api.get_factor_dict的返回值中可以找到，
+            如果是数据提供器，数据的长度必须能够与start_time, end_time契合
         start_time: datetime or other compatible types
             回测的开始时间
         end_time: datetime or other compatible types
@@ -235,10 +236,13 @@ class FactortestTemplate(object):
             是否显示进度
         '''
         self._factor_dict = get_factor_dict()
-        self.start_time = start_time
-        self.end_time = end_time
-        self.factordata_provider = HDFDataProvider(self._factor_dict[factor_name]['abs_path'],
-                                                   self.start_time, self.end_time)
+        self.start_time = pd.to_datetime(start_time)
+        self.end_time = pd.to_datetime(end_time)
+        if isinstance(factor, str):
+            self.factordata_provider = HDFDataProvider(self._factor_dict[factor]['abs_path'],
+                                                       self.start_time, self.end_time)
+        else:   # 直接使用提供器数据
+            self.factordata_provider = factor
         self.weight_method = weight_method
         self.reb_method = reb_method
         self.group_num = group_num
