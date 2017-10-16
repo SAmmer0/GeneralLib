@@ -19,7 +19,7 @@ import pandas as pd
 import numpy as np
 # 本地库
 from fmanager.database import DBConnector
-from fmanager import get_universe
+from fmanager import get_universe, query
 from factortest.const import MONTHLY, WEEKLY
 from dateshandle import get_tds
 # --------------------------------------------------------------------------------------------------
@@ -466,6 +466,30 @@ class MemoryDataProvider(DataProvider):
             当前实例的拷贝
         '''
         return MemoryDataProvider(self._data)
+
+
+class FactorDataProvider(HDFDataProvider):
+    '''
+    提供因子的名称，直接从因子数据库中提取数据
+    '''
+
+    def __init__(self, factor_name, start_date, end_date):
+        super().__init__(None, start_date, end_date)
+        self._factor_name = factor_name
+
+    def load_data(self):
+        '''
+        从因子数据库中加载数据
+        '''
+        if not self.loaded:
+            self._data = query(self._factor_name, (self._start_time, self._end_time))
+            self.loaded = True
+
+    def copy(self):
+        '''
+        返回该数据提供器的一个独立的拷贝
+        '''
+        return FactorDataProvider(self._factor_name, self._start_time, self._end_time)
 
 
 class RebCalcu(object, metaclass=ABCMeta):

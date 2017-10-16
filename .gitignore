@@ -100,3 +100,5 @@ ENV/
 
 # private files
 sysconfiglee.py
+CONST_DATAS/
+test_sources/
