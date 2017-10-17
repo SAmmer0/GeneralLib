@@ -277,7 +277,7 @@ avg_torate = Factor('TOAVG_1M', get_avgtorate, pd.to_datetime('2017-08-02'),
 
 def get_lnfloatmktv(universe, start_time, end_time):
     '''
-    对数市值
+    对数流通市值
     '''
     fmktv = query('FLOAT_MKTVALUE', (start_time, end_time))
     data = np.log(fmktv)
@@ -286,8 +286,22 @@ def get_lnfloatmktv(universe, start_time, end_time):
     return data
 
 
+def get_lntotalmktv(universe, start_time, end_time):
+    '''
+    对数总市值
+    '''
+    tmktv = query('TOTAL_MKTVALUE', (start_time, end_time))
+    data = np.log(tmktv)
+    data = data.loc[:, sorted(universe)]
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
+    return data
+
+
 ln_flmv = Factor('LN_FMKV', get_lnfloatmktv, pd.to_datetime('2017-08-02'),
-                 dependency=['FLOAT_MKTVALUE'], desc='对数市值')
+                 dependency=['FLOAT_MKTVALUE'], desc='对数流通市值')
+ln_tmktv = Factor('LN_TMKV', get_lntotalmktv, pd.to_datetime('2017-10-17'),
+                  dependency=['TOTAL_MKTVALUE'], desc='对数总市值')
+
 # --------------------------------------------------------------------------------------------------
 # 指数行情
 

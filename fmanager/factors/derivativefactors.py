@@ -863,10 +863,77 @@ all_instiholdingratio = Factor('ALL_INSTIHOLDING_RATIO', get_institutions_holdin
 #                                 dependency=['UNCONS_INSTIHOLDING_RATIO', 'ALL_INSTIHOLDING_RATIO'],
 #                                 desc='机构持有限售A股比例')
 # --------------------------------------------------------------------------------------------------
+# 相对强度
+
+
+def get_rstr(universe, start_time, end_time):
+    '''
+    BARRA RSTR因子
+    无风险利率假定为0，暂时无法从数据库中获取无风险收益率相关数据
+    '''
+    start_time = pd.to_datetime(start_time)
+    lag = 21
+    period = 504
+    half_life = 126
+    decay_rate = 0.5**(1 / half_life)
+    weight = np.array([decay_rate**i if i >= lag else 0
+                       for i in range(period + lag, 0, -1)])
+    weight = weight / np.sum(weight)
+    new_start = dateshandle.tds_shift(start_time, period + lag)
+    ret_data = query('DAILY_RET', (new_start, end_time))
+
+    def calc_rollingrstr(ts):
+        # 滚动计算单股票的rstr
+        ts = np.log(1 + ts)
+        out = ts.rolling(lag + period).apply(lambda x: x.dot(weight))
+        return out
+    data = ret_data.apply(calc_rollingrstr)
+    mask = (data.index >= start_time) & (data.index <= end_time)
+    data = data.loc[mask, sorted(universe)]
+    if start_time > pd.to_datetime(START_TIME):     # 第一次更新从START_TIME开始，必然会有缺失数据
+        checkdata_completeness(data, start_time, end_time)
+    return data
+
+
+rstr = Factor('RSTR', get_rstr, pd.to_datetime('2017-10-17'), dependency=['DAILY_RET'],
+              desc='BARRA RSTR因子')
+# --------------------------------------------------------------------------------------------------
+# 日波动率
+
+
+def get_dstd(universe, start_time, end_time):
+    '''
+    BARRA DSTD
+    '''
+    start_time = pd.to_datetime(start_time)
+    period = 252
+    half_life = 42
+    decay_rate = 0.5**(1 / half_life)
+    weight = np.array([decay_rate**i for i in range(period, 0, -1)])
+    weight = weight / np.sum(weight)
+
+    def calc_dstd(ts):
+        return ts.rolling(period).apply(lambda x: np.sqrt(np.dot(np.power(x - np.mean(x), 2),
+                                                                 weight)))
+    new_start = dateshandle.tds_shift(start_time, period)
+    ret_data = query('DAILY_RET', (new_start, end_time))
+    data = ret_data.apply(calc_dstd)
+    mask = (data.index >= start_time) & (data.index <= end_time)
+    data = data.loc[mask, sorted(universe)]
+    if start_time > pd.to_datetime(START_TIME):     # 第一次更新从START_TIME开始，必然会有缺失数据
+        checkdata_completeness(data, start_time, end_time)
+    return data
+
+
+dstd = Factor('DSTD', get_dstd, pd.to_datetime('2017-10-17'), dependency=['DAILY_RET'],
+              desc='BARRA DSTD因子')
+
+# --------------------------------------------------------------------------------------------------
 
 
 factor_list = [ep_ttm, bp, sp_ttm, cfp_ttm, sale2ev, oprev_yoy, ni_yoy, ni_5yg, oprev_5yg,
                roe, roa, opprofit_margin, gross_margin, tato, current_ratio, threefee2sale,
                momentum_1m, momentum_3m, momentum_60m, conexp_dis, skew_1m, kurtosis_1m,
-               ptvalue1week, beta, specialvol, uncons_instiholdingratio, all_instiholdingratio]
+               ptvalue1week, beta, specialvol, uncons_instiholdingratio, all_instiholdingratio,
+               rstr, dstd]
 check_duplicate_factorname(factor_list, __name__)
