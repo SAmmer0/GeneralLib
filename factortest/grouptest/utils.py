@@ -524,11 +524,15 @@ def stock_filter_template(st_provider, tradedata_provider, stockpool_provider,
         if industry_data is not None:   # 表明当前要求数据进行行业中性化
             data = data.assign(industry=industry_data)
             data = data.loc[data.industry != NaS]
-            data['data'] = data.groupby('industry').data.transform(lambda x: x - x.mean())
+            # data['data'] = data.groupby('industry').data.transform(lambda x: x - x.mean())
+        else:
+            data = data.assign(industry=[NaS] * len(data))
         # pdb.set_trace()
         data = data.loc[(data.trade_data == 1) & (data.st_data == 0) & (data.stockpool == 1), :].\
             dropna(subset=['data'], axis=0)
-        data = data.assign(datag=pd.qcut(data.data, group_num, labels=range(group_num)))
+        by_ind = data.groupby('industry')
+        data = data.assign(datag=by_ind.data.transform(lambda x: pd.qcut(x, group_num,
+                                                                         labels=range(group_num))))
         by_group_id = data.groupby('datag')
         out = {g: by_group_id.get_group(g).index.tolist()
                for g in by_group_id.groups}

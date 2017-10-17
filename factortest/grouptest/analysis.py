@@ -32,7 +32,7 @@ from factortest.grouptest.utils import transholding
 from factortest.correlation import get_group_factorcharacter
 from datatoolkits import price2nav
 from report import brief_report, trans2formater, table_convertor
-from fmanager import get_factor_dict
+from fmanager import get_factor_dict, query
 
 
 class Analysor(object, metaclass=ABCMeta):
@@ -69,18 +69,21 @@ class NavAnalysor(Analysor):
     净值分析器，主要用来计算一般的净值评估指标
     '''
 
-    def __init__(self, bt, benchmark, riskfree_rate=0.04):
+    def __init__(self, bt, benchmark=None, riskfree_rate=0.04):
         '''
         Parameter
         ---------
         bt: BackTest
             需要被分析的回测实例
-        benchmark: pd.Series
-            基准的净值数据，要求起始时间与bt相同
+        benchmark: pd.Series, default None
+            基准的净值数据，要求起始时间与bt相同，如果没有给定，则自动使用同期的上证综指收盘价
+            （SSEC_CLOSE）作为参考基准
         riskfree_rate: float, default 0.04
             无风险利率
         '''
         super().__init__(bt)
+        if benchmark is None:
+            benchmark = query('SSEC_CLOSE', (bt.start_date, bt.end_date)).iloc[:, 0]
         self._benchmark = price2nav(benchmark)
         self._riskfree_rate = riskfree_rate
         self._result_cache = None
@@ -200,14 +203,15 @@ class IndustryAnalysor(Analysor):
     分布
     '''
 
-    def __init__(self, bt, industry_cls):
+    def __init__(self, bt, industry_cls='ZX_IND'):
         '''
         Parameter
         ---------
         bt: BackTest
             需要被分析的回测实例
-        industry_cls: str
-            分析行业持仓时使用的行业分类标准，要求必须能在fmanager.get_factor_dict中找到
+        industry_cls: str, default ZX_IND
+            分析行业持仓时使用的行业分类标准，要求必须能在fmanager.get_factor_dict中找到，默认使用
+            中信行业分类
         '''
         super().__init__(bt)
         factor_dict = get_factor_dict()

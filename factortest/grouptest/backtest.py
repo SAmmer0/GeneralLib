@@ -209,7 +209,7 @@ class FactortestTemplate(object):
     '''
 
     def __init__(self, factor, start_time, end_time, weight_method=TOTALMKV_WEIGHTED,
-                 reb_method=MONTHLY, group_num=10, stock_pool=None, industry_neutral=None,
+                 reb_method=MONTHLY, group_num=5, stock_pool=None, industry_neutral=None,
                  show_progress=True):
         '''
         Parameter
@@ -226,7 +226,7 @@ class FactortestTemplate(object):
             也可以通过const文件中的方法设置
         reb_mothod: str, default monthly
             换仓频率，目前支持weekly和monthly
-        group_num: int, default 10
+        group_num: int, default 5
             分组的数量
         stock_pool: str or DataProvider, default None
             股票池限制规则，如果参数为str，要求能够在fmanager.api.get_factor_dict的返回值中可以找到
