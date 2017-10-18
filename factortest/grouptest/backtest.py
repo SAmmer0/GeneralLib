@@ -97,7 +97,8 @@ class Backtest(object):
         self._stock_filter = stock_filter
         self._args = args
         self._kwargs = kwargs
-        self._ports = {i: Portfolio(self._config.init_cap) for i in range(self._config.group_num)}
+        self._ports = {i: Portfolio(self._config.init_cap)
+                       for i in range(self._config.group_num)}
         self._navs_pd = None
         self._offset = 10    # 避免满仓是因为小数点的问题导致资金溢出
 
@@ -132,12 +133,9 @@ class Backtest(object):
         if date not in self.weighted_holding:
             self.weighted_holding[date] = weights_recorder
         port = self._ports[port_id]
-        port_mkv = port.sell_all(date) - self._offset    # 卖出全部金融工具
-        weights = {code: Stock(code, quote_provider=self._config.quote_provider).
-                   construct_from_value(weights[code] * port_mkv, date)
-                   for code in weights}
-        # pdb.set_trace()
-        port.buy_seculist(weights.values(), date)
+        port.rebalance2targetweight({Stock(code, quote_provider=self._config.quote_provider): weights[code]
+                                     for code in weights}, date, self._config.commission_rate,
+                                    self._config.commission_rate)
 
     def run_bt(self):
         '''
