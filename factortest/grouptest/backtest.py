@@ -208,7 +208,7 @@ class FactortestTemplate(object):
 
     def __init__(self, factor, start_time, end_time, weight_method=TOTALMKV_WEIGHTED,
                  reb_method=MONTHLY, group_num=5, stock_pool=None, industry_neutral=None,
-                 show_progress=True):
+                 show_progress=True, transaction_cost=0):
         '''
         Parameter
         ---------
@@ -233,6 +233,7 @@ class FactortestTemplate(object):
         show_progress: boolean, default True
             是否显示进度
         '''
+        self.transaction_cost = transaction_cost
         self._factor_dict = get_factor_dict()
         self.start_time = pd.to_datetime(start_time)
         self.end_time = pd.to_datetime(end_time)
@@ -334,7 +335,8 @@ class FactortestTemplate(object):
                                              self.group_num)
         conf = BacktestConfig(self.start_time, self.end_time, self._price_provider,
                               self.weight_method_obj, self._tradeable_provider,
-                              self.reb_method_obj, self.group_num, show_progress=self.show_progress)
+                              self.reb_method_obj, self.group_num, show_progress=self.show_progress,
+                              commission_rate=self.transaction_cost)
         bt = Backtest(conf, stock_filter, fd_provider=self.factordata_provider)
         bt.run_bt()
         return bt
