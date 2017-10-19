@@ -97,6 +97,8 @@ to_volume = Factor('TO_VOLUME', get_quote('TurnoverVolume'), pd.to_datetime('201
 to_value = Factor('TO_VALUE', get_quote('TurnoverValue'), pd.to_datetime('2017-07-20'),
                   desc='单位为元')
 
+prev_close = Factor('PREV_CLOSE', get_quote('PrevClosePrice'), pd.to_datetime('2017-10-19'))
+
 # --------------------------------------------------------------------------------------------------
 # 复权因子
 
@@ -380,5 +382,5 @@ CSI985 = Factor('CSI985_CLOSE', gen_indexquotegetter('000985'), pd.to_datetime('
 factor_list = [close_price, open_price, high_price, low_price, to_value, to_volume, adj_factor,
                float_shares, total_shares, total_mktvalue, float_mktvalue, adj_close,
                daily_ret, to_rate, ln_flmv, ln_tmktv, avg_torate, SSEC, SSE50, CS500, SSZ300,
-               CSI985, nlsize]
+               CSI985, nlsize, prev_close]
 check_duplicate_factorname(factor_list, __name__)
