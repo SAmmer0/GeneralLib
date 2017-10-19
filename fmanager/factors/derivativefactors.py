@@ -927,7 +927,49 @@ def get_dstd(universe, start_time, end_time):
 
 dstd = Factor('DSTD', get_dstd, pd.to_datetime('2017-10-17'), dependency=['DAILY_RET'],
               desc='BARRA DSTD因子')
+# --------------------------------------------------------------------------------------------------
+# BARRA CMRA
 
+
+def get_cmra(universe, start_time, end_time):
+    '''
+    BARRA CMRA因子（累计波动幅度）
+    '''
+    monthly_td = 21
+    month_cnt = 12
+
+    start_time = pd.to_datetime(start_time)
+    new_start = dateshandle.tds_shift(start_time, month_cnt * monthly_td)
+    quote_data = query('ADJ_CLOSE', (new_start, end_time))
+    ret_data = quote_data.pct_change(monthly_td)
+    idx_slice = slice(-1, -month_cnt * monthly_td, -monthly_td)
+
+    def get_single_cmra(df):
+        # 计算单股票的滚动CMRA，使用修改后的算法，原报告中的算法会导致股票大跌后出现NA值
+        def single_period_cmra(ts):
+            # pdb.set_trace()
+            valid_data = ts[idx_slice]
+            cum_ret = np.cumprod(1 + valid_data) - 1
+            rng = np.log(1 + np.max(cum_ret)) - np.log(1 + np.min(cum_ret))
+            # if pd.isnull(rng):
+            #     pdb.set_trace()
+            return rng
+        # pdb.set_trace()
+        res = df.rolling(monthly_td * month_cnt, min_periods=monthly_td * month_cnt).\
+            apply(single_period_cmra)
+        # pdb.set_trace()
+        return res
+
+    data = ret_data.apply(get_single_cmra)
+    mask = (data.index >= start_time) & (data.index <= end_time)
+    data = data.loc[mask, sorted(universe)]
+    if start_time > pd.to_datetime(START_TIME):     # 第一次更新从START_TIME开始，必然会有缺失数据
+        checkdata_completeness(data, start_time, end_time)
+    return data
+
+
+cmra = Factor('CMRA', get_cmra, pd.to_datetime('2017-10-19'),
+              dependency=['ADJ_CLOSE'], desc='BARRA CMRA因子')
 # --------------------------------------------------------------------------------------------------
 
 
@@ -935,5 +977,5 @@ factor_list = [ep_ttm, bp, sp_ttm, cfp_ttm, sale2ev, oprev_yoy, ni_yoy, ni_5yg, 
                roe, roa, opprofit_margin, gross_margin, tato, current_ratio, threefee2sale,
                momentum_1m, momentum_3m, momentum_60m, conexp_dis, skew_1m, kurtosis_1m,
                ptvalue1week, beta, specialvol, uncons_instiholdingratio, all_instiholdingratio,
-               rstr, dstd]
+               rstr, dstd, cmra]
 check_duplicate_factorname(factor_list, __name__)

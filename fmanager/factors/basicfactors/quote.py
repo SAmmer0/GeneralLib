@@ -19,6 +19,7 @@ import dateshandle
 import fdgetter
 import numpy as np
 import pandas as pd
+from statsmodels.api import OLS, add_constant
 import pdb
 from fmanager.const import START_TIME
 from fmanager.factors.utils import (check_indexorder, Factor, check_duplicate_factorname,
@@ -297,11 +298,32 @@ def get_lntotalmktv(universe, start_time, end_time):
     return data
 
 
+def get_nonlinearmktv(universe, start_time, end_time):
+    '''
+    非线性市值
+    '''
+    lnmktv = query('LN_TMKV', (start_time, end_time))
+
+    def get_nlsize(df):
+        # 市值3次方然后通过OLS来获取与市值正交的残差
+        raw_index = df.index
+        df = df.dropna()
+        nonlsize = np.power(df, 3)
+        mod = OLS(nonlsize, add_constant(df))
+        mod_res = mod.fit()
+        return mod_res.resid.reindex(raw_index)
+    data = lnmktv.apply(get_nlsize, axis=1)
+    data = data.loc[:, sorted(universe)]
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
+    return data
+
+
 ln_flmv = Factor('LN_FMKV', get_lnfloatmktv, pd.to_datetime('2017-08-02'),
                  dependency=['FLOAT_MKTVALUE'], desc='对数流通市值')
 ln_tmktv = Factor('LN_TMKV', get_lntotalmktv, pd.to_datetime('2017-10-17'),
                   dependency=['TOTAL_MKTVALUE'], desc='对数总市值')
-
+nlsize = Factor('NLSIZE', get_nonlinearmktv, pd.to_datetime('2017-10-19'),
+                dependency=['LN_TMKV'], desc='非线性市值')
 # --------------------------------------------------------------------------------------------------
 # 指数行情
 
@@ -357,5 +379,6 @@ CSI985 = Factor('CSI985_CLOSE', gen_indexquotegetter('000985'), pd.to_datetime('
 
 factor_list = [close_price, open_price, high_price, low_price, to_value, to_volume, adj_factor,
                float_shares, total_shares, total_mktvalue, float_mktvalue, adj_close,
-               daily_ret, to_rate, ln_flmv, avg_torate, SSEC, SSE50, CS500, SSZ300, CSI985]
+               daily_ret, to_rate, ln_flmv, ln_tmktv, avg_torate, SSEC, SSE50, CS500, SSZ300,
+               CSI985, nlsize]
 check_duplicate_factorname(factor_list, __name__)
