@@ -8,6 +8,7 @@
 # 标准库
 from collections import OrderedDict
 import pdb
+from functools import partial
 
 # 第三方库
 import pandas as pd
@@ -330,9 +331,11 @@ class FactortestTemplate(object):
         '''
         启动回测
         '''
-        stock_filter = stock_filter_template(self._st_provider, self._tradeable_provider,
-                                             self._stockpool_provider, self._industry_provider,
-                                             self.group_num)
+        stock_filter = partial(stock_filter_template, st_provider=self._st_provider,
+                               tradedata_provider=self._tradeable_provider,
+                               stockpool_provider=self._stockpool_provider,
+                               industry_provider=self._industry_provider,
+                               group_num=self.group_num)
         conf = BacktestConfig(self.start_time, self.end_time, self._price_provider,
                               self.weight_method_obj, self._tradeable_provider,
                               self.reb_method_obj, self.group_num, show_progress=self.show_progress,

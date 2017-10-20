@@ -549,13 +549,17 @@ class MkvWeightCalc(EqlWeightCalc):
 # 函数
 
 
-def stock_filter_template(st_provider, tradedata_provider, stockpool_provider,
+def stock_filter_template(date, fd_provider, st_provider, tradedata_provider, stockpool_provider,
                           industry_provider, group_num):
     '''
-    模板函数，用于生成一般排序回测函数
+    根据因子值的大小进行排序，返回给定组的对应的持仓
 
     Parameter
     ---------
+    date: datetime like
+        计算股票持仓的日期
+    fd_provider: DataProvider
+        记录因子数据的数据提供器
     st_provider: HDFDataProvider
         记录ST数据的数据提供器
     tradedata_provider: HDFDataProvider
@@ -569,37 +573,39 @@ def stock_filter_template(st_provider, tradedata_provider, stockpool_provider,
 
     Return
     ------
-    out: function
-        可供BackTest类作为参数的stock_filter函数
+    out: dict
+        股票分组，格式为{id: [code1, ...]}，其中id的范围为[0, group_num-1]
+
+    Notes
+    -----
+    这个模板可换为装饰器的模式，将那些参数都重新塞到内部函数中，然后通过装饰器来提供默认参数
     '''
-    def _inner(date, fd_provider):
-        st_data = st_provider.get_csdata(date)
-        trade_data = tradedata_provider.get_csdata(date)
-        factor_data = fd_provider.get_csdata(date)
-        stockpool_data = stockpool_provider.get_csdata(date)
-        industry_data = industry_provider.get_csdata(date)
-        data = pd.DataFrame({'data': factor_data, 'st_data': st_data, 'trade_data': trade_data})
-        if stockpool_data is not None:    # 表示当前有股票池的限制
-            data = data.assign(stockpool=stockpool_data)
-        else:
-            data = data.assign(stockpool=[1] * len(data))
-        if industry_data is not None:   # 表明当前要求数据进行行业中性化
-            data = data.assign(industry=industry_data)
-            data = data.loc[data.industry != NaS]
-            # data['data'] = data.groupby('industry').data.transform(lambda x: x - x.mean())
-        else:
-            data = data.assign(industry=[NaS] * len(data))
-        # pdb.set_trace()
-        data = data.loc[(data.trade_data == 1) & (data.st_data == 0) & (data.stockpool == 1), :].\
-            dropna(subset=['data'], axis=0)
-        by_ind = data.groupby('industry')
-        data = data.assign(datag=by_ind.data.transform(lambda x: pd.qcut(x, group_num,
-                                                                         labels=range(group_num))))
-        by_group_id = data.groupby('datag')
-        out = {g: by_group_id.get_group(g).index.tolist()
-               for g in by_group_id.groups}
-        return out
-    return _inner
+    st_data = st_provider.get_csdata(date)
+    trade_data = tradedata_provider.get_csdata(date)
+    factor_data = fd_provider.get_csdata(date)
+    stockpool_data = stockpool_provider.get_csdata(date)
+    industry_data = industry_provider.get_csdata(date)
+    data = pd.DataFrame({'data': factor_data, 'st_data': st_data, 'trade_data': trade_data})
+    if stockpool_data is not None:    # 表示当前有股票池的限制
+        data = data.assign(stockpool=stockpool_data)
+    else:
+        data = data.assign(stockpool=[1] * len(data))
+    if industry_data is not None:   # 表明当前要求数据进行行业中性化
+        data = data.assign(industry=industry_data)
+        data = data.loc[data.industry != NaS]
+        # data['data'] = data.groupby('industry').data.transform(lambda x: x - x.mean())
+    else:
+        data = data.assign(industry=[NaS] * len(data))
+    # pdb.set_trace()
+    data = data.loc[(data.trade_data == 1) & (data.st_data == 0) & (data.stockpool == 1), :].\
+        dropna(subset=['data'], axis=0)
+    by_ind = data.groupby('industry')
+    data = data.assign(datag=by_ind.data.transform(lambda x: pd.qcut(x, group_num,
+                                                                     labels=range(group_num))))
+    by_group_id = data.groupby('datag')
+    out = {g: by_group_id.get_group(g).index.tolist()
+           for g in by_group_id.groups}
+    return out
 
 
 def transholding(holding):
