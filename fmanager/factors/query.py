@@ -60,6 +60,8 @@ def query(factor_name, time, codes=None, fillna=None):
     abs_path = factor_dict[factor_name]
     db = database.DBConnector(abs_path)
     data = db.query(time, codes)
+    if data is None:
+        return None
     universe = get_universe()
     if codes is None:   # 为了避免数据的universe不一致导致不同数据的横截面长度不同
         data = data.reindex(columns=universe)
