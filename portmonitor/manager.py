@@ -47,7 +47,7 @@ class PortfolioData(object):
         cur_holding: dict
             当前持仓，格式为{code: num}
         hist_holding: OrderDict
-            历史持仓，格式为{time: {code: num}}
+            历史持仓，格式为{time: {code: num}}，可能的时间包含计算日时间和发生分红送股的时间
         av_ts: pd.Series
             资产总值的时间序列
         '''
@@ -257,6 +257,14 @@ class PortfolioMoniData(object):
             asset_value, div_flag, new_holding = self._cal_holding_value(td, last_td,
                                                                          closeprice_provider,
                                                                          prevclose_provider)
+            if div_flag:    # 发生分红送股事件，持仓数量需要更新
+                port_data.curholding = new_holding
+                port_data.histholding[td] = new_holding
+            port_data.assetvalue_ts = port_data.assetvalue_ts.append({td: asset_value})
+            # 更新上个交易日的时间
+            last_td = td
+        self._port_data = port_data
+
 
 # --------------------------------------------------------------------------------------------------
 # 函数
