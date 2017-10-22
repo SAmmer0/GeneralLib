@@ -21,7 +21,7 @@ from datetime import datetime
 # 第三方模块
 import pandas as pd
 # 本地模块
-from portmonitor.const import PORT_DATA_PATH, PORT_CONFIG_PATH
+from portmonitor.const import PORT_DATA_PATH, PORT_CONFIG_PATH, CASH
 from datatoolkits import dump_pickle, load_pickle
 from factortest.utils import load_rebcalculator, FactorDataProvider
 from factortest.const import EQUAL_WEIGHTED, FLOATMKV_WEIGHTED, TOTALMKV_WEIGHTED
@@ -90,6 +90,7 @@ class PortfolioMoniData(object):
         self._port_data = None
         self._reb_calculator = None
         self._today = get_endtime(datetime.now())
+        self._load_data()
 
     def _load_data(self):
         '''
@@ -155,13 +156,27 @@ class PortfolioMoniData(object):
         Return
         ------
         out: dict
-            转换成数量后的持仓，格式为{w: num}
+            转换成数量后的持仓，格式为{code: num}，里面包含一个特殊资产：现金
+
+        Notes
+        -----
+        此处换仓实际假设换仓时资产的总价值是由上个持仓在计算日的收盘价计算得来，然后以计算日的收盘价
+        来计算换仓后的股票仓位
         '''
         total_cap = total_cap - 10  # 避免各个证券的价值加总后大于原总资产价值（因为计算机小数加减可能导致溢出问题）
-        weight_value = {code: w * total_cap for w in weight}
+        weight_value = {code: weight[code] * total_cap for code in weight}
         price = price_provider.get_csdata(date)
-        out = {weight_value[code] / price.loc[code] for code in weight_value}
+        out = {code: weight_value[code] / price.loc[code] for code in weight_value}
+        cash = total_cap - np.sum([out[code] * price.loc[code] for code in out])  # 现金
+        out[CASH] = cash
+        assert cash >= 0, ValueError('Cash cannot be negetive')
         return out
+
+    def _cal_holding_value(self, holding, date, close_provider, prevclose_provider):
+        '''
+        计算当前持仓的价值
+
+        '''
 
     def refresh_portvalue(self):
         '''
@@ -179,9 +194,10 @@ class PortfolioMoniData(object):
         tds = get_tds(start_time, self._today)
         last_td = tds[0]
         for td in tds[1:]:
-            if self._reb_calculator(last_td):   # 表示上个交易日是换仓日，需要重新计算持仓，并在本交易日切换
-                new_holding = self._port_config.stock_filter(td)
-                new_holding =
+            if self._reb_calculator(last_td):   # 表示上个交易日是计算日，需要重新计算持仓，并在本交易日切换
+                last_cap = port_data.last_asset_value
+                new_holding = self._port_config.stock_filter(last_td)
+                new_holding = self._cal_num(new_holding, closeprice_provider, last_td, last_cap)
                 port_data.curholding = new_holding
                 port_data.histholding[last_td] = new_holding
 

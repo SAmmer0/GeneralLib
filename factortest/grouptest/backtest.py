@@ -134,6 +134,8 @@ class Backtest(object):
         if date not in self.weighted_holding:
             self.weighted_holding[date] = weights_recorder
         port = self._ports[port_id]
+        # 隐含的换仓假设是，在换仓日资产的总价值实际是上个持仓在该交易日的收盘价值，换仓的价格也是以
+        # 收盘价计算
         port.rebalance2targetweight({Stock(code, quote_provider=self._config.quote_provider): weights[code]
                                      for code in weights}, date, self._config.commission_rate,
                                     self._config.commission_rate)

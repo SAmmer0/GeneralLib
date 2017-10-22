@@ -19,3 +19,6 @@ PORT_CONFIG_PATH = dirname(portmonitor.__file__) + '\\portfolios'
 # 组合的类型，包含做多、做空和多空
 LONG = 'long'
 SHORT = 'short'
+
+# 组合中现金的标志
+CASH = 'CASH'
