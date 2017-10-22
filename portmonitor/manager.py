@@ -20,9 +20,10 @@ from collections import OrderDict
 from datetime import datetime
 # 第三方模块
 import pandas as pd
+import numpy as np
 # 本地模块
 from portmonitor.const import PORT_DATA_PATH, PORT_CONFIG_PATH, CASH
-from datatoolkits import dump_pickle, load_pickle
+from datatoolkits import dump_pickle, load_pickle, isclose
 from factortest.utils import load_rebcalculator, FactorDataProvider
 from factortest.const import EQUAL_WEIGHTED, FLOATMKV_WEIGHTED, TOTALMKV_WEIGHTED
 from factortest.grouptest.utils import EqlWeightCalc, MkvWeightCalc
@@ -102,7 +103,6 @@ class PortfolioMoniData(object):
                                                       self._port_data.update_time, datetime.now())
         except FileNotFoundError:
             recent_rbd = self._get_recent_rbd()
-            recent_holding = self._port_config.stock_filter(recent_rbd)
             self._port_data = PortfolioData(self._port_config.port_id, None,
                                             OrderDict(),
                                             av_ts=pd.Series({recent_rbd: self._port_config.init_cap}))
@@ -160,7 +160,7 @@ class PortfolioMoniData(object):
 
         Notes
         -----
-        此处换仓实际假设换仓时资产的总价值是由上个持仓在计算日的收盘价计算得来，然后以计算日的收盘价
+        此处换仓假设换仓时资产的总价值是由上个持仓在计算日的收盘价计算得来，然后以计算日的收盘价
         来计算换仓后的股票仓位
         '''
         total_cap = total_cap - 10  # 避免各个证券的价值加总后大于原总资产价值（因为计算机小数加减可能导致溢出问题）
@@ -172,11 +172,65 @@ class PortfolioMoniData(object):
         assert cash >= 0, ValueError('Cash cannot be negetive')
         return out
 
-    def _cal_holding_value(self, holding, date, close_provider, prevclose_provider):
+    @staticmethod
+    def _cal_holding_value(holding, date, last_td, close_provider, prevclose_provider):
         '''
         计算当前持仓的价值
 
+        Parameter
+        ---------
+        holding: dict
+            最近计算日计算出的股票仓位，格式为{code: num}
+        date: datetime like
+            当前交易日的时间
+        last_td: datetime like
+            上个交易日的时间
+        close_provider: DataProvider
+            收盘价数据提供其
+        prevclose_provider: DataProvider
+            前收盘数据提供器，用于识别分红送股的交易日
+
+        Return
+        ------
+        out: float
+            给定交易日的持仓总价值
+        divident_flag: boolean
+            分红送股时间发生的标记，如果至少有一支股票发生了该行为，则为True
+        new_holding: dict
+            发生分红送股后更新的持仓，如果没有发生该事件，则其值与传入的holding参数相同，可先通过
+            divident_flag进行分红送股判断，然后再更新持仓参数
+
+        Notes
+        -----
+        关于分红送股事件，是采用将上个交易日的收盘价与本交易日的前收盘价做对比来识别的，如果这两个
+        数据不同，说明在本交易日执行了除权，此时对对应股票的持有量按照比例进行调整
+        new_holding = old_holding * last_close / prev_close
+        调整隐含的假设是如果是进行了分红，则立马将分红的现金按照当前交易日的前收盘价转换为对应数量
+        的股票（这个转换不太切合实际），如果是按照送股或者其他扩展股票数量的行为，则不影响
         '''
+        close_data = close_provider.get_csdata(date)
+        lastclose_data = close_provider.get_csdata(last_td)
+        prevclose_data = prevclose_provider.get_csdata(date)
+        divident_flag = False   # 用于标记是否至少有一支股票发生分红送股事件
+        total_value = 0
+        new_holding = {}
+        for code in holding:
+            if code == CASH:
+                total_value += holding[code]
+                new_holding[code] = holding[code]
+            else:
+                close = close_data.loc[code]
+                lastclose = lastclose_data.loc[code]
+                prevclose = prevclose_data.loc[code]
+                if not isclose(lastclose, prevclose):    # 表明当前发生了分红送股等事件
+                    ratio = lastclose / prevclose
+                    divident_flag = True
+                else:
+                    ratio = 1
+                new_num = holding[code] * ratio
+                total_value += new_num * close
+                new_holding[code] = new_num
+        return total_value, divident_flag, new_holding
 
     def refresh_portvalue(self):
         '''
@@ -200,7 +254,9 @@ class PortfolioMoniData(object):
                 new_holding = self._cal_num(new_holding, closeprice_provider, last_td, last_cap)
                 port_data.curholding = new_holding
                 port_data.histholding[last_td] = new_holding
-
+            asset_value, div_flag, new_holding = self._cal_holding_value(td, last_td,
+                                                                         closeprice_provider,
+                                                                         prevclose_provider)
 
 # --------------------------------------------------------------------------------------------------
 # 函数
