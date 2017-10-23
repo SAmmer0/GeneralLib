@@ -194,8 +194,8 @@ class PortfolioMoniData(object):
         ------
         out: float
             给定交易日的持仓总价值
-        divident_flag: boolean
-            分红送股时间发生的标记，如果至少有一支股票发生了该行为，则为True
+        holding_chg_flag: boolean
+            分红送股时间发生的标记，如果至少有一支股票发生了该行为或者出现了退市事件，则为True
         new_holding: dict
             发生分红送股后更新的持仓，如果没有发生该事件，则其值与传入的holding参数相同，可先通过
             divident_flag进行分红送股判断，然后再更新持仓参数
@@ -211,26 +211,35 @@ class PortfolioMoniData(object):
         close_data = close_provider.get_csdata(date)
         lastclose_data = close_provider.get_csdata(last_td)
         prevclose_data = prevclose_provider.get_csdata(date)
-        divident_flag = False   # 用于标记是否至少有一支股票发生分红送股事件
+        holding_chg_flag = False   # 用于标记是否至少有一支股票发生分红送股事件或者退市
         total_value = 0
         new_holding = {}
         for code in holding:
             if code == CASH:
                 total_value += holding[code]
-                new_holding[code] = holding[code]
+                new_holding[code] = new_holding.get(code, 0) + holding[code]
             else:
                 close = close_data.loc[code]
                 lastclose = lastclose_data.loc[code]
+                # 发生退市事件，假设退市当天收盘价为NaN，上个收盘价还有非NaN的数据
+                # 对于退市事件的处理：发生退市时，以上个收盘价将股票全部转换为现金
+                if np.isnan(close):
+                    assert not np.isnan(lastclose), 'Error, last close price is NaN!'
+                    secu_value = holding[code] * lastclose
+                    total_value += secu_value
+                    new_holding[CASH] = new_holding.get(CASH, 0) + secu_value
+                    holding_chg_flag = True
+                    continue
                 prevclose = prevclose_data.loc[code]
                 if not isclose(lastclose, prevclose):    # 表明当前发生了分红送股等事件
                     ratio = lastclose / prevclose
-                    divident_flag = True
+                    holding_chg_flag = True
                 else:
                     ratio = 1
                 new_num = holding[code] * ratio
                 total_value += new_num * close
                 new_holding[code] = new_num
-        return total_value, divident_flag, new_holding
+        return total_value, holding_chg_flag, new_holding
 
     def refresh_portvalue(self):
         '''
