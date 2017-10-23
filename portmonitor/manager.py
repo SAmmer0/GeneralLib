@@ -16,8 +16,13 @@
     将所有投资组合纳入到一个容器中集中进行管理
 '''
 # 系统模块
-from collections import OrderDict
+from collections import OrderedDict
 from datetime import datetime
+import logging
+from os import listdir, makedirs
+from os.path import join, exists
+import importlib
+from pdb import set_trace
 # 第三方模块
 import pandas as pd
 import numpy as np
@@ -46,7 +51,7 @@ class PortfolioData(object):
             组合的ID
         cur_holding: dict
             当前持仓，格式为{code: num}
-        hist_holding: OrderDict
+        hist_holding: OrderedDict
             历史持仓，格式为{time: {code: num}}，可能的时间包含计算日时间和发生分红送股的时间
         av_ts: pd.Series
             资产总值的时间序列
@@ -58,11 +63,11 @@ class PortfolioData(object):
 
     @property
     def update_time(self):
-        return self._assetvalue_ts.index[-1]
+        return self.assetvalue_ts.index[-1]
 
     @property
     def last_asset_value(self):
-        return self._assetvalue_ts.iloc[-1]
+        return self.assetvalue_ts.iloc[-1]
 
     def __setstate__(self, state):
         self.__dict__.update(state)
@@ -76,6 +81,7 @@ class PortfolioMoniData(object):
     组合的监控数据，包含两个部分：
         组合的配置信息（无法进行序列化）
         组合的PortfolioData
+    组合更新时不考虑交易成本
     '''
 
     def __init__(self, port_config):
@@ -104,12 +110,12 @@ class PortfolioMoniData(object):
         except FileNotFoundError:
             recent_rbd = self._get_recent_rbd()
             self._port_data = PortfolioData(self._port_config.port_id, None,
-                                            OrderDict(),
+                                            OrderedDict(),
                                             av_ts=pd.Series({recent_rbd: self._port_config.init_cap}))
 
     def _get_recent_rbd(self):
         '''
-        获取在当前时间之前（包括当前时间）范围内的最近的换仓日，仅在初始化数据文件时调用
+        获取在当前时间之前（不包括当前时间）范围内的最近的计算日，仅在初始化数据文件时调用
 
         Return
         ------
@@ -120,7 +126,7 @@ class PortfolioMoniData(object):
             start_time = tds_shift(today, 40)
             self._reb_calculator = load_rebcalculator(self._port_config.rebalance_type, start_time,
                                                       today)
-        return self._reb_calculator.reb_points[-1]
+        return self._reb_calculator.reb_points[-2]
 
     def _load_weight_calculator(self):
         '''
@@ -250,7 +256,9 @@ class PortfolioMoniData(object):
         计算持仓的价值时，注意退市股票的处理，如果有则在该交易日按照上个交易日的价格将证券换成现金
         还有就是在持仓中，需要加入现金
         '''
+        self._load_weight_calculator()
         port_data = self._port_data
+        # set_trace()
         start_time = port_data.update_time
         closeprice_provider = FactorDataProvider('CLOSE', start_time, self._today)
         prevclose_provider = FactorDataProvider('PREV_CLOSE', start_time, self._today)
@@ -260,19 +268,149 @@ class PortfolioMoniData(object):
             if self._reb_calculator(last_td):   # 表示上个交易日是计算日，需要重新计算持仓，并在本交易日切换
                 last_cap = port_data.last_asset_value
                 new_holding = self._port_config.stock_filter(last_td)
+                new_holding = self._weight_cal(new_holding, date=last_td)
                 new_holding = self._cal_num(new_holding, closeprice_provider, last_td, last_cap)
                 port_data.curholding = new_holding
                 port_data.histholding[last_td] = new_holding
-            asset_value, div_flag, new_holding = self._cal_holding_value(td, last_td,
+            asset_value, div_flag, new_holding = self._cal_holding_value(port_data.curholding,
+                                                                         td, last_td,
                                                                          closeprice_provider,
                                                                          prevclose_provider)
             if div_flag:    # 发生分红送股事件，持仓数量需要更新
                 port_data.curholding = new_holding
                 port_data.histholding[td] = new_holding
-            port_data.assetvalue_ts = port_data.assetvalue_ts.append({td: asset_value})
+            # set_trace()
+            port_data.assetvalue_ts = port_data.assetvalue_ts.append(pd.Series({td: asset_value}))
             # 更新上个交易日的时间
             last_td = td
         self._port_data = port_data
+
+    def dump_tofile(self):
+        '''
+        将更新后的数据导入到给定文件夹中
+        '''
+        dump_pickle(self._port_data, self._data_path)
+
+    def start(self):
+        '''
+        开启监控数据的更新和存储操作
+        '''
+        self.refresh_portvalue()
+        self.dump_tofile()
+
+    @property
+    def port_data(self):
+        '''
+        返回只读的组合信息
+        '''
+        return self._port_data
+
+
+class MonitorManager(object):
+    '''
+    自动管理所有监控组合的类
+    '''
+
+    def __init__(self, ports_path=PORT_CONFIG_PATH, show_progress=True, log=True):
+        '''
+        Parameter
+        ---------
+        ports_path: str
+            portfolio的配置文件所在的路径，默认存储在portmonitor.const.PORT_CONFIG_PATH的文件夹下
+        show_progress: boolean, default True
+            是否显示更新的流程
+        log: boolean, default True
+            是否写入日志，自动将日志写入到ports_path文件夹下，以update_log.log命名
+
+        Notes
+        -----
+        该程序将从组合配置文件夹下自动读取组合，并自动对组合进行更新、存储的操作，同时保留各个组合
+        监控的实例
+        '''
+        self.container = []
+        self._ports_path = ports_path
+
+        self._port_config_files = [p for p in listdir(ports_path) if not p.startswith('_')]
+        self._show_progress = show_progress
+        self._log = log
+        if self._log:
+            logging.basicConfig(filename=ports_path + '\\' + 'update_log.log',
+                                format='%(asctime)s: %(message)s', level=logging.INFO,
+                                datefmt='%Y-%m-%d %H:%M:%S')
+
+    @staticmethod
+    def _import_sources(file_path):
+        '''
+        从源文件中导入
+
+        Parameter
+        ---------
+        file_path: str
+            源文件所在路径
+
+        Return
+        ------
+        out: MonitorConfig
+            给定文件中定义的监控配置
+        '''
+        module_name = file_path.split('\\')[-1].split('.')[0]
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        port_config = getattr(module, 'portfolio')
+        return port_config
+
+    def _lognprint(self, msg):
+        '''
+        用于根据_log和_show_progress的选项来显示对应的记录信息
+
+        Parameter
+        ---------
+        msg: str
+            需要打印的信息
+        '''
+        if self._log:
+            logging.info(msg)
+        if self._show_progress:
+            print(msg)
+
+    def update_single_port(self, file_path):
+        '''
+        更新单个组合，并将更新后的组合添加到容器中
+
+        Parameter
+        ---------
+        file_path: str
+            需要更新的组合配置所在的文件路径
+        '''
+        port_config = self._import_sources(file_path)
+        start_update_msg = '<----Start updating {port_id}---->'.format(port_id=port_config.port_id)
+        self._lognprint(start_update_msg)
+        # 实例化监视器
+        updater = PortfolioMoniData(port_config)
+        # 记录更新前的数据信息
+        updatetime_begin = updater.port_data.update_time
+        holding_begin = updater.port_data.curholding
+        # 更新
+        updater.start()
+        # 记录更新后的数据信息
+        updatetime_end = updater.port_data.update_time
+        holding_end = updater.port_data.curholding
+        update_msg = 'Data Updated From {start_time} to {end_time}.'.\
+            format(start_time=updatetime_begin, end_time=updatetime_end)
+        if holding_begin != holding_end:    # 表明持仓发生了变化
+            update_msg += ' Holding Changed'
+        self._lognprint(update_msg)
+        self.container.append(updater)
+
+    def update_all(self):
+        '''
+        更新所有处于监控中的组合
+        '''
+        update_files_paths = [join(self._ports_path, file_name)
+                              for file_name in self._port_config_files]
+        for p in update_files_paths:
+            self.update_single_port(p)
 
 
 # --------------------------------------------------------------------------------------------------
@@ -293,4 +431,6 @@ def get_portdata_path(port_id):
     out: str
         id对应组合的数据存储路径
     '''
+    if not exists(PORT_DATA_PATH):
+        makedirs(PORT_DATA_PATH)
     return PORT_DATA_PATH + '\\' + port_id + '.pickle'
