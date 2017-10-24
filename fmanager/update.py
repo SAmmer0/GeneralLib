@@ -31,7 +31,7 @@ import time
 
 # 日志设置
 logger = logging.getLogger(__name__.split('.')[0])
-file_handle = logging.FileHandler(FACTOR_FILE_PATH + '\\update_log')
+file_handle = logging.FileHandler(FACTOR_FILE_PATH + '\\update_log.log')
 file_handle.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s: %(message)s', '%Y-%m-%d %H:%M:%S')
 file_handle.setFormatter(formatter)

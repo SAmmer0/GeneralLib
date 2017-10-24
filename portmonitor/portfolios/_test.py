@@ -9,7 +9,7 @@ from portmonitor.utils import MonitorConfig
 
 
 def stock_filter(date):
-    return ['000001.SZ']
+    return ['002852.SZ']
 
 
 # 监控配置必须以portfolio命名
