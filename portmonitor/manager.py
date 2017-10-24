@@ -28,6 +28,7 @@ import pandas as pd
 import numpy as np
 # 本地模块
 from portmonitor.const import PORT_DATA_PATH, PORT_CONFIG_PATH, CASH
+from portmonitor.utils import logger
 from datatoolkits import dump_pickle, load_pickle, isclose
 from factortest.utils import load_rebcalculator, FactorDataProvider
 from factortest.const import EQUAL_WEIGHTED, FLOATMKV_WEIGHTED, TOTALMKV_WEIGHTED
@@ -311,7 +312,7 @@ class MonitorManager(object):
     自动管理所有监控组合的类
     '''
 
-    def __init__(self, ports_path=PORT_CONFIG_PATH, show_progress=True, log=True):
+    def __init__(self, ports_path=PORT_CONFIG_PATH, show_progress=True, log=True, monilogger=logger):
         '''
         Parameter
         ---------
@@ -333,10 +334,7 @@ class MonitorManager(object):
         self._port_config_files = [p for p in listdir(ports_path) if not p.startswith('_')]
         self._show_progress = show_progress
         self._log = log
-        if self._log:
-            logging.basicConfig(filename=ports_path + '\\' + 'update_log.log',
-                                format='%(asctime)s: %(message)s', level=logging.INFO,
-                                datefmt='%Y-%m-%d %H:%M:%S')
+        self._logger = monilogger
 
     @staticmethod
     def _import_sources(file_path):
@@ -370,7 +368,7 @@ class MonitorManager(object):
             需要打印的信息
         '''
         if self._log:
-            logging.info(msg)
+            self._logger.info(msg)
         if self._show_progress:
             print(msg)
 

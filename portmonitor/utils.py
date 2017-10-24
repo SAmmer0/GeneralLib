@@ -7,13 +7,17 @@
 '''
 用于定义基础的监控模块类（包含所有的监控相关信息）和其他辅助的函数
 '''
+# 系统库
+import logging
 # 第三方库
 from pandas import to_datetime
 # 本地库
 from factortest.grouptest.utils import MkvWeightCalc, EqlWeightCalc
 from factortest.utils import MonRebCalcu, WeekRebCalcu
 from factortest.const import TOTALMKV_WEIGHTED, MONTHLY
-from portmonitor.const import LONG
+from portmonitor.const import LONG, PORT_DATA_PATH
+
+# --------------------------------------------------------------------------------------------------
 
 
 class MonitorConfig(object):
@@ -50,3 +54,14 @@ class MonitorConfig(object):
         self.add_time = to_datetime(add_time)
         self.port_id = port_id
         self.port_type = port_type
+
+
+# --------------------------------------------------------------------------------------------------
+# 日志设置
+logger = logging.getLogger(__name__.split('.')[0])
+logger.setLevel(logging.INFO)
+file_handle = logging.FileHandler(PORT_DATA_PATH + '\\update_log.log')
+file_handle.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s: %(message)s', '%Y-%m-%d %H:%M:%S')
+file_handle.setFormatter(formatter)
+logger.addHandler(file_handle)

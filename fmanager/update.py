@@ -30,9 +30,12 @@ import pdb
 import time
 
 # 日志设置
-logging.basicConfig(filename=FACTOR_FILE_PATH + '\\' + 'update_log.log',
-                    format='%(asctime)s: %(message)s', level=logging.INFO,
-                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__.split('.')[0])
+file_handle = logging.FileHandler(FACTOR_FILE_PATH + '\\update_log')
+file_handle.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s: %(message)s', '%Y-%m-%d %H:%M:%S')
+file_handle.setFormatter(formatter)
+logger.addHandler(file_handle)
 
 
 def update_universe(path=UNIVERSE_FILE_PATH):
@@ -69,7 +72,7 @@ def update_universe(path=UNIVERSE_FILE_PATH):
             minus_diff = list(ou_set.difference(nu_set))
             msg = 'Warning: universe UPDATED, {drop} are DROPED, {add} are ADDED'.\
                 format(drop=minus_diff, add=add_diff)
-            logging.info(msg)
+            logger.info(msg)
             print(msg)
     except FileNotFoundError:
         pass
@@ -203,7 +206,7 @@ def update_factor(factor_name, factor_dict, universe):
     try:
         factor_data = factor_func(universe, start_time, end_time)
     except AssertionError as e:  # 如果出现意外的错误，将该错误写入到日志中，并返回True，进行下一个更新
-        logging.exception(e)
+        logger.exception(e)
         return True
     # pdb.set_trace()
     connector.insert_df(factor_data, data_dtype=factor_msg['factor'].data_type)
@@ -242,7 +245,7 @@ def update_all_factors(factor_dict, max_iter=300, order=None, show_progress=Fals
         factor_name = factor_queue.pop()
         msg = 'Iter Num: {iter_num}, Factor Name: {name},'.format(iter_num=iter_num,
                                                                   name=factor_name)
-        logging.info(msg)
+        logger.info(msg)
         if show_progress:
             print(msg)
         update_res = update_factor(factor_name, factor_dict, universe)
@@ -250,10 +253,10 @@ def update_all_factors(factor_dict, max_iter=300, order=None, show_progress=Fals
             factor_queue.appendleft(factor_name)
             # 日志中添加添加队列的操作提示
             queue_msg = "Append \"{fct}\" to the left of the queue".format(fct=factor_name)
-            logging.info(queue_msg)
+            logger.info(queue_msg)
         update_res_str = 'success' if update_res else 'fail'
         res_msg = 'Result: {res}'.format(res=update_res_str)
-        logging.info(res_msg)
+        logger.info(res_msg)
         if show_progress:
             print(res_msg)
     else:
@@ -278,7 +281,7 @@ def auto_update_all(max_iter=200, show_progress=False):
     success = update_all_factors(all_factors, max_iter=max_iter, show_progress=show_progress)
     if not success:
         print('Updating process FAILED')
-        logging.info('Updating process FAILED')
+        logger.info('Updating process FAILED')
 
 
 def gen_folders(fd):
@@ -300,18 +303,18 @@ def gen_folders(fd):
 
 
 if __name__ == '__main__':
-    logging.info('-' * 10 + 'START UPDATING' + '-' * 10)
+    logger.info('-' * 10 + 'START UPDATING' + '-' * 10)
     now = dt.datetime.now()
     if now.hour < 19:
         target_time = now.replace(hour=19, minute=0)
         seconds = (target_time - now).seconds
-        logging.info("Wait for {second}s".format(second=seconds))
+        logger.info("Wait for {second}s".format(second=seconds))
         time.sleep(seconds)
     try:
         auto_update_all(show_progress=True)
     except Exception as e:
-        logging.exception(e)
+        logger.exception(e)
         raise e
     finally:
-        logging.info('-' * 10 + 'COMPLETE UPDATING' + '-' * 10)
+        logger.info('-' * 10 + 'COMPLETE UPDATING' + '-' * 10)
         system('shutdown -s -t 100')
