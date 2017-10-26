@@ -18,7 +18,6 @@
 # 系统模块
 from collections import OrderedDict
 from datetime import datetime
-import logging
 from os import listdir, makedirs
 from os.path import join, exists
 import importlib
@@ -112,7 +111,8 @@ class PortfolioMoniData(object):
             recent_rbd = self._get_recent_rbd()
             self._port_data = PortfolioData(self._port_config.port_id, None,
                                             OrderedDict(),
-                                            av_ts=pd.Series({recent_rbd: self._port_config.init_cap}))
+                                            av_ts=pd.Series({recent_rbd:
+                                                             self._port_config.init_cap}))
 
     def _get_recent_rbd(self):
         '''
@@ -264,6 +264,8 @@ class PortfolioMoniData(object):
         closeprice_provider = FactorDataProvider('CLOSE', start_time, self._today)
         prevclose_provider = FactorDataProvider('PREV_CLOSE', start_time, self._today)
         tds = get_tds(start_time, self._today)
+        if len(tds) < 2:
+            return
         last_td = tds[0]
         for td in tds[1:]:
             if self._reb_calculator(last_td):   # 表示上个交易日是计算日，需要重新计算持仓，并在本交易日切换
@@ -312,7 +314,8 @@ class MonitorManager(object):
     自动管理所有监控组合的类
     '''
 
-    def __init__(self, ports_path=PORT_CONFIG_PATH, show_progress=True, log=True, monilogger=logger):
+    def __init__(self, ports_path=PORT_CONFIG_PATH, show_progress=True, log=True,
+                 monilogger=logger):
         '''
         Parameter
         ---------
@@ -328,7 +331,7 @@ class MonitorManager(object):
         该程序将从组合配置文件夹下自动读取组合，并自动对组合进行更新、存储的操作，同时保留各个组合
         监控的实例
         '''
-        self.container = []
+        self._container = {}
         self._ports_path = ports_path
 
         self._port_config_files = [p for p in listdir(ports_path) if not p.startswith('_')]
@@ -399,7 +402,7 @@ class MonitorManager(object):
         if holding_begin != holding_end:    # 表明持仓发生了变化
             update_msg += ' Holding Changed'
         self._lognprint(update_msg)
-        self.container.append(updater)
+        self._container[port_config.port_id] = updater
 
     def update_all(self):
         '''
@@ -410,7 +413,17 @@ class MonitorManager(object):
         for p in update_files_paths:
             self.update_single_port(p)
 
+    def __getitem__(self, key):
+        '''
+        通过key的形式，给出更新后的组合数据
+        '''
+        return self._container[key].port_data
 
+    def __iter__(self):
+        '''
+        返回组合数据的迭代器
+        '''
+        return iter(self._container.keys())
 # --------------------------------------------------------------------------------------------------
 # 函数
 
