@@ -10,6 +10,7 @@ from os.path import dirname
 # 本地模块
 import sysconfiglee
 import portmonitor
+from factortest.const import WEEKLY, MONTHLY
 
 # 组合的资金，持仓等明细数据所在的文件
 PORT_DATA_PATH = sysconfiglee.get_config('portfolio_data_path')
@@ -22,3 +23,6 @@ SHORT = 'short'
 
 # 组合中现金的标志
 CASH = 'CASH'
+
+# 报告频率
+DAILY = 'daily'
