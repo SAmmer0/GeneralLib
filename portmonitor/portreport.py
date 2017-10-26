@@ -11,11 +11,15 @@
 '''
 # 第三方模块
 from numpy import nan
+import pandas as pd
 # 本地模块
 from dateshandle import tds_shift, get_tds
 from factortest.utils import MonRebCalcu, WeekRebCalcu
 from portmonitor.const import WEEKLY, MONTHLY, DAILY
 from report import max_drawn_down
+
+# --------------------------------------------------------------------------------------------------
+# 函数
 
 
 def get_last_date(date, freq):
@@ -55,6 +59,27 @@ def get_last_date(date, freq):
     return reb.reb_points[-2]
 
 
+def parse_report(rpt):
+    '''
+    将Report类中的结果转换为pd.DataFrame
+
+    Parameter
+    ---------
+    rpt: Report
+        需要被解析的rpt对象
+
+    Return
+    ------
+    out: pd.DataFrame
+        列分别为daily、weekly、monthly，行分别为return、vol、mdd
+    '''
+    res = pd.DataFrame({'daily': rpt.daily, 'weekly': rpt.weekly, 'monthly': rpt.monthly}).T
+    return res
+
+# --------------------------------------------------------------------------------------------------
+# 类
+
+
 class Report(object):
     '''
     组合报告类
@@ -81,7 +106,8 @@ class Report(object):
             out = self._result_cache[DAILY]
         except KeyError:
             ret = self._port_data.assetvalue_ts.pct_change().iloc[-1]
-            self._result_cache[DAILY] = {'return': ret, 'vol': nan, 'mdd': nan}
+            self._result_cache[DAILY] = {'return': ret, 'vol': nan, 'mdd': nan, 'mdd start': nan,
+                                         'mdd end': nan}
             out = self._result_cache[DAILY]
         return out
 
@@ -108,8 +134,8 @@ class Report(object):
         data = data.loc[(data.index >= start_time) & (data.index <= self._update_time)]
         ret = data.iloc[-1] / data.iloc[0] - 1
         vol = data.pct_change().std()
-        mdd = max_drawn_down(data)
-        out = {'return': ret, 'vol': vol, 'mdd': mdd}
+        mdd, mdd_start, mdd_end = max_drawn_down(data)
+        out = {'return': ret, 'vol': vol, 'mdd': mdd, 'mdd start': mdd_start, 'mdd end': mdd_end}
         return out
 
     @property

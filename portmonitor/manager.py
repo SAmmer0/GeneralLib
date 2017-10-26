@@ -170,13 +170,15 @@ class PortfolioMoniData(object):
         此处换仓假设换仓时资产的总价值是由上个持仓在计算日的收盘价计算得来，然后以计算日的收盘价
         来计算换仓后的股票仓位
         '''
-        total_cap = total_cap - 10  # 避免各个证券的价值加总后大于原总资产价值（因为计算机小数加减可能导致溢出问题）
-        weight_value = {code: weight[code] * total_cap for code in weight}
+        valid_cap = total_cap - 10  # 避免各个证券的价值加总后大于原总资产价值（因为计算机小数加减可能导致溢出问题）
+        weight_value = {code: weight[code] * valid_cap for code in weight}
         price = price_provider.get_csdata(date)
         out = {code: weight_value[code] / price.loc[code] for code in weight_value}
         cash = total_cap - np.sum([out[code] * price.loc[code] for code in out])  # 现金
         out[CASH] = cash
         assert cash >= 0, ValueError('Cash cannot be negetive')
+        # if cash < 0:
+        #     set_trace()
         return out
 
     @staticmethod
