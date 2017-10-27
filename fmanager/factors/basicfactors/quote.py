@@ -274,6 +274,49 @@ def get_avgtorate(universe, start_time, end_time):
 avg_torate = Factor('TOAVG_1M', get_avgtorate, pd.to_datetime('2017-08-02'),
                     dependency=['TO_RATE'], desc='过去一个月（20交易日）日均换手率')
 
+
+def get_sto(category):
+    '''
+    母函数，用于生成BARRA的几个换手率因子，包括STOM, STOA, STOMQ
+
+    Parameter
+    ---------
+    category: string
+        分类，可选的类别有STOM, STOQ, STOA，分别表示月度、季度和年度
+
+    Return
+    ------
+    out: function
+    '''
+    month_days = 21
+    month_num_map = {'STOM': 1, 'STOQ': 3, 'STOA': 12}
+    month_num = month_num_map[category]
+    offset = month_days * month_num
+
+    def inner(universe, start_time, end_time):
+        start_time = pd.to_datetime(start_time)
+        threshold = 10e-6
+        new_start = dateshandle.tds_shift(start_time, offset)
+        daily_torate = query('TO_RATE', (new_start, end_time))
+        data = daily_torate.rolling(offset, min_periods=offset).sum().dropna(how='all')
+        data[data <= threshold] = np.NaN
+        data = data / month_num
+        data = np.log(data)
+        mask = (data.index >= start_time) & (data.index <= end_time)
+        data = data.loc[mask, sorted(universe)]
+        if start_time > pd.to_datetime(START_TIME):     # 第一次更新从START_TIME开始，必然会有缺失数据
+            assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
+        return data
+    return inner
+
+
+barra_stom = Factor('STOM', get_sto('STOM'), pd.to_datetime('2017-10-27'),
+                    dependency=['TO_RATE'], desc='BARRA STOM月换手率因子')
+barra_stoq = Factor('STOQ', get_sto('STOQ'), pd.to_datetime('2017-10-27'),
+                    dependency=['TO_RATE'], desc='BARRA STOQ季度换手率因子')
+barra_stoa = Factor('STOA', get_sto('STOA'), pd.to_datetime('2017-10-27'),
+                    dependency=['TO_RATE'], desc='BARRA STOA年度换手率因子')
+
 # --------------------------------------------------------------------------------------------------
 # 对数市值
 
@@ -382,5 +425,5 @@ CSI985 = Factor('CSI985_CLOSE', gen_indexquotegetter('000985'), pd.to_datetime('
 factor_list = [close_price, open_price, high_price, low_price, to_value, to_volume, adj_factor,
                float_shares, total_shares, total_mktvalue, float_mktvalue, adj_close,
                daily_ret, to_rate, ln_flmv, ln_tmktv, avg_torate, SSEC, SSE50, CS500, SSZ300,
-               CSI985, nlsize, prev_close]
+               CSI985, nlsize, prev_close, barra_stoa, barra_stom, barra_stoq]
 check_duplicate_factorname(factor_list, __name__)

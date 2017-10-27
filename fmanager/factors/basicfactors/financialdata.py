@@ -191,8 +191,12 @@ def get_BS_latest(fd_type):
         return data
     return _inner
 
-
+# 注：从数据库中取出来的数据，有可能对应的位置会是NA值，有两种情况，一种是股票还未上市或者已经退市
+# 第二种情况是数据库中的数据本身为Null，如果将NA值直接与其他的因子值相加会导致NA，因此在因子相加时
+# 考虑将这些数据弄到一个DataFrame中，然后使用sum方法，忽略其中的NA值
 # 总资产
+
+
 TA = Factor('TA', get_BS_latest('TotalAssets'), pd.to_datetime('2017-07-25'),
             desc='总资产')
 # 非流动性负债
@@ -210,6 +214,9 @@ equity = Factor('EQUITY', get_BS_latest('SEWithoutMI'), pd.to_datetime('2017-07-
 # 现金
 cash = Factor('CASH', get_BS_latest('CashEquivalents'), pd.to_datetime('2017-07-25'),
               desc='现金')
+# 优先股
+prefer_stock = Factor('PREFER_STOCK', get_BS_latest('EPreferStock'), pd.to_datetime('2017-10-27'),
+                      desc='优先股')
 # --------------------------------------------------------------------------------------------------
 # 特定时间季度数据（例如最新季度数据，往前推三个季度的数据等等）
 
@@ -369,5 +376,6 @@ oprev_5y = Factor('OPREV_5Y', get_year_nshift('OperatingRevenue', 'IS', 5),
 
 factor_list = [ni_ttm, oprev_ttm, opprofit_ttm, opexp_ttm, adminexp_ttm, fiexp_ttm, opnetcf_ttm,
                TA, TNCL, TCA, TCL, equity, cash, ni_1s, ni_5s, oprev_1s, oprev_5s, opcost_ttm,
-               ni_1y, ni_2y, ni_3y, ni_4y, ni_5y, oprev_1y, oprev_2y, oprev_3y, oprev_4y, oprev_5y]
+               ni_1y, ni_2y, ni_3y, ni_4y, ni_5y, oprev_1y, oprev_2y, oprev_3y, oprev_4y, oprev_5y,
+               prefer_stock]
 check_duplicate_factorname(factor_list, __name__)

@@ -971,11 +971,72 @@ def get_cmra(universe, start_time, end_time):
 cmra = Factor('CMRA', get_cmra, pd.to_datetime('2017-10-19'),
               dependency=['ADJ_CLOSE'], desc='BARRA CMRA因子')
 # --------------------------------------------------------------------------------------------------
+# BARRA LEVERAGE
+
+
+def get_mlev(universe, start_time, end_time):
+    '''
+    BARRA MLEV因子，不考虑优先股，因为金融行业TNCL是NA值，因此同样金融行业该因子也是NA值
+    '''
+    total_mkv = query('TOTAL_MKTVALUE', (start_time, end_time))
+    ldebt = query('TNCL', (start_time, end_time))
+    prefer_stock = query('PREFER_STOCK', (start_time, end_time))
+    data = convert_data([total_mkv, ldebt, prefer_stock], ['total_mkv', 'ldebt', 'prefer_stock'])
+    data = data.groupby(level=0).apply(lambda x: x.sum(axis=0))
+    data = data / total_mkv
+    data = data.loc[:, sorted(universe)]
+    assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
+    return data
+
+
+mlev = Factor('MLEV', get_mlev, pd.to_datetime('2017-10-27'),
+              dependency=['TOTAL_MKTVALUE', 'TNCL', 'PREFER_STOCK'], desc='BARRA MLEV因子')
+
+
+def get_dtoa(universe, start_time, end_time):
+    '''
+    BARRA DTOA因子
+    '''
+    tasset = query('TA', (start_time, end_time))
+    ldebt = query('TNCL', (start_time, end_time))
+    sdebt = query('TCL', (start_time, end_time))
+    data = convert_data([ldebt, sdebt], ['ldebt', 'sdebt'])
+    data = data.groupby(level=0).apply(lambda x: x.sum(axis=0))
+    data = data / tasset
+    assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
+    return data
+
+
+dtoa = Factor('DTOA', get_dtoa, pd.to_datetime('2017-10-27'),
+              dependency=['TA', 'TNCL', 'TCL'], desc='BARRA DTOA因子')
+
+
+def get_blev(universe, start_time, end_time):
+    '''
+    BARRA BLEV因子
+    '''
+    equity = query('EQUITY', (start_time, end_time))
+    ldebt = query('TNCL', (start_time, end_time))
+    prefer_stock = query('PREFER_STOCK', (start_time, end_time))
+    data = convert_data([equity, ldebt, prefer_stock], ['equity', 'ldebt', 'prefer_stock'])
+    data = data.groupby(level=0).apply(lambda x: x.sum(axis=0))
+    data = data / equity
+    data = data.loc[:, sorted(universe)]
+    assert check_indexorder(data), 'Error, data order is mixed!'
+    assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
+    return data
+
+
+blev = Factor('BLEV', get_blev, pd.to_datetime('2017-10-27'),
+              dependency=['PREFER_STOCK', 'EQUITY', 'TNCL'], desc='BARRA BLEV因子')
+# --------------------------------------------------------------------------------------------------
 
 
 factor_list = [ep_ttm, bp, sp_ttm, cfp_ttm, sale2ev, oprev_yoy, ni_yoy, ni_5yg, oprev_5yg,
                roe, roa, opprofit_margin, gross_margin, tato, current_ratio, threefee2sale,
                momentum_1m, momentum_3m, momentum_60m, conexp_dis, skew_1m, kurtosis_1m,
                ptvalue1week, beta, specialvol, uncons_instiholdingratio, all_instiholdingratio,
-               rstr, dstd, cmra]
+               rstr, dstd, cmra, mlev, blev, dtoa]
 check_duplicate_factorname(factor_list, __name__)
