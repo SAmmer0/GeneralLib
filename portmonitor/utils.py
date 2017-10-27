@@ -61,13 +61,15 @@ class MonitorConfig(object):
 
 # --------------------------------------------------------------------------------------------------
 # 日志设置
-logger = logging.getLogger(__name__.split('.')[0])
-logger.setLevel(logging.INFO)
-file_handle = logging.FileHandler(PORT_DATA_PATH + '\\update_log.log')
-file_handle.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s: %(message)s', '%Y-%m-%d %H:%M:%S')
-file_handle.setFormatter(formatter)
-logger.addHandler(file_handle)
+def set_logger():
+    logger = logging.getLogger(__name__.split('.')[0])
+    if not logger.handlers:     # 如果有处理函数了，表示当前的Logger已经被设置过
+        logger.setLevel(logging.INFO)
+        file_handle = logging.FileHandler(PORT_DATA_PATH + '\\update_log.log')
+        file_handle.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s: %(message)s', '%Y-%m-%d %H:%M:%S')
+        file_handle.setFormatter(formatter)
+        logger.addHandler(file_handle)
 # --------------------------------------------------------------------------------------------------
 # 函数
 

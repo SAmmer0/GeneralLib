@@ -22,12 +22,13 @@ from os import listdir, makedirs
 from os.path import join, exists
 import importlib
 from pdb import set_trace
+from logging import getLogger
 # 第三方模块
 import pandas as pd
 import numpy as np
 # 本地模块
 from portmonitor.const import PORT_DATA_PATH, PORT_CONFIG_PATH, CASH
-from portmonitor.utils import logger
+from portmonitor.utils import set_logger
 from datatoolkits import dump_pickle, load_pickle, isclose
 from factortest.utils import load_rebcalculator, FactorDataProvider
 from factortest.const import EQUAL_WEIGHTED, FLOATMKV_WEIGHTED, TOTALMKV_WEIGHTED
@@ -317,7 +318,7 @@ class MonitorManager(object):
     '''
 
     def __init__(self, ports_path=PORT_CONFIG_PATH, show_progress=True, log=True,
-                 monilogger=logger):
+                 monilogger=None):
         '''
         Parameter
         ---------
@@ -327,6 +328,8 @@ class MonitorManager(object):
             是否显示更新的流程
         log: boolean, default True
             是否写入日志，自动将日志写入到ports_path文件夹下，以update_log.log命名
+        monilogger: logging.Logger, default None
+            默认为None，即使用模块中定义的logger，否则使用提供的Logger
 
         Notes
         -----
@@ -339,7 +342,11 @@ class MonitorManager(object):
         self._port_config_files = [p for p in listdir(ports_path) if not p.startswith('_')]
         self._show_progress = show_progress
         self._log = log
-        self._logger = monilogger
+        if monilogger is None:
+            set_logger()
+            self._logger = getLogger(__name__.split()[0])
+        else:
+            self._logger = monilogger
 
     @staticmethod
     def _import_sources(file_path):

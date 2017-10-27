@@ -30,12 +30,20 @@ import pdb
 import time
 
 # 日志设置
-logger = logging.getLogger(__name__.split('.')[0])
-file_handle = logging.FileHandler(FACTOR_FILE_PATH + '\\update_log.log')
-file_handle.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s: %(message)s', '%Y-%m-%d %H:%M:%S')
-file_handle.setFormatter(formatter)
-logger.addHandler(file_handle)
+
+
+def set_logger():
+    '''
+    设置logger的相关信息，注意该函数只调用一次，以后都是用logging.getLogger获取
+    '''
+    logger = logging.getLogger(__name__.split('.')[0])
+    if not logger.handlers:
+        logger.setLevel(logging.INFO)
+        file_handle = logging.FileHandler(FACTOR_FILE_PATH + '\\update_log.log')
+        file_handle.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s: %(message)s', '%Y-%m-%d %H:%M:%S')
+        file_handle.setFormatter(formatter)
+        logger.addHandler(file_handle)
 
 
 def update_universe(path=UNIVERSE_FILE_PATH):
@@ -58,6 +66,7 @@ def update_universe(path=UNIVERSE_FILE_PATH):
     不能自行调用该函数用于获取universe，可能造成获取的universe与因子数据的universe不一致，
     获取当前的universe，使用fmanger.factors.utils.get_universe函数
     '''
+    logger = logging.getLogger(__name__.split()[0])
     new_universe = fdgetter.get_db_data(fdgetter.BASIC_SQLs['A_UNIVERSE'], cols=('code', ),
                                         add_stockcode=False)
     new_universe['code'] = new_universe.code.apply(datatoolkits.add_suffix)
@@ -178,6 +187,7 @@ def update_factor(factor_name, factor_dict, universe):
     out: boolean
         如果更新成功，返回True，反之返回False
     '''
+    logger = logging.getLogger(__name__.split()[0])
     assert factor_name in factor_dict, 'Error, invalid factor name({name})!'.format(
         name=factor_name)
     if not check_dependency(factor_name, factor_dict):  # 检查因子依赖是否满足
@@ -235,6 +245,7 @@ def update_all_factors(factor_dict, max_iter=300, order=None, show_progress=Fals
     '''
     if order is not None:
         raise NotImplementedError
+    logger = logging.getLogger(__name__.split()[0])
     iter_num = 0
     factor_queue = deque(sorted(factor_dict.keys()), maxlen=len(factor_dict))
     universe = update_universe()
@@ -275,6 +286,8 @@ def auto_update_all(max_iter=200, show_progress=False):
     show_progress: boolean, default False
         显示更新进度，默认为不显示
     '''
+    set_logger()
+    logger = logging.getLogger(__name__.split()[0])
     all_factors = get_factor_dict()
     gen_folders(all_factors)
     update_factordict()  # 每次更新前先更新因子字典
@@ -303,6 +316,8 @@ def gen_folders(fd):
 
 
 if __name__ == '__main__':
+    set_logger()
+    logger = logging.getLogger(__name__.split()[0])
     logger.info('-' * 10 + 'START UPDATING' + '-' * 10)
     now = dt.datetime.now()
     if now.hour < 19:
