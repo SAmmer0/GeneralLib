@@ -339,7 +339,7 @@ def get_recent_td(day):
 
 def tds_count(start_time, end_time):
     '''
-    获取给定时间段内的交易日的数量
+    获取给定时间段内的交易日的数量（包含首尾）
 
     Parameter
     ---------
@@ -365,12 +365,37 @@ def tds_shift(date, offset):
         锚定的开始往前推的时间
     offset: int
         期间至少需要包含的交易日的数量
+    
+    Return
+    ------
+    out: datetime like
+        返回的时间使得这个时间与参数date之间至少包含offset个交易日
     '''
     shift_days = int(offset / 20 * 31)
     date = pd.to_datetime(date)
     res = date - pd.Timedelta('30 day') - pd.Timedelta('%d day' % shift_days)
     return res
 
+def tds_pshift(date, offset):
+    '''
+    给定日期往前推移，使得返回的结果到当前这段时间内（包含首尾）一共包含offset个交易日，即如果收尾中有一个
+    不需要包含进去，则长度为offset
+
+    Parameter
+    ---------
+    date: datetime like
+        锚定的开始往前推的时间
+    offset: int
+        期间需要包含的交易日数量
+    
+    Return
+    ------
+    out: datetime like
+        返回的时间使得这个时间与参数date之间（包含首尾）恰好包含offset个交易日
+    '''
+    pre_date = tds_shift(date, offset)
+    tds = get_tds(pre_date, date)
+    return tds[-offset]
 
 if __name__ == '__main__':
     res = get_recent_td('2017-01-31')
