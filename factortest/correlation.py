@@ -11,6 +11,7 @@
 # 系统库文件
 from collections import namedtuple, OrderedDict
 import pdb
+from functools import reduce
 # 第三方库
 from scipy.stats import spearmanr
 from scipy.stats.mstats import winsorize
@@ -258,7 +259,7 @@ class FactorAutoCorrelation(FactorICTemplate):
 
 # --------------------------------------------------------------------------------------------------
 # 函数
-def fv_correlation(factors, start_time, end_time, freq=MONTHLY):
+def fv_correlation(factors, start_time, end_time, freq=MONTHLY, average=True):
     '''
     计算不同因子的因子值之间的相关系数矩阵
 
@@ -272,11 +273,13 @@ def fv_correlation(factors, start_time, end_time, freq=MONTHLY):
         计算相关系数矩阵的终止时间
     freq: str, default const.MONTHLY
         计算协方差矩阵的频率，目前只支持周度（WEEKLY）和月度（MONTHLY）
+    average: boolean, default True
+        是否返回相关系数矩阵平均后的值，默认进行平均的处理
 
     Return
     ------
-    out: OrderDict
-        key为计算的时间，value为相关系数矩阵
+    out: pd.DataFrame or OrderDict
+        如果average参数为True，则返回pd.DataFrame，反之返回OrderDict，key为计算的时间，value为相关系数矩阵
     '''
     rebs = load_rebcalculator(freq, start_time, end_time)
     datas = []
@@ -290,6 +293,8 @@ def fv_correlation(factors, start_time, end_time, freq=MONTHLY):
     for t in by_time.groups:
         tmp = by_time.get_group(t).reset_index(level=0, drop=True)
         out[t] = tmp.T.corr()
+    if average:
+        out = reduce(lambda x, y: x + y, out.values()) / len(out)
     return out
 
 
