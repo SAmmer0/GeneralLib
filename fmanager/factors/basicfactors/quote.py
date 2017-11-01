@@ -198,22 +198,34 @@ float_mktvalue = Factor('FLOAT_MKTVALUE', get_mktvalue('FLOAT_SHARE'), pd.to_dat
 # 后复权价格
 
 
-def get_adjclose(universe, start_time, end_time):
+def gen_adjprice(price_type):
     '''
-    获取后复权收盘价
+    用于生成计算后复权数据的函数
+
+    Parameter
+    ---------
+    price_type: string
+        使用的价格类型，要求为原始价格因子类型，目前支持['OPEN', 'CLOSE', 'HIGH', 'LOW']
     '''
-    adj_factor = query('ADJ_FACTOR', (start_time, end_time))
-    close_data = query('CLOSE', (start_time, end_time))
-    assert len(adj_factor) == len(close_data), "Error, basic data length does not  match! " + \
-        "adj_factor data = {sd_len}, while close data = {cd_len}".format(sd_len=len(adj_factor),
-                                                                         cd_len=len(close_data))
-    res = adj_factor * close_data
-    res = res.loc[:, sorted(universe)]
-    assert checkdata_completeness(res, start_time, end_time), "Error, data missed!"
-    return res
+    valids = ['OPEN', 'CLOSE', 'HIGH', 'LOW']
+    assert price_type in valids,\
+        ValueError('Invalid price type, valid types are {vld}, you provide {yp}'.
+                   format(vld=valids, yp=price_type))
+
+    def inner(universe, start_time, end_time):
+        adj_factor = query('ADJ_FACTOR', (start_time, end_time))
+        data = query(price_type, (start_time, end_time))
+        assert len(adj_factor) == len(data), "Error, basic data length does not  match! " + \
+            "adj_factor data = {sd_len}, while close data = {cd_len}".format(sd_len=len(adj_factor),
+                                                                             cd_len=len(data))
+        res = adj_factor * data
+        res = res.loc[:, sorted(universe)]
+        assert checkdata_completeness(res, start_time, end_time), "Error, data missed!"
+        return res
+    return inner
 
 
-adj_close = Factor('ADJ_CLOSE', get_adjclose, pd.to_datetime('2017-07-24'),
+adj_close = Factor('ADJ_CLOSE', gen_adjprice('CLOSE'), pd.to_datetime('2017-07-24'),
                    dependency=['CLOSE', 'ADJ_FACTOR'])
 
 # --------------------------------------------------------------------------------------------------
