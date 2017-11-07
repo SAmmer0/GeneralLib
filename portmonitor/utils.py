@@ -125,3 +125,29 @@ def factor_stockfilter_template(factor_name, group_id, group_num=5, stock_pool=N
         out = by_group_id.get_group(group_id).index.tolist()
         return out
     return stock_filter
+
+
+def query_data_bydate(date, data_msg):
+    '''
+    辅助函数，用于从数据库中获取给定日期的数据，并将数据聚合成一个pd.DataFrame
+
+    Parameter
+    ---------
+    date: datetime like
+        数据的日期
+    data_msg: dict
+        获取数据的相关信息，格式为{factor_name: col_name}，要求factor_name能在fmanager.list_allfactor()
+        中找到，col_name表示希望在返回的pd.DataFrame中对应数据的列名，其中factor_name和col_name的类型
+        都要求为string
+
+    Return
+    ------
+    out: pd.DataFrame
+        查询的数据
+    '''
+    datas = {}
+    for factor in data_msg:
+        factor_data = query(factor, date).iloc[0]
+        datas[data_msg[factor]] = factor_data
+    out = pd.DataFrame(datas)
+    return out
