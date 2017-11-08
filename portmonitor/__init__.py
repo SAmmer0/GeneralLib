@@ -11,4 +11,4 @@
 
 from portmonitor import const, manager, portreport, utils
 from portmonitor.manager import MonitorManager
-from portmonitor.portreport import Report
+from portmonitor.portreport import Report, parse_report, parse_monitor

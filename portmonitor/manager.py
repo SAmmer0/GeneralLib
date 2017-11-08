@@ -433,6 +433,18 @@ class MonitorManager(object):
         返回组合数据的迭代器
         '''
         return iter(self._container.keys())
+
+    def __len__(self):
+        '''
+        返回目前处于监控（已更新）的组合的数量
+        '''
+        return len(self._container)
+
+    def __bool__(self):
+        '''
+        返回当前监控管理器是否已经更新
+        '''
+        return bool(self._container)
 # --------------------------------------------------------------------------------------------------
 # 函数
 

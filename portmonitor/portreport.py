@@ -12,6 +12,7 @@
 # 第三方模块
 from numpy import nan
 import pandas as pd
+from pdb import set_trace
 # 本地模块
 from dateshandle import tds_shift, get_tds
 from factortest.utils import MonRebCalcu, WeekRebCalcu
@@ -59,14 +60,16 @@ def get_last_date(date, freq):
     return reb.reb_points[-2]
 
 
-def parse_report(rpt):
+def parse_report(rpt, col_order=None):
     '''
     将Report类中的结果转换为pd.DataFrame
 
     Parameter
     ---------
     rpt: Report
-        需要被解析的rpt对象
+        需要被解析的Report对象
+    col_order: list, default None
+        列项目的顺序，默认为None，表示使用默认顺序即[return, vol, mdd, mdd start, mdd end]
 
     Return
     ------
@@ -74,8 +77,37 @@ def parse_report(rpt):
         列分别为daily、weekly、monthly，行分别为return、vol、mdd
     '''
     res = pd.DataFrame({'daily': rpt.daily, 'weekly': rpt.weekly, 'monthly': rpt.monthly}).T
+    if col_order is None:
+        col_order = ['return', 'vol', 'mdd', 'mdd start', 'mdd end']
+    res = res.reindex(columns=col_order).reindex(index=['daily', 'weekly', 'monthly'])
+    # set_trace()
     return res
 
+
+def parse_monitor(monitor):
+    '''
+    解析MonitorManager对象，如果组合管理器还未更新，则先自动更新，然后返回更新后的日度、周度和月度
+    情况数据
+
+    Parameter
+    ---------
+    monitor: portmonitor.manager.MonitorManager
+        需要被解析的MonitorManager对象
+
+    Return
+    ------
+    out: pd.DataFrame
+        各个组合的日度、周度和月度结果，index是MultiIndex对象，level_0是组合名称，level_1是报告的频率，
+        columns为相关的报告数据
+    '''
+    if not monitor:  # 当前未更新
+        monitor.update_all()
+    out = pd.DataFrame()
+    for port in monitor:
+        df = parse_report(Report(monitor[port]))
+        df.index = pd.MultiIndex.from_product([[port], df.index])
+        out = out.append(df)
+    return out
 # --------------------------------------------------------------------------------------------------
 # 类
 
