@@ -125,10 +125,12 @@ __version__ = '1.10.5'
 import datetime as dt
 from math import sqrt
 import numpy as np
+from numpy.lib.stride_tricks import as_strided as strided
 import pandas as pd
 import pdb
 import pickle
 import statsmodels.api as sm
+
 # import six
 # import time     # for test
 from tqdm import tqdm
@@ -560,7 +562,7 @@ def demean(data, weight=None, skipna=True):
     return out
 
 
-def rolling_apply(df, func, period, min_period=None, show_progress=False, **kwargs):
+def rolling_apply(df, func, period, **kwargs):
     '''
     在移动窗口中进行计算的函数
     Parameter
@@ -568,13 +570,10 @@ def rolling_apply(df, func, period, min_period=None, show_progress=False, **kwar
     df: DataFrame
         需要进行滚动窗口计算的DataFrame
     func: function(df, **kwargs) -> value
-        要求函数必须以DataFrame为参数传入，且返回单一一个数值结果
+        要求函数必须以np.array为参数传入，且返回单一一个数值结果
     period: int
-        窗口长度
-    min_period: int
-        最小窗口长度，如果未给定，则与period给定的参数相同
-    show_progress: bool, default False
-        显示计算的进度
+        窗口长度，如果df的长度小于窗口长度，则返回值全部为np.nan，对于用于计算的数据量不够的情况，直接
+        返回np.nan
     kwargs: additional parameters
         用于提供给func的其他参数
 
@@ -583,25 +582,13 @@ def rolling_apply(df, func, period, min_period=None, show_progress=False, **kwar
     out: Series
         移动窗口计算后的结果，数值不足填充NA，索引与原来给定的df的索引相同
     '''
-    if min_period is None:
-        min_period = period
-    res = pd.Series(np.nan, index=df.index)
-    df = df.copy()
-    idx_range = range(1, len(df) + 1)
-    # 显示进度
-    if show_progress:
-        idx_range = zip(idx_range, tqdm(idx_range))
-    for idx in idx_range:
-        if show_progress:
-            i, _ = idx
-            # time.sleep(1)
-        else:
-            i = idx
-        tmp_df = df.iloc[max(0, i - period): i]
-        if len(tmp_df) >= min_period:
-            idx = tmp_df.index[-1]
-            res[idx] = func(tmp_df, **kwargs)
-    return res
+    a = df.values
+    s0, s1 = a.strides
+    m, n = a.shape
+    rolling_splited = strided(a, shape=(m - period + 1, period, n), strides=(s0, s0, s1))
+    out = np.array([func(rs, **kwargs) for rs in rolling_splited])
+    out = pd.Series(np.concatenate((np.full((period - 1,), np.nan), out)), index=df.index)
+    return out
 
 
 def orthogonalize_lstsq(a, b, weight=None):
