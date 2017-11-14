@@ -63,19 +63,12 @@ class ICCalculator(object):
             包含两个结果，IC和Rank IC，对于每个数据Index为升序排序后的换仓时间，数据为对应的IC值，
             最后一个换仓日没有对应的收益，值设置为NA，后续时间内，如果有股票退市，直接将其收益和因子值做剔除处理
         '''
-        def calc_IC(df):
+        def calc_IC(df, method):
             # pdb.set_trace()
             universe = df.iloc[2]
             f = df.iloc[1].loc[universe == 1]
             p = df.iloc[0].loc[universe == 1]
-            return f.corr(p)
-
-        def calc_RankIC(df):
-            df = df.dropna(axis=1)
-            universe = df.iloc[2]
-            f = df.iloc[1].loc[universe == 1]
-            p = df.iloc[0].loc[universe == 1]
-            return spearmanr(f, p).correlation
+            return f.corr(p, method=method)
 
         # 加载数据
         start_time = min(self._reb_dates)
@@ -95,8 +88,8 @@ class ICCalculator(object):
         merged_data = convert_data([factor_data, quote_data, universe_data],
                                    ['factor', 'quote', 'universe'])
         by_time = merged_data.groupby(level=0)
-        ic = by_time.apply(calc_IC)
-        rank_ic = by_time.apply(calc_RankIC)
+        ic = by_time.apply(calc_IC, method='pearson')
+        rank_ic = by_time.apply(calc_IC, method='spearman')
         ICAnalysisResult = namedtuple('ICAnalysisResult', ['IC', 'Rank_IC'])
         out = ICAnalysisResult(IC=ic, Rank_IC=rank_ic)
         return out
@@ -259,7 +252,7 @@ class FactorAutoCorrelation(FactorICTemplate):
 
 # --------------------------------------------------------------------------------------------------
 # 函数
-def fv_correlation(factors, start_time, end_time, freq=MONTHLY, average=True):
+def fv_correlation(factors, start_time, end_time, freq=MONTHLY, average=True, method='pearson'):
     '''
     计算不同因子的因子值之间的相关系数矩阵
 
@@ -275,6 +268,8 @@ def fv_correlation(factors, start_time, end_time, freq=MONTHLY, average=True):
         计算协方差矩阵的频率，目前只支持周度（WEEKLY）和月度（MONTHLY）
     average: boolean, default True
         是否返回相关系数矩阵平均后的值，默认进行平均的处理
+    method: string, default pearson
+        计算相关系数的方法，支持['pearson', 'spearman', 'kendall']
 
     Return
     ------
@@ -292,7 +287,7 @@ def fv_correlation(factors, start_time, end_time, freq=MONTHLY, average=True):
     out = OrderedDict()
     for t in by_time.groups:
         tmp = by_time.get_group(t).reset_index(level=0, drop=True)
-        out[t] = tmp.T.corr()
+        out[t] = tmp.T.corr(method=method)
     if average:
         out = reduce(lambda x, y: x + y, out.values()) / len(out)
     return out
