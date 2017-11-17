@@ -23,6 +23,7 @@ from os.path import join, exists
 import importlib
 from pdb import set_trace
 from logging import getLogger
+from copy import deepcopy
 # 第三方模块
 import pandas as pd
 import numpy as np
@@ -75,6 +76,10 @@ class PortfolioData(object):
 
     def __getstate__(self):
         return self.__dict__
+
+    def copy(self):
+        return PortfolioData(self.id, deepcopy(self.curholding), deepcopy(self.histholding),
+                             self.assetvalue_ts.copy())
 
 
 class PortfolioMoniData(object):
@@ -309,7 +314,7 @@ class PortfolioMoniData(object):
         '''
         返回只读的组合信息
         '''
-        return self._port_data
+        return self._port_data.copy()
 
 
 class MonitorManager(object):
