@@ -105,7 +105,7 @@ def get_endtime(t, threshold=18):
     ------
     out: dt.datetime or the like
     '''
-    if t.hour < 18:
+    if t.hour < threshold:
         out = t - dt.timedelta(1)
     else:
         out = t

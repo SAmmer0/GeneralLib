@@ -18,4 +18,6 @@ from fmanager.factors.query import query
 from fmanager.factors.utils import get_universe
 from fmanager.update import (auto_update_all,
                              update_universe,
-                             auto_update_all)
+                             auto_update_all,
+                             set_logger)
+set_logger()
