@@ -88,7 +88,7 @@ class RTMonitor(object):
         '''
         定时更新时触发
         '''
-        cur_time = dt.datetime.now().time
+        cur_time = dt.datetime.now().time()
         rt_nav = {}
         for port_id in self._moni_target:
             rt_nav[port_id] = self._moni_target[port_id].refresh()
@@ -97,6 +97,7 @@ class RTMonitor(object):
     def start(self):
         '''
         启动监控
+        开市前、收市后、午休时间需要处理
         '''
         while True:
             try:
@@ -141,7 +142,9 @@ class PrintLatestDisplayer(Displayer):
         self._printer = pprint
 
     def show(self, rt_moni):
-        self._printer(rt_moni.rtdata[-1])
+        # set_trace()
+        self._printer(rt_moni.rtdata[-1].time.strftime('%H:%M:%S'))
+        self._printer(rt_moni.rtdata[-1].data)
 
 
 if __name__ == '__main__':

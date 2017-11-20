@@ -102,7 +102,7 @@ class PortfolioMoniData(object):
         self._quote_cache = None
         self._port_data = None
         self._reb_calculator = None
-        self._today = get_endtime(datetime.now())
+        self._today = get_endtime(datetime.now(), threshold=20)
         self._load_data()
 
     def _load_data(self):
