@@ -29,7 +29,7 @@ class MonitorConfig(object):
     '''
 
     def __init__(self, stock_filter, add_time, port_id, weight_method=TOTALMKV_WEIGHTED,
-                 rebalance_type=MONTHLY, init_cap=1e10, port_type=LONG):
+                 rebalance_type=MONTHLY, init_cap=1e10, port_type=LONG, desc=''):
         '''
         Parameter
         ---------
@@ -49,6 +49,8 @@ class MonitorConfig(object):
             初始的资本金
         port_type: str, default LONG
             组合的类型，目前支持LONG（做多）, SHORT（做空）
+        desc: str, default ''
+            组合相关描述
         '''
         self.stock_filter = stock_filter
         self.weight_method = weight_method
