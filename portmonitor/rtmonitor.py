@@ -19,7 +19,7 @@ from tushare import get_realtime_quotes
 import numpy as np
 
 from datatoolkits import drop_suffix
-from portmonitor.const import CASH
+from portmonitor.const import CASH, MONING_START, MONING_END, NOON_START, NOON_END
 
 # --------------------------------------------------------------------------------------------------
 # 实时行情刷新类
@@ -48,6 +48,11 @@ class PortfolioRefresher(object):
     def refresh(self):
         '''
         从tushare获取最新的行情数据，并计算最新的组合价值
+
+        Return
+        ------
+        out: float
+            返回当前组合的最新价值（净值）
         '''
         quote = get_realtime_quotes(self._port_holding.index.tolist())
         quote = quote.set_index('code').price.apply(np.float)
@@ -67,32 +72,34 @@ class RTMonitor(object):
     实时监控管理类，添加需要实时监控的实例，并对实例进行统一更新、展示
     '''
 
-    def __init__(self, monitor_manager, displayer, freq=2):
+    def __init__(self, port_data, displayer, freq=2):
         '''
         Parameter
         ---------
-        monitor_manager:  portmonitor.manager.MonitorManager
-            包含需要被监控的组合的组合管理器
+        port_data:  portmonitor.manager.PortfolioData
+            包含需要被监控的组合的组合数据
         displayer: Displayer
             用于展示数据的方法，要求必须要有show方法，传入参数为RTMonitor对象
         freq: int, default 2
             实时更新的间隔（秒），要求为正整数
         '''
-        self._moni_target = {port_id: PortfolioRefresher(monitor_manager[port_id])
-                             for port_id in monitor_manager}
+        self._moni_target = PortfolioRefresher(port_data)
         self._displayer = displayer
         self._freq = freq
         self.rtdata = list()    # 存储实时的组合数据，格式为[RTData(time, {port_id: nav}), ...]
 
-    def update(self):
+    def _update(self):
         '''
         定时更新时触发
         '''
-        cur_time = dt.datetime.now().time()
-        rt_nav = {}
-        for port_id in self._moni_target:
-            rt_nav[port_id] = self._moni_target[port_id].refresh()
-        self.rtdata.append(RTData(cur_time, rt_nav))
+        rt_nav = self._moni_target.refresh()
+        self.rtdata.append(RTData(self._now, rt_nav))
+
+    def _update_time(self):
+        '''
+        更新当前时间
+        '''
+        self._now = dt.datetime.now().time()
 
     def start(self):
         '''
@@ -101,11 +108,34 @@ class RTMonitor(object):
         '''
         while True:
             try:
-                self.update()
+                self._update_time()
+                self._check_rest()
+                self._update()
                 self._displayer.show(self)
                 sleep(self._freq)
             except KeyboardInterrupt:
                 return
+
+    def _check_rest(self):
+        '''
+        检查当前是否在休市，如果处于休市期间，则自动休息，直至开市或者被KeyboardInterrupt打断
+        '''
+        sleep_gap = 10  # 每个休息间歇为30秒
+
+        def __rest(to_time):
+            print('盘中休息至{}'.format(to_time))
+            while True:
+                self._update_time()
+                if self._now >= to_time:
+                    return
+                sleep(sleep_gap)
+        if self._now < MONING_START:
+            __rest(MONING_START)
+        if MONING_END < self._now < NOON_START:
+            __rest(NOON_START)
+        if self._now > NOON_END:
+            print("当前已休市")
+            raise KeyboardInterrupt
 
 # --------------------------------------------------------------------------------------------------
 # 展示类
@@ -138,18 +168,17 @@ class PrintLatestDisplayer(Displayer):
     '''
 
     def __init__(self):
-        from pprint import pprint
-        self._printer = pprint
+        self._printer = print
 
     def show(self, rt_moni):
         # set_trace()
         self._printer(rt_moni.rtdata[-1].time.strftime('%H:%M:%S'))
-        self._printer(rt_moni.rtdata[-1].data)
+        self._printer('%.4f' % rt_moni.rtdata[-1].data)
 
 
 if __name__ == '__main__':
     from portmonitor import MonitorManager
     monitor = MonitorManager(show_progress=False)
     monitor.update_all()
-    rtmonitor = RTMonitor(monitor, PrintLatestDisplayer())
+    rtmonitor = RTMonitor(monitor['SPECIAL_VOL_LOW'], PrintLatestDisplayer())
     rtmonitor.start()

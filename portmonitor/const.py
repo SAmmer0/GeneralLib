@@ -6,6 +6,7 @@
 # @Version : $Id$
 # 系统模块
 from os.path import dirname
+from datetime import time
 
 # 本地模块
 import sysconfiglee
@@ -26,3 +27,11 @@ CASH = 'CASH'
 
 # 报告频率
 DAILY = 'daily'
+
+
+# 开交易时间段
+MONING_START = time(9, 30)
+MONING_END = time(11, 30)
+
+NOON_START = time(13)
+NOON_END = time(15)
