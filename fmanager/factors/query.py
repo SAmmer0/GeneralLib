@@ -56,7 +56,7 @@ def query(factor_name, time, codes=None, fillna=None):
         raise ValueError('Dictionary file needs initialization...')
     assert factor_name in factor_dict, \
         'Error, factor name "{pname}" is'.format(pname=factor_name) +\
-        ' not valid, valid names are {vnames}'.format(vnames=list(factor_dict.keys()))
+        ' not valid, valid names are {vnames}'.format(vnames=sorted(factor_dict.keys()))
     abs_path = factor_dict[factor_name]
     db = database.DBConnector(abs_path)
     data = db.query(time, codes)
