@@ -681,8 +681,19 @@ def get_beta(universe, start_time, end_time):
         for i in range(N):
             data_x = x.values[i: i + 1]
             data_y = y.values[i: i + 1]
-            last_xy = last_xy + np.dot(data_x.T, data_y)
-            last_xx = last_xx + np.dot(data_x.T, data_x)
+            xy = np.dot(data_x.T, data_y)
+            xx = np.dot(data_x.T, data_x)
+            # 如果只有部分数据是NA，则也会导致后面无法算出beat从而产生BUG
+            # 但是考虑到x一般是基准指数，不太会在中途出现NA值，而y是当前股票收益，也不太会中途出现NA值
+            # 而且如果y为NA值，则xy全部都为NA值，因而不需要担心上述可能的BUG
+            if np.all(np.isnan(last_xx)) and not np.all(np.isnan(xx)):  # 识别第一个有效X'X，并用其重置last_xx
+                last_xx = xx
+            else:
+                last_xx = last_xx + np.dot(data_x.T, data_x)
+            if np.all(np.isnan(last_xy)) and not np.all(np.isnan(xx)):
+                last_xy = xy
+            else:
+                last_xy = last_xy + np.dot(data_x.T, data_y)
             cum_xy.append(last_xy)
             cum_xx.append(last_xx)
         # pdb.set_trace()
@@ -744,8 +755,19 @@ def get_specialvol(universe, start_time, end_time):
         for i in range(N):
             data_x = x.values[i: i + 1]
             data_y = y.values[i: i + 1]
-            last_xy = last_xy + np.dot(data_x.T, data_y)
-            last_xx = last_xx + np.dot(data_x.T, data_x)
+            xy = np.dot(data_x.T, data_y)
+            xx = np.dot(data_x.T, data_x)
+            # 如果只有部分数据是NA，则也会导致后面无法算出beat从而产生BUG
+            # 但是考虑到x一般是基准指数，不太会在中途出现NA值，而y是当前股票收益，也不太会中途出现NA值
+            # 而且如果y为NA值，则xy全部都为NA值，因而不需要担心上述可能的BUG
+            if np.all(np.isnan(last_xx)) and not np.all(np.isnan(xx)):  # 识别第一个有效X'X，并用其重置last_xx
+                last_xx = xx
+            else:
+                last_xx = last_xx + np.dot(data_x.T, data_x)
+            if np.all(np.isnan(last_xy)) and not np.all(np.isnan(xx)):
+                last_xy = xy
+            else:
+                last_xy = last_xy + np.dot(data_x.T, data_y)
             cum_xy.append(last_xy)
             cum_xx.append(last_xx)
         # pdb.set_trace()
@@ -1040,3 +1062,9 @@ factor_list = [ep_ttm, bp, sp_ttm, cfp_ttm, sale2ev, oprev_yoy, ni_yoy, ni_5yg, 
                ptvalue1week, beta, specialvol, uncons_instiholdingratio, all_instiholdingratio,
                rstr, dstd, cmra, mlev, blev, dtoa]
 check_duplicate_factorname(factor_list, __name__)
+
+
+if __name__ == '__main__':
+    from fmanager import get_universe
+    universe = get_universe()
+    beta_data = beta.calc_method(universe, '2007-01-01', '2009-01-01')
