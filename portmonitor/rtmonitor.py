@@ -173,12 +173,12 @@ class PrintLatestDisplayer(Displayer):
     def show(self, rt_moni):
         # set_trace()
         self._printer(rt_moni.rtdata[-1].time.strftime('%H:%M:%S'))
-        self._printer('%.4f' % rt_moni.rtdata[-1].data)
+        self._printer('{:.2%}'.format(1 - rt_moni.rtdata[-1].data))
 
 
 if __name__ == '__main__':
     from portmonitor import MonitorManager
     monitor = MonitorManager(show_progress=False)
     monitor.update_all()
-    rtmonitor = RTMonitor(monitor['SPECIAL_VOL_LOW'], PrintLatestDisplayer())
+    rtmonitor = RTMonitor(monitor['BIG_CAP'], PrintLatestDisplayer())
     rtmonitor.start()
