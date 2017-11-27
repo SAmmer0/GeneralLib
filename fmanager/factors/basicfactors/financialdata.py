@@ -95,7 +95,12 @@ def get_TTM(fd_type, sql_type):
         M.SecuCategory = 1 AND
         S.BulletinType != 10 AND
         S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
-        S.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
+        S.InfoPublDate <= CAST(\'{end_time}\' AS datetime) AND
+        S.EndDate >= (SELECT TOP(1) S2.CHANGEDATE
+                      FROM LC_ListStatus S2
+                      WHERE
+                          S2.INNERCODE = M.INNERCODE AND
+                          S2.ChangeType = 1)
     ORDER BY M.SecuCode ASC, S.InfoPublDate ASC
         '''.replace('data', fd_type).replace('sql_type', sql_type)
 
@@ -165,7 +170,12 @@ def get_BS_latest(fd_type):
         S.BulletinType != 10 AND
         S.IfMerged = 1 AND
         S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
-        S.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
+        S.InfoPublDate <= CAST(\'{end_time}\' AS datetime) AND
+        S.EndDate >= (SELECT TOP(1) S2.CHANGEDATE
+                      FROM LC_ListStatus S2
+                      WHERE
+                          S2.INNERCODE = M.INNERCODE AND
+                          S2.ChangeType = 1)
     ORDER BY M.SecuCode ASC, S.InfoPublDate ASC
     '''.replace('data_type', fd_type)
 
@@ -245,7 +255,12 @@ def get_season_nshift(data_type, sql_type, n):
         M.SecuCategory = 1 AND
         S.BulletinType != 10 AND
         S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
-        S.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
+        S.InfoPublDate <= CAST(\'{end_time}\' AS datetime) AND
+        S.EndDate >= (SELECT TOP(1) S2.CHANGEDATE
+                      FROM LC_ListStatus S2
+                      WHERE
+                          S2.INNERCODE = M.INNERCODE AND
+                          S2.ChangeType = 1)
     ORDER BY M.SecuCode ASC, S.InfoPublDate ASC
     '''
     sql = sql_template.replace('data', data_type).replace('sql_type', sql_type)
@@ -318,13 +333,19 @@ def get_year_nshift(data_type, sql_type, n):
         S.BulletinType != 10 AND
         S.IfMerged = 1 AND
         S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
-        S.InfoPublDate <= CAST(\'{end_time}\' AS datetime)
+        S.InfoPublDate <= CAST(\'{end_time}\' AS datetime) AND
+        S.EndDate >= (SELECT TOP(1) S2.CHANGEDATE
+                      FROM LC_ListStatus S2
+                      WHERE
+                          S2.INNERCODE = M.INNERCODE AND
+                          S2.ChangeType = 1)
     ORDER BY M.SecuCode ASC, S.InfoPublDate ASC
     '''
     sql = sql_template.replace('data', data_type).replace('sql_type', sql_type)
 
     def _inner(universe, start_time, end_time):
         offset = 366 * n + 180
+        # pdb.set_trace()
         new_start = pd.to_datetime(start_time) - pd.Timedelta('%d day' % offset)
         data = fdgetter.get_db_data(sql, start_time=new_start, end_time=end_time,
                                     cols=('update_time', 'rpt_date', 'code', 'data'),
