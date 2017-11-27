@@ -140,7 +140,7 @@ def get_shares(share_type):
     母函数，用于生成获取给定类型股本的函数
     '''
     sql = '''
-        SELECT S.share_type, S.EndDate, M.SecuCode
+        SELECT S.share_type, S.EndDate, S.InfoPublDate, M.SecuCode
         FROM SecuMain M, LC_ShareStru S
         WHERE M.CompanyCode = S.CompanyCode AND
             M.SecuMarket in (83, 90) AND
@@ -149,8 +149,12 @@ def get_shares(share_type):
     transed_sql = sql.replace('share_type', share_type)
 
     def _inner(universe, start_time, end_time):
-        data = fdgetter.get_db_data(transed_sql, cols=('data', 'time', 'code'), add_stockcode=False)
+        data = fdgetter.get_db_data(transed_sql, cols=('data', 'end_time', 'publ_time', 'code'),
+                                    add_stockcode=False)
         data['code'] = data.code.apply(datatoolkits.add_suffix)
+        data['time'] = data.publ_time.fillna(data.end_time)
+        data = data.drop(['end_time', 'publ_time'], axis=1).drop_duplicates(['code', 'time']).\
+            sort_values(['code', 'time'])   # 此处假设若时间相同则股本数量相同
         by_code = data.groupby('code')
         tds = dateshandle.get_tds(start_time, end_time)
         data = by_code.apply(datatoolkits.map_data, days=tds, fromNowOn=True,
