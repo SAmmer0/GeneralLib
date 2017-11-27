@@ -450,7 +450,7 @@ def gen_skfunc(days, func_name):
         data = query('DAILY_RET', (new_start, end_time))
         rolling = data.rolling(days, min_periods=days)
         data = getattr(rolling, func_name)()
-        data = data.dropna(how='all')
+        # data = data.dropna(how='all')
         mask = (data.index >= start_time) & (data.index <= end_time)
         data = data.loc[mask, sorted(universe)]
         if start_time > pd.to_datetime(START_TIME):     # 第一次更新从START_TIME开始，必然会有缺失数据
