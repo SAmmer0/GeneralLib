@@ -23,6 +23,7 @@ import pdb
 from fmanager.database import NaS
 from fmanager.factors.utils import (Factor, ZXIND_TRANS_DICT, check_duplicate_factorname,
                                     checkdata_completeness)
+from fmanager.const import START_TIME
 
 # --------------------------------------------------------------------------------------------------
 # 常量和功能函数
@@ -187,7 +188,8 @@ def get_iconstituents(index_code):
     获取指定时间内的数据，需要将给定的开始日期玩前推一段时间（两个月）
     '''
     def _inner(universe, start_time, end_time):
-        nstart_time = pd.to_datetime(start_time) - pd.Timedelta('60 days')
+        start_time = pd.to_datetime(start_time)
+        nstart_time = start_time - pd.Timedelta('60 days')
         data = fdgetter.get_db_data(fdgetter.BASIC_SQLs['INDEX_CONSTITUENTS'], code=index_code,
                                     cols=('code', 'time'), add_stockcode=False,
                                     start_time=nstart_time, end_time=end_time)
@@ -199,7 +201,9 @@ def get_iconstituents(index_code):
         data = datatoolkits.map_data(data, days=tds, fromNowOn=True)
         data = data.set_index('time').dropna(axis=0, how='all')
         data = data.loc[(data.index >= start_time) & (data.index <= end_time)]
-        assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
+        # pdb.set_trace()
+        if start_time > pd.to_datetime(START_TIME):
+            assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
         return data
     return _inner
 
