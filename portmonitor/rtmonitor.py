@@ -83,6 +83,7 @@ class RTMonitor(object):
         freq: int, default 2
             实时更新的间隔（秒），要求为正整数
         '''
+        self.id_ = port_data.id
         self._moni_target = PortfolioRefresher(port_data)
         self._displayer = displayer
         self._freq = freq
@@ -109,9 +110,9 @@ class RTMonitor(object):
         while True:
             try:
                 self._update_time()
-                self._check_rest()
                 self._update()
                 self._displayer.show(self)
+                self._check_rest()
                 sleep(self._freq)
             except KeyboardInterrupt:
                 return
@@ -172,7 +173,7 @@ class PrintLatestDisplayer(Displayer):
 
     def show(self, rt_moni):
         # set_trace()
-        self._printer(rt_moni.rtdata[-1].time.strftime('%H:%M:%S'))
+        self._printer(rt_moni.rtdata[-1].time.strftime('%H:%M:%S') + ' ' + rt_moni.id_)
         self._printer('{:.2%}'.format(rt_moni.rtdata[-1].data - 1))
 
 
@@ -180,5 +181,5 @@ if __name__ == '__main__':
     from portmonitor import MonitorManager
     monitor = MonitorManager(show_progress=False)
     monitor.update_all()
-    rtmonitor = RTMonitor(monitor['BIG_CAP'], PrintLatestDisplayer())
+    rtmonitor = RTMonitor(monitor['LOW_STOQ'], PrintLatestDisplayer())
     rtmonitor.start()
