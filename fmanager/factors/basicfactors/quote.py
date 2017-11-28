@@ -144,7 +144,12 @@ def get_shares(share_type):
         FROM SecuMain M, LC_ShareStru S
         WHERE M.CompanyCode = S.CompanyCode AND
             M.SecuMarket in (83, 90) AND
-            M.SecuCategory = 1
+            M.SecuCategory = 1  AND
+            S.EndDate >= (SELECT TOP(1) S2.CHANGEDATE
+                          FROM LC_ListStatus S2
+                          WHERE
+                              S2.INNERCODE = M.INNERCODE AND
+                              S2.ChangeType = 1)
         '''
     transed_sql = sql.replace('share_type', share_type)
 
