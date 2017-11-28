@@ -5,3 +5,4 @@
 # @Link    : https://github.com/SAmmer0
 # @Version : $Id$
 from fmanager.factors import utils, basicfactors, derivativefactors, query, dictionary
+from fmanager.factors import deptree

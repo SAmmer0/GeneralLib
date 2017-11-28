@@ -20,4 +20,7 @@ from fmanager.update import (auto_update_all,
                              update_universe,
                              auto_update_all,
                              set_logger)
+from fmanager.factors.deptree import build_dependency_tree, dependency_order, Node
+
+
 set_logger()
