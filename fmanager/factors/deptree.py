@@ -190,6 +190,30 @@ def dependency_order(tree=None):
     return out
 
 
+def has_dependency_on(onto, factor_dict=None):
+    '''
+    检查对于给定因子具有依赖关系，其他因子。即，对于给定的因子，将找出factor_dict中对于该给定因子
+    具有依赖的所有因子
+
+    Parameter
+    ---------
+    onto: string
+        被依赖的因子
+    factor_dict: dict, default None
+        因子字典，需要包含给定的被依赖因子
+
+    Return
+    ------
+    out: list
+        从factor_dict中找出的对给定因子具有依赖的所有因子
+    '''
+    if factor_dict is None:
+        factor_dict = get_factor_dict()
+    dep_tree = build_dependency_tree(factor_dict)
+    out = [n.name for n in dep_tree if n.has_descendant_str(onto)]
+    return out
+
+
 if __name__ == '__main__':
     dep_tree = build_dependency_tree()
     fd = get_factor_dict()
@@ -203,3 +227,4 @@ if __name__ == '__main__':
         assert fd_dep == dep
     print('test passes')
     order = dependency_order(dep_tree)
+    on_ts = has_dependency_on('TOTAL_SHARE')
