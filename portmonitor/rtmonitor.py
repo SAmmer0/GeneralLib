@@ -17,12 +17,10 @@ import datetime as dt
 import pandas as pd
 from tushare import get_realtime_quotes
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 
 
 from datatoolkits import drop_suffix
-from portmonitor.const import CASH, MONING_START, MONING_END, NOON_START, NOON_END
+from portmonitor.const import CASH
 
 # --------------------------------------------------------------------------------------------------
 # 实时行情刷新类
@@ -98,7 +96,8 @@ class RestChecker(object, metaclass=ABCMeta):
             periods = [((9, 30), (11, 30)), ((13, 0), (15, 0))]
         today = dt.datetime.now().date()
 
-        def format_time(x): return dt.datetime.combine(today, dt.time(*x))
+        def format_time(x):
+            return dt.datetime.combine(today, dt.time(*x))
         self._periods = [(format_time(t[0]), format_time(t[1])) for t in periods]
         self._index = 0
 
@@ -151,8 +150,8 @@ class Displayer(object, metaclass=ABCMeta):
             （其实这个地方可以要求参数为PortfolioRefresh列表，用于实时显示多个数据，可以考虑使用继承
             的方法来对其进行修改）
             （之所以要使用PortfolioRefresh是为了获取对应数据的ID）
-        rest_checker: callable
-            用于检查当前是否是休市期间（后续将建立一个RestChecker类型，用于检查）
+        rest_checker: RestChecker
+            用于检查当前是否是休市期间
         freq: float, default 2
             数据更新频率，默认为2秒
         '''
@@ -170,6 +169,27 @@ class Displayer(object, metaclass=ABCMeta):
         '''
         pass
 
+    def _rest_check(self):
+        '''
+        检查当前是否休市，如果休市则自动设置休眠，如果整天交易已经结束，会raise KeyboardInterrupt
+        '''
+        sleep_gap = 2   # 两个交易时间段之间休市时，按照分段时间进行休眠，防止无法中途停止
+        is_resting, to_time = self._rest_checker()
+        if is_resting:  # 当前处于休市时间
+            if to_time is None:  # 表示当天全部交易已经结束
+                print("当天已休市")
+                raise KeyboardInterrupt
+            # 交易期间休市
+            now = dt.datetime.now()
+            print("日内休市")
+            while True:
+                now = dt.datetime.now()
+                if now >= to_time:
+                    return
+                sleep(sleep_gap)
+        else:   # 防止数据更新过于频繁
+            sleep(self._freq)
+
 
 class PrintDisplayer(Displayer):
     '''
@@ -182,17 +202,51 @@ class PrintDisplayer(Displayer):
                 data_time, data = next(self._data_source())
                 print(data_time.strftime('%H:%M:%S'), " ", self._id)
                 print('{:.2%}'.format(data - 1))
-                is_resting, to_time = self._rest_checker()
-                if is_resting:  # 当前处于休市时间
-                    if to_time is None:  # 表示当天全部交易已经结束
-                        print("当天已休市")
-                        return
-                    now = dt.datetime.now()
-                    rest_seconds = (to_time - now).second()
-                    print("日内休市")
-                    sleep(rest_seconds)
-                else:
-                    sleep(self._freq)
+                self._rest_check()
+            except KeyboardInterrupt:
+                return
+
+
+class MultiPrintDisplayer(Displayer):
+    '''
+    多数据显示
+    '''
+
+    def __init__(self, rt_data_sources, rest_checker=None, freq=2):
+        '''
+        Parameter
+        ---------
+        rt_data_sources: dict
+            key为refresher的ID，value为PortfolioRefresh类型
+        rest_checker: RestChecker
+            用于检查当前是否处于休市期间
+        freq: float, default 2
+            数据更新频率
+        '''
+        self._data_sources = rt_data_sources
+        if rest_checker is None:
+            rest_checker = RestChecker()
+        self._rest_checker = rest_checker
+        self._freq = freq
+
+    def show(self):
+        '''
+        显示多个组合的实时数据
+        '''
+        from tabulate import tabulate
+        table = []
+        header = ['Portfolio', 'Time', 'Chg']
+        data_sources = self._data_sources
+        while True:
+            try:
+                for port_id in sorted(data_sources.keys()):    # 获取行情数据，并更新表格
+                    data_time, data = next(data_sources[port_id]())
+                    cur_row = [port_id, data_time.strftime('%H:%M:%S'), '{:.2%}'.format(data - 1)]
+                    table.append(cur_row)
+                print(tabulate(table, headers=header))
+                print('\n')
+                table = []
+                self._rest_check()
             except KeyboardInterrupt:
                 return
 
@@ -210,6 +264,7 @@ if __name__ == '__main__':
     from portmonitor import MonitorManager
     monitor = MonitorManager(show_progress=False)
     monitor.update_all()
-    refresher = PortfolioRefresher(monitor['TEST'])
-    rtmonitor = PrintDisplayer(refresher)
-    rtmonitor.show()
+    refreshers = {port_id: PortfolioRefresher(monitor[port_id])
+                  for port_id in monitor}
+    displayer = MultiPrintDisplayer(refreshers)
+    displayer.show()
