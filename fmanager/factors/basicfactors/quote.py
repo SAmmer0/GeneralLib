@@ -40,6 +40,7 @@ def get_factor_dict():
     return res
 
 
+factor_list = []
 # --------------------------------------------------------------------------------------------------
 # 获取行情相关数据
 
@@ -83,21 +84,21 @@ def get_quote(data_type):
 
 
 # 收盘价
-close_price = Factor('CLOSE', get_quote('ClosePrice'), pd.to_datetime('2017-07-20'))
+factor_list.append(Factor('CLOSE', get_quote('ClosePrice'), pd.to_datetime('2017-07-20')))
 # 开盘价
-open_price = Factor('OPEN', get_quote('OpenPrice'), pd.to_datetime('2017-07-20'))
+factor_list.append(Factor('OPEN', get_quote('OpenPrice'), pd.to_datetime('2017-07-20')))
 # 最高价
-high_price = Factor('HIGH', get_quote('HighPrice'), pd.to_datetime('2017-07-20'))
+factor_list.append(Factor('HIGH', get_quote('HighPrice'), pd.to_datetime('2017-07-20')))
 # 最低价
-low_price = Factor('LOW', get_quote('LowPrice'), pd.to_datetime('2017-07-20'))
+factor_list.append(Factor('LOW', get_quote('LowPrice'), pd.to_datetime('2017-07-20')))
 # 成交量
-to_volume = Factor('TO_VOLUME', get_quote('TurnoverVolume'), pd.to_datetime('2017-07-20'),
-                   desc='单位为股')
+factor_list.append(Factor('TO_VOLUME', get_quote('TurnoverVolume'), pd.to_datetime('2017-07-20'),
+                          desc='单位为股'))
 # 成交额
-to_value = Factor('TO_VALUE', get_quote('TurnoverValue'), pd.to_datetime('2017-07-20'),
-                  desc='单位为元')
+factor_list.append(Factor('TO_VALUE', get_quote('TurnoverValue'), pd.to_datetime('2017-07-20'),
+                          desc='单位为元'))
 
-prev_close = Factor('PREV_CLOSE', get_quote('PrevClosePrice'), pd.to_datetime('2017-10-19'))
+factor_list.append(Factor('PREV_CLOSE', get_quote('PrevClosePrice'), pd.to_datetime('2017-10-19')))
 
 # --------------------------------------------------------------------------------------------------
 # 复权因子
@@ -130,7 +131,7 @@ def get_adjfactor(universe, start_time, end_time):
     return data
 
 
-adj_factor = Factor('ADJ_FACTOR', get_adjfactor, pd.to_datetime('2017-07-21'))
+factor_list.append(Factor('ADJ_FACTOR', get_adjfactor, pd.to_datetime('2017-07-21')))
 # --------------------------------------------------------------------------------------------------
 # 股本
 
@@ -174,9 +175,10 @@ def get_shares(share_type):
 
 
 # 流通股本
-float_shares = Factor('FLOAT_SHARE', get_shares('NonResiSharesJY'), pd.to_datetime('2017-07-21'))
+factor_list.append(Factor('FLOAT_SHARE', get_shares('NonResiSharesJY'),
+                          pd.to_datetime('2017-07-21')))
 # 总股本
-total_shares = Factor('TOTAL_SHARE', get_shares('TotalShares'), pd.to_datetime('2017-07-21'))
+factor_list.append(Factor('TOTAL_SHARE', get_shares('TotalShares'), pd.to_datetime('2017-07-21')))
 # --------------------------------------------------------------------------------------------------
 # 股票市值：包含总市值和流通市值
 
@@ -198,10 +200,10 @@ def get_mktvalue(share_factor_name):
     return _inner
 
 
-total_mktvalue = Factor('TOTAL_MKTVALUE', get_mktvalue('TOTAL_SHARE'), pd.to_datetime('2017-07-24'),
-                        desc="使用收盘价计算", dependency=['TOTAL_SHARE', 'CLOSE'])
-float_mktvalue = Factor('FLOAT_MKTVALUE', get_mktvalue('FLOAT_SHARE'), pd.to_datetime('2017-07-24'),
-                        desc="使用收盘价计算", dependency=['FLOAT_SHARE', 'CLOSE'])
+factor_list.append(Factor('TOTAL_MKTVALUE', get_mktvalue('TOTAL_SHARE'), pd.to_datetime('2017-07-24'),
+                          desc="使用收盘价计算", dependency=['TOTAL_SHARE', 'CLOSE']))
+factor_list.append(Factor('FLOAT_MKTVALUE', get_mktvalue('FLOAT_SHARE'), pd.to_datetime('2017-07-24'),
+                          desc="使用收盘价计算", dependency=['FLOAT_SHARE', 'CLOSE']))
 
 # --------------------------------------------------------------------------------------------------
 # 后复权价格
@@ -234,8 +236,8 @@ def gen_adjprice(price_type):
     return inner
 
 
-adj_close = Factor('ADJ_CLOSE', gen_adjprice('CLOSE'), pd.to_datetime('2017-07-24'),
-                   dependency=['CLOSE', 'ADJ_FACTOR'])
+factor_list.append(Factor('ADJ_CLOSE', gen_adjprice('CLOSE'), pd.to_datetime('2017-07-24'),
+                          dependency=['CLOSE', 'ADJ_FACTOR']))
 
 # --------------------------------------------------------------------------------------------------
 # 日收益率
@@ -254,8 +256,8 @@ def get_dailyret(universe, start_time, end_time):
     return data
 
 
-daily_ret = Factor('DAILY_RET', get_dailyret, pd.to_datetime('2017-07-24'),
-                   dependency=['ADJ_CLOSE'])
+factor_list.append(Factor('DAILY_RET', get_dailyret, pd.to_datetime('2017-07-24'),
+                          dependency=['ADJ_CLOSE']))
 # --------------------------------------------------------------------------------------------------
 # 换手率
 
@@ -272,8 +274,8 @@ def get_torate(universe, start_time, end_time):
     return res
 
 
-to_rate = Factor('TO_RATE', get_torate, pd.to_datetime('2017-07-24'),
-                 dependency=['TO_VOLUME', 'FLOAT_SHARE'])
+factor_list.append(Factor('TO_RATE', get_torate, pd.to_datetime('2017-07-24'),
+                          dependency=['TO_VOLUME', 'FLOAT_SHARE']))
 
 
 # 过去一个月日均换手率
@@ -292,8 +294,8 @@ def get_avgtorate(universe, start_time, end_time):
     return data
 
 
-avg_torate = Factor('TOAVG_1M', get_avgtorate, pd.to_datetime('2017-08-02'),
-                    dependency=['TO_RATE'], desc='过去一个月（20交易日）日均换手率')
+factor_list.append(Factor('TOAVG_1M', get_avgtorate, pd.to_datetime('2017-08-02'),
+                          dependency=['TO_RATE'], desc='过去一个月（20交易日）日均换手率'))
 
 
 def get_sto(category):
@@ -331,12 +333,12 @@ def get_sto(category):
     return inner
 
 
-barra_stom = Factor('STOM', get_sto('STOM'), pd.to_datetime('2017-10-27'),
-                    dependency=['TO_RATE'], desc='BARRA STOM月换手率因子')
-barra_stoq = Factor('STOQ', get_sto('STOQ'), pd.to_datetime('2017-10-27'),
-                    dependency=['TO_RATE'], desc='BARRA STOQ季度换手率因子')
-barra_stoa = Factor('STOA', get_sto('STOA'), pd.to_datetime('2017-10-27'),
-                    dependency=['TO_RATE'], desc='BARRA STOA年度换手率因子')
+factor_list.append(Factor('STOM', get_sto('STOM'), pd.to_datetime('2017-10-27'),
+                          dependency=['TO_RATE'], desc='BARRA STOM月换手率因子'))
+factor_list.append(Factor('STOQ', get_sto('STOQ'), pd.to_datetime('2017-10-27'),
+                          dependency=['TO_RATE'], desc='BARRA STOQ季度换手率因子'))
+factor_list.append(Factor('STOA', get_sto('STOA'), pd.to_datetime('2017-10-27'),
+                          dependency=['TO_RATE'], desc='BARRA STOA年度换手率因子'))
 
 # --------------------------------------------------------------------------------------------------
 # 对数市值
@@ -384,12 +386,12 @@ def get_nonlinearmktv(universe, start_time, end_time):
     return data
 
 
-ln_flmv = Factor('LN_FMKV', get_lnfloatmktv, pd.to_datetime('2017-08-02'),
-                 dependency=['FLOAT_MKTVALUE'], desc='对数流通市值')
-ln_tmktv = Factor('LN_TMKV', get_lntotalmktv, pd.to_datetime('2017-10-17'),
-                  dependency=['TOTAL_MKTVALUE'], desc='对数总市值')
-nlsize = Factor('NLSIZE', get_nonlinearmktv, pd.to_datetime('2017-10-19'),
-                dependency=['LN_TMKV'], desc='非线性市值')
+factor_list.append(Factor('LN_FMKV', get_lnfloatmktv, pd.to_datetime('2017-08-02'),
+                          dependency=['FLOAT_MKTVALUE'], desc='对数流通市值'))
+factor_list.append(Factor('LN_TMKV', get_lntotalmktv, pd.to_datetime('2017-10-17'),
+                          dependency=['TOTAL_MKTVALUE'], desc='对数总市值'))
+factor_list.append(Factor('NLSIZE', get_nonlinearmktv, pd.to_datetime('2017-10-19'),
+                          dependency=['LN_TMKV'], desc='非线性市值'))
 # --------------------------------------------------------------------------------------------------
 # 指数行情
 
@@ -427,24 +429,21 @@ def gen_indexquotegetter(index_code):
 
 
 # 上证综指
-SSEC = Factor('SSEC_CLOSE', gen_indexquotegetter('000001'), pd.to_datetime('2017-08-14'),
-              desc='上证综指收盘价')
+factor_list.append(Factor('SSEC_CLOSE', gen_indexquotegetter('000001'), pd.to_datetime('2017-08-14'),
+                          desc='上证综指收盘价'))
 # 上证50
-SSE50 = Factor('SSE50_CLOSE', gen_indexquotegetter('000016'), pd.to_datetime('2017-08-14'),
-               desc='上证50收盘价')
+factor_list.append(Factor('SSE50_CLOSE', gen_indexquotegetter('000016'), pd.to_datetime('2017-08-14'),
+                          desc='上证50收盘价'))
 # 中证500
-CS500 = Factor('CS500_CLOSE', gen_indexquotegetter('000905'), pd.to_datetime('2017-08-14'),
-               desc='中证500收盘价')
+factor_list.append(Factor('CS500_CLOSE', gen_indexquotegetter('000905'), pd.to_datetime('2017-08-14'),
+                          desc='中证500收盘价'))
 # 沪深300
-SSZ300 = Factor('SSZ300_CLOSE', gen_indexquotegetter('000300'), pd.to_datetime('2017-08-14'),
-                desc='沪深300收盘价')
+factor_list.append(Factor('SSZ300_CLOSE', gen_indexquotegetter('000300'), pd.to_datetime('2017-08-14'),
+                          desc='沪深300收盘价'))
 # 中证全指
-CSI985 = Factor('CSI985_CLOSE', gen_indexquotegetter('000985'), pd.to_datetime('2017-08-14'),
-                desc='中证全指收盘价')
+factor_list.append(Factor('CSI985_CLOSE', gen_indexquotegetter('000985'), pd.to_datetime('2017-08-14'),
+                          desc='中证全指收盘价'))
 # --------------------------------------------------------------------------------------------------
 
-factor_list = [close_price, open_price, high_price, low_price, to_value, to_volume, adj_factor,
-               float_shares, total_shares, total_mktvalue, float_mktvalue, adj_close,
-               daily_ret, to_rate, ln_flmv, ln_tmktv, avg_torate, SSEC, SSE50, CS500, SSZ300,
-               CSI985, nlsize, prev_close, barra_stoa, barra_stom, barra_stoq]
+
 check_duplicate_factorname(factor_list, __name__)

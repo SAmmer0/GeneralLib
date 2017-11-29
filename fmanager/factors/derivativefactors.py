@@ -41,9 +41,12 @@ def get_factor_dict():
     return res
 
 
+factor_list = []
 # --------------------------------------------------------------------------------------------------
 # 价值类因子
 # EP_TTM
+
+
 def get_ep(universe, start_time, end_time):
     '''
     EP为净利润与总市值的比
@@ -57,8 +60,8 @@ def get_ep(universe, start_time, end_time):
     return ep
 
 
-ep_ttm = Factor('EP_TTM', get_ep, pd.to_datetime('2017-07-27'),
-                dependency=['NI_TTM', 'TOTAL_MKTVALUE'], desc='净利润/总市值计算得到')
+factor_list.append(Factor('EP_TTM', get_ep, pd.to_datetime('2017-07-27'),
+                          dependency=['NI_TTM', 'TOTAL_MKTVALUE'], desc='净利润/总市值计算得到'))
 
 # BP_TTM
 
@@ -76,8 +79,8 @@ def get_bp(universe, start_time, end_time):
     return bp
 
 
-bp = Factor('BP', get_bp, pd.to_datetime('2017-07-27'),
-            dependency=['EQUITY', 'TOTAL_MKTVALUE'], desc='最新的归属母公司权益/总市值')
+factor_list.append(Factor('BP', get_bp, pd.to_datetime('2017-07-27'),
+                          dependency=['EQUITY', 'TOTAL_MKTVALUE'], desc='最新的归属母公司权益/总市值'))
 
 # SP_TTM
 
@@ -95,8 +98,8 @@ def get_sp(universe, start_time, end_time):
     return sp
 
 
-sp_ttm = Factor('SP_TTM', get_sp, pd.to_datetime('2017-07-27'),
-                dependency=['OPREV_TTM', 'TOTAL_MKTVALUE'], desc='营业收入/总市值')
+factor_list.append(Factor('SP_TTM', get_sp, pd.to_datetime('2017-07-27'),
+                          dependency=['OPREV_TTM', 'TOTAL_MKTVALUE'], desc='营业收入/总市值'))
 
 # CFP_TTM
 
@@ -114,8 +117,8 @@ def get_cfp(universe, start_time, end_time):
     return cfp
 
 
-cfp_ttm = Factor('CFP_TTM', get_cfp, pd.to_datetime('2017-07-27'),
-                 dependency=['OPNETCF_TTM', 'TOTAL_MKTVALUE'], desc='经营活动中现金流净额/总市值')
+factor_list.append(Factor('CFP_TTM', get_cfp, pd.to_datetime('2017-07-27'),
+                          dependency=['OPNETCF_TTM', 'TOTAL_MKTVALUE'], desc='经营活动中现金流净额/总市值'))
 
 # SALE2EV
 
@@ -135,9 +138,9 @@ def get_sale2ev(universe, start_time, end_time):
     return data
 
 
-sale2ev = Factor('SALE2EV', get_sale2ev, pd.to_datetime('2017-07-27'),
-                 dependency=['OPREV_TTM', 'TOTAL_MKTVALUE', 'TNCL', 'CASH'],
-                 desc='营业收入/(总市值+非流动负债合计-货币资金)')
+factor_list.append(Factor('SALE2EV', get_sale2ev, pd.to_datetime('2017-07-27'),
+                          dependency=['OPREV_TTM', 'TOTAL_MKTVALUE', 'TNCL', 'CASH'],
+                          desc='营业收入/(总市值+非流动负债合计-货币资金)'))
 # --------------------------------------------------------------------------------------------------
 # 成长类因子
 # 单季度营业收入同比增长
@@ -156,9 +159,9 @@ def get_oprev_yoy(universe, start_time, end_time):
     return data
 
 
-oprev_yoy = Factor('OPREV_YOY', get_oprev_yoy, pd.to_datetime('2017-07-27'),
-                   dependency=['OPREV_1S', 'OPREV_5S'],
-                   desc='(本季度营业收入-上年同季度营业收入)/abs(上年同季度营业收入)')
+factor_list.append(Factor('OPREV_YOY', get_oprev_yoy, pd.to_datetime('2017-07-27'),
+                          dependency=['OPREV_1S', 'OPREV_5S'],
+                          desc='(本季度营业收入-上年同季度营业收入)/abs(上年同季度营业收入)'))
 # 单季度净利润同比增长
 
 
@@ -175,9 +178,9 @@ def get_ni_yoy(universe, start_time, end_time):
     return data
 
 
-ni_yoy = Factor('NI_YOY', get_ni_yoy, pd.to_datetime('2017-07-27'),
-                dependency=['NI_1S', 'NI_5S'],
-                desc='(本季度净利润-上年同季度净利润)/abs(上年同季度净利润)')
+factor_list.append(Factor('NI_YOY', get_ni_yoy, pd.to_datetime('2017-07-27'),
+                          dependency=['NI_1S', 'NI_5S'],
+                          desc='(本季度净利润-上年同季度净利润)/abs(上年同季度净利润)'))
 
 # 过去5年增长率
 
@@ -222,11 +225,11 @@ def get_p5ygrowth(factor_type):
 
 
 # 净利润过去5年增长率
-ni_5yg = Factor('NI_5YG', get_p5ygrowth('NI'), pd.to_datetime('2017-07-28'),
-                dependency=['NI_%dY' % i for i in range(1, 6)])
+factor_list.append(Factor('NI_5YG', get_p5ygrowth('NI'), pd.to_datetime('2017-07-28'),
+                          dependency=['NI_%dY' % i for i in range(1, 6)]))
 # 营业收入过去5年增长率
-oprev_5yg = Factor('OPREV_5YG', get_p5ygrowth('OPREV'), pd.to_datetime('2017-07-28'),
-                   dependency=['OPREV_%dY' % i for i in range(1, 6)])
+factor_list.append(Factor('OPREV_5YG', get_p5ygrowth('OPREV'), pd.to_datetime('2017-07-28'),
+                          dependency=['OPREV_%dY' % i for i in range(1, 6)]))
 
 # --------------------------------------------------------------------------------------------------
 # 质量类因子
@@ -246,8 +249,8 @@ def get_roe(universe, start_time, end_time):
     return data
 
 
-roe = Factor('ROE', get_roe, pd.to_datetime('2017-07-28'),
-             dependency=['NI_TTM', 'EQUITY'], desc='净利润TTM/归属母公司权益')
+factor_list.append(Factor('ROE', get_roe, pd.to_datetime('2017-07-28'),
+                          dependency=['NI_TTM', 'EQUITY'], desc='净利润TTM/归属母公司权益'))
 # ROA
 
 
@@ -264,8 +267,8 @@ def get_roa(universe, start_time, end_time):
     return data
 
 
-roa = Factor('ROA', get_roa, pd.to_datetime('2017-07-28'),
-             dependency=['NI_TTM', 'TA'], desc='净利润TTM/总资产')
+factor_list.append(Factor('ROA', get_roa, pd.to_datetime('2017-07-28'),
+                          dependency=['NI_TTM', 'TA'], desc='净利润TTM/总资产'))
 
 # 营业利润率
 
@@ -286,10 +289,10 @@ def get_opprofitmargin(universe, start_time, end_time):
     return data
 
 
-opprofit_margin = Factor('OPPROFIT_MARGIN', get_opprofitmargin, pd.to_datetime('2017-07-28'),
-                         dependency=['OPREV_TTM', 'OPCOST_TTM', 'OPEXP_TTM', 'ADMINEXP_TTM',
-                                     'FIEXP_TTM'],
-                         desc='营业利润率 = (营业收入-营业成本-销售费用-管理费用-财务费用) / abs(营业收入)')
+factor_list.append(Factor('OPPROFIT_MARGIN', get_opprofitmargin, pd.to_datetime('2017-07-28'),
+                          dependency=['OPREV_TTM', 'OPCOST_TTM', 'OPEXP_TTM', 'ADMINEXP_TTM',
+                                      'FIEXP_TTM'],
+                          desc='营业利润率 = (营业收入-营业成本-销售费用-管理费用-财务费用) / abs(营业收入)'))
 
 # 毛利率
 
@@ -307,9 +310,9 @@ def get_grossmargin(universe, start_time, end_time):
     return data
 
 
-gross_margin = Factor('GROSS_MARGIN', get_grossmargin, pd.to_datetime('2017-07-31'),
-                      dependency=['OPREV_TTM', 'OPCOST_TTM'],
-                      desc='毛利率 = (营业收入 - 营业成本) / abs(营业收入)')
+factor_list.append(Factor('GROSS_MARGIN', get_grossmargin, pd.to_datetime('2017-07-31'),
+                          dependency=['OPREV_TTM', 'OPCOST_TTM'],
+                          desc='毛利率 = (营业收入 - 营业成本) / abs(营业收入)'))
 
 # 资产周转率
 
@@ -327,8 +330,8 @@ def get_tato(universe, start_time, end_time):
     return data
 
 
-tato = Factor('TATO', get_tato, pd.to_datetime('2017-07-31'),
-              dependency=['OPREV_TTM', 'TA'], desc='营业收入TTM / 最新总资产')
+factor_list.append(Factor('TATO', get_tato, pd.to_datetime('2017-07-31'),
+                          dependency=['OPREV_TTM', 'TA'], desc='营业收入TTM / 最新总资产'))
 
 # 流动比率
 
@@ -346,8 +349,8 @@ def get_currentratio(universe, start_time, end_time):
     return data
 
 
-current_ratio = Factor('CURRENT_RATIO', get_currentratio, pd.to_datetime('2017-07-31'),
-                       dependency=['TCA', 'TCL'], desc='流动比率 = 流动资产 / 流动负债')
+factor_list.append(Factor('CURRENT_RATIO', get_currentratio, pd.to_datetime('2017-07-31'),
+                          dependency=['TCA', 'TCL'], desc='流动比率 = 流动资产 / 流动负债'))
 
 # 现金流净额与营业利润比
 
@@ -365,9 +368,9 @@ def get_nopcf2opprofit(universe, start_time, end_time):
     return data
 
 
-opnetcf2opprofit = Factor('OPNETCF2OPPROFIT', get_nopcf2opprofit, pd.to_datetime('2017-07-31'),
+factor_list.append(Factor('OPNETCF2OPPROFIT', get_nopcf2opprofit, pd.to_datetime('2017-07-31'),
                           dependency=['OPNETCF_TTM', 'OPPROFIT_TTM'],
-                          desc='经营活动中产生的现金流净额TTM / 营业利润TTM')
+                          desc='经营活动中产生的现金流净额TTM / 营业利润TTM'))
 
 # 三费（财务费、管理费、销售费用）占销售比例
 
@@ -387,9 +390,9 @@ def get_3fee2sale(universe, start_time, end_time):
     return data
 
 
-threefee2sale = Factor('FEE2SALE', get_3fee2sale, pd.to_datetime('2017-07-31'),
-                       dependency=['OPREV_TTM', 'OPEXP_TTM', 'ADMINEXP_TTM', 'FIEXP_TTM'],
-                       desc='(销售费用TTM+管理费用TTM+财务费用TTM) / abs(营业收入)')
+factor_list.append(Factor('FEE2SALE', get_3fee2sale, pd.to_datetime('2017-07-31'),
+                          dependency=['OPREV_TTM', 'OPEXP_TTM', 'ADMINEXP_TTM', 'FIEXP_TTM'],
+                          desc='(销售费用TTM+管理费用TTM+财务费用TTM) / abs(营业收入)'))
 # --------------------------------------------------------------------------------------------------
 # 动量因子
 
@@ -419,14 +422,14 @@ def get_momentum(days):
 
 
 # 1月动量，假设一个月有20个交易日
-momentum_1m = Factor('MOM_1M', get_momentum(20), pd.to_datetime('2017-07-31'),
-                     dependency=['ADJ_CLOSE'])
+factor_list.append(Factor('MOM_1M', get_momentum(20), pd.to_datetime('2017-07-31'),
+                          dependency=['ADJ_CLOSE']))
 # 3月动量
-momentum_3m = Factor('MOM_3M', get_momentum(60), pd.to_datetime('2017-07-31'),
-                     dependency=['ADJ_CLOSE'])
+factor_list.append(Factor('MOM_3M', get_momentum(60), pd.to_datetime('2017-07-31'),
+                          dependency=['ADJ_CLOSE']))
 # 60个月动量
-momentum_60m = Factor('MOM_60M', get_momentum(1200), pd.to_datetime('2017-07-31'),
-                      dependency=['ADJ_CLOSE'])
+factor_list.append(Factor('MOM_60M', get_momentum(1200), pd.to_datetime('2017-07-31'),
+                          dependency=['ADJ_CLOSE']))
 # --------------------------------------------------------------------------------------------------
 # 偏度峰度因子
 # 偏度
@@ -459,10 +462,10 @@ def gen_skfunc(days, func_name):
     return _inner
 
 
-skew_1m = Factor('SKEW_1M', gen_skfunc(20, 'skew'), pd.to_datetime('2017-08-02'),
-                 dependency=['DAILY_RET'], desc='过去20个交易日收益率的skew')
-kurtosis_1m = Factor('KURTOSIS_1M', gen_skfunc(20, 'kurt'), pd.to_datetime('2017-08-02'),
-                     dependency=['DAILY_RET'], desc='过去20个交易日收益率的kurtosis')
+factor_list.append(Factor('SKEW_1M', gen_skfunc(20, 'skew'), pd.to_datetime('2017-08-02'),
+                          dependency=['DAILY_RET'], desc='过去20个交易日收益率的skew'))
+factor_list.append(Factor('KURTOSIS_1M', gen_skfunc(20, 'kurt'), pd.to_datetime('2017-08-02'),
+                          dependency=['DAILY_RET'], desc='过去20个交易日收益率的kurtosis'))
 # --------------------------------------------------------------------------------------------------
 # 一致预期价格距离因子
 
@@ -480,9 +483,9 @@ def get_conexpprice(universe, start_time, end_time):
     return data
 
 
-conexp_dis = Factor('CONEXP_DIS', get_conexpprice, pd.to_datetime('2017-08-04'),
-                    dependency=['TARGET_PRICE', 'CLOSE'],
-                    desc="一致预期价格距离因子 = 一致预期目标价（在other因子模块中） / close - 1")
+factor_list.append(Factor('CONEXP_DIS', get_conexpprice, pd.to_datetime('2017-08-04'),
+                          dependency=['TARGET_PRICE', 'CLOSE'],
+                          desc="一致预期价格距离因子 = 一致预期目标价（在other因子模块中） / close - 1"))
 # --------------------------------------------------------------------------------------------------
 # 前景理论因子
 
@@ -651,9 +654,9 @@ def get_prospectfactor1wer(universe, start_time, end_time):
     return data
 
 
-ptvalue1week = Factor('PT_VALUE_1W', get_prospectfactor1w, pd.to_datetime('2017-08-16'),
-                      dependency=['ADJ_CLOSE'],
-                      desc='前景理论因子（周频数据计算）')
+factor_list.append(Factor('PT_VALUE_1W', get_prospectfactor1w, pd.to_datetime('2017-08-16'),
+                          dependency=['ADJ_CLOSE'],
+                          desc='前景理论因子（周频数据计算）'))
 # ptvalue1weeker = Factor('PT_VALUE_1WER', get_prospectfactor1wer, pd.to_datetime('2017-10-09'),
 #                         dependency=['ADJ_CLOSE', 'SSEC_CLOSE'], desc='前景理论因子（周频超额收益计算）')
 # --------------------------------------------------------------------------------------------------
@@ -729,8 +732,8 @@ def get_beta(universe, start_time, end_time):
     return data
 
 
-beta = Factor('BETA', get_beta, pd.to_datetime('2017-09-04'),
-              dependency=['ADJ_CLOSE', 'SSEC_CLOSE'], desc='252交易日滚动beta系数')
+factor_list.append(Factor('BETA', get_beta, pd.to_datetime('2017-09-04'),
+                          dependency=['ADJ_CLOSE', 'SSEC_CLOSE'], desc='252交易日滚动beta系数'))
 
 
 # 特质波动率因子
@@ -809,8 +812,8 @@ def get_specialvol(universe, start_time, end_time):
     return data
 
 
-specialvol = Factor('SPECIAL_VOL', get_specialvol, pd.to_datetime('2017-09-05'),
-                    dependency=['ADJ_CLOSE', 'SSEC_CLOSE'], desc='特质波动率')
+factor_list.append(Factor('SPECIAL_VOL', get_specialvol, pd.to_datetime('2017-09-05'),
+                          dependency=['ADJ_CLOSE', 'SSEC_CLOSE'], desc='特质波动率'))
 
 # --------------------------------------------------------------------------------------------------
 # 机构持有比例
@@ -876,10 +879,10 @@ def get_institutions_holding(data_category):
 #     return data
 
 
-uncons_instiholdingratio = Factor('UNCONS_INSTIHOLDING_RATIO', get_institutions_holding('unconstrained'),
-                                  pd.to_datetime('2017-10-13'), desc='机构非限售流通A股机构持有比例')
-all_instiholdingratio = Factor('ALL_INSTIHOLDING_RATIO', get_institutions_holding('all'),
-                               pd.to_datetime('2017-10-13'), desc='机构持有的A股比例')
+factor_list.append(Factor('UNCONS_INSTIHOLDING_RATIO', get_institutions_holding('unconstrained'),
+                          pd.to_datetime('2017-10-13'), desc='机构非限售流通A股机构持有比例'))
+factor_list.append(Factor('ALL_INSTIHOLDING_RATIO', get_institutions_holding('all'),
+                          pd.to_datetime('2017-10-13'), desc='机构持有的A股比例'))
 # cons_instiholdingratio = Factor('CONS_INSTIHOLDING_RATIO', get_constrained_ihr,
 #                                 pd.to_datetime('2017-10-13'),
 #                                 dependency=['UNCONS_INSTIHOLDING_RATIO', 'ALL_INSTIHOLDING_RATIO'],
@@ -917,8 +920,8 @@ def get_rstr(universe, start_time, end_time):
     return data
 
 
-rstr = Factor('RSTR', get_rstr, pd.to_datetime('2017-10-17'), dependency=['DAILY_RET'],
-              desc='BARRA RSTR因子')
+factor_list.append(Factor('RSTR', get_rstr, pd.to_datetime('2017-10-17'), dependency=['DAILY_RET'],
+                          desc='BARRA RSTR因子'))
 # --------------------------------------------------------------------------------------------------
 # 日波动率
 
@@ -947,8 +950,8 @@ def get_dstd(universe, start_time, end_time):
     return data
 
 
-dstd = Factor('DSTD', get_dstd, pd.to_datetime('2017-10-17'), dependency=['DAILY_RET'],
-              desc='BARRA DSTD因子')
+factor_list.append(Factor('DSTD', get_dstd, pd.to_datetime('2017-10-17'), dependency=['DAILY_RET'],
+                          desc='BARRA DSTD因子'))
 # --------------------------------------------------------------------------------------------------
 # BARRA CMRA
 
@@ -990,8 +993,8 @@ def get_cmra(universe, start_time, end_time):
     return data
 
 
-cmra = Factor('CMRA', get_cmra, pd.to_datetime('2017-10-19'),
-              dependency=['ADJ_CLOSE'], desc='BARRA CMRA因子')
+factor_list.append(Factor('CMRA', get_cmra, pd.to_datetime('2017-10-19'),
+                          dependency=['ADJ_CLOSE'], desc='BARRA CMRA因子'))
 # --------------------------------------------------------------------------------------------------
 # BARRA LEVERAGE
 
@@ -1012,8 +1015,8 @@ def get_mlev(universe, start_time, end_time):
     return data
 
 
-mlev = Factor('MLEV', get_mlev, pd.to_datetime('2017-10-27'),
-              dependency=['TOTAL_MKTVALUE', 'TNCL', 'PREFER_STOCK'], desc='BARRA MLEV因子')
+factor_list.append(Factor('MLEV', get_mlev, pd.to_datetime('2017-10-27'),
+                          dependency=['TOTAL_MKTVALUE', 'TNCL', 'PREFER_STOCK'], desc='BARRA MLEV因子'))
 
 
 def get_dtoa(universe, start_time, end_time):
@@ -1031,8 +1034,8 @@ def get_dtoa(universe, start_time, end_time):
     return data
 
 
-dtoa = Factor('DTOA', get_dtoa, pd.to_datetime('2017-10-27'),
-              dependency=['TA', 'TNCL', 'TCL'], desc='BARRA DTOA因子')
+factor_list.append(Factor('DTOA', get_dtoa, pd.to_datetime('2017-10-27'),
+                          dependency=['TA', 'TNCL', 'TCL'], desc='BARRA DTOA因子'))
 
 
 def get_blev(universe, start_time, end_time):
@@ -1051,20 +1054,13 @@ def get_blev(universe, start_time, end_time):
     return data
 
 
-blev = Factor('BLEV', get_blev, pd.to_datetime('2017-10-27'),
-              dependency=['PREFER_STOCK', 'EQUITY', 'TNCL'], desc='BARRA BLEV因子')
+factor_list.append(Factor('BLEV', get_blev, pd.to_datetime('2017-10-27'),
+                          dependency=['PREFER_STOCK', 'EQUITY', 'TNCL'], desc='BARRA BLEV因子'))
 # --------------------------------------------------------------------------------------------------
 
 
-factor_list = [ep_ttm, bp, sp_ttm, cfp_ttm, sale2ev, oprev_yoy, ni_yoy, ni_5yg, oprev_5yg,
-               roe, roa, opprofit_margin, gross_margin, tato, current_ratio, threefee2sale,
-               momentum_1m, momentum_3m, momentum_60m, conexp_dis, skew_1m, kurtosis_1m,
-               ptvalue1week, beta, specialvol, uncons_instiholdingratio, all_instiholdingratio,
-               rstr, dstd, cmra, mlev, blev, dtoa]
 check_duplicate_factorname(factor_list, __name__)
 
 
 if __name__ == '__main__':
-    from fmanager import get_universe
-    universe = get_universe()
-    beta_data = beta.calc_method(universe, '2007-01-01', '2009-01-01')
+    pass

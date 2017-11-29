@@ -35,6 +35,9 @@ def get_factor_dict():
     for f in factor_list:
         res[f.name] = {'rel_path': NAME + '\\' + f.name, 'factor': f}
     return res
+
+
+factor_list = []
 # --------------------------------------------------------------------------------------------------
 # 中信行业因子
 
@@ -59,7 +62,7 @@ def get_zxind(universe, start_time, end_time):
     return ind_data
 
 
-zx_ind_factor = Factor('ZX_IND', get_zxind, pd.to_datetime('2017-07-13'), data_type='S30')
+factor_list.append(Factor('ZX_IND', get_zxind, pd.to_datetime('2017-07-13'), data_type='S30'))
 
 # --------------------------------------------------------------------------------------------------
 # 上市状态因子，1表示正常上市，2表示暂停上市，3表示退市整理，4表示终止上市
@@ -89,8 +92,8 @@ def get_liststatus(universe, start_time, end_time):
     return ls_data
 
 
-ls_factor = Factor('LIST_STATUS', get_liststatus, pd.to_datetime('2017-07-14'),
-                   desc='1表示正常上市，2表示暂停上市，3表示退市整理，4表示终止上市')
+factor_list.append(Factor('LIST_STATUS', get_liststatus, pd.to_datetime('2017-07-14'),
+                          desc='1表示正常上市，2表示暂停上市，3表示退市整理，4表示终止上市'))
 # --------------------------------------------------------------------------------------------------
 # 特殊处理，0表示正常，1表示ST，2表示*ST，3表示退市整理，4表示高风险警示，5表示PT
 
@@ -139,8 +142,8 @@ def get_st(universe, start_time, end_time):
     return st_data
 
 
-st_factor = Factor('ST_TAG', get_st, pd.to_datetime('2017-07-15'),
-                   desc='0表示正常，1表示ST，2表示*ST，3表示退市整理，4表示高风险警示，5表示PT')
+factor_list.append(Factor('ST_TAG', get_st, pd.to_datetime('2017-07-15'),
+                          desc='0表示正常，1表示ST，2表示*ST，3表示退市整理，4表示高风险警示，5表示PT'))
 # --------------------------------------------------------------------------------------------------
 # 交易状态，区分股票是否能够交易（目前考虑的不能交易的状况为停牌，且停牌的时间超过1个完整的
 # 交易日，对于日内停牌不超过一个交易日的，视为正常交易日），实现中采用成交量来衡量是否可以交易
@@ -176,8 +179,8 @@ def get_tradeable(universe, start_time, end_time):
     return data
 
 
-tradeable_factor = Factor('TRADEABLE', get_tradeable, pd.to_datetime('2017-7-17'),
-                          desc='0视为不能交易，1表示正常交易，NA表示为上市或者退市')
+factor_list.append(Factor('TRADEABLE', get_tradeable, pd.to_datetime('2017-7-17'),
+                          desc='0视为不能交易，1表示正常交易，NA表示为上市或者退市'))
 # --------------------------------------------------------------------------------------------------
 # 获取指数成份股，1表示是成份，NA表示不是成分
 
@@ -215,10 +218,9 @@ get_IC_constituents = get_iconstituents('000905')
 # 沪深300
 get_IF_constituents = get_iconstituents('000300')
 
-IH_constituents = Factor('IH_CONS', get_IH_constituents, pd.to_datetime('2017-07-18'))
-IC_constituents = Factor('IC_CONS', get_IC_constituents, pd.to_datetime('2017-07-18'))
-IF_constituents = Factor('IF_CONS', get_IF_constituents, pd.to_datetime('2017-07-18'))
+factor_list.append(Factor('IH_CONS', get_IH_constituents, pd.to_datetime('2017-07-18')))
+factor_list.append(Factor('IC_CONS', get_IC_constituents, pd.to_datetime('2017-07-18')))
+factor_list.append(Factor('IF_CONS', get_IF_constituents, pd.to_datetime('2017-07-18')))
 # --------------------------------------------------------------------------------------------------
-factor_list = [zx_ind_factor, ls_factor, st_factor, tradeable_factor, IH_constituents,
-               IC_constituents, IF_constituents]
+
 check_duplicate_factorname(factor_list, __name__)

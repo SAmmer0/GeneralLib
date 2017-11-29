@@ -34,6 +34,9 @@ def get_factor_dict():
     return res
 
 
+factor_list = []
+
+
 def _handle_dbdata(data, start_time, end_time, func, **kwargs):
     '''
     将从数据库中获取的数据映射到交易日中
@@ -130,29 +133,29 @@ def get_TTM(fd_type, sql_type):
 
 
 # 净利润TTM
-ni_ttm = Factor('NI_TTM', get_TTM('NPFromParentCompanyOwners', 'IS'), pd.to_datetime('2017-07-25'),
-                desc='净利润TTM')
+factor_list.append(Factor('NI_TTM', get_TTM('NPFromParentCompanyOwners', 'IS'), pd.to_datetime('2017-07-25'),
+                          desc='净利润TTM'))
 # 营业收入TTM
-oprev_ttm = Factor('OPREV_TTM', get_TTM('OperatingRevenue', 'IS'), pd.to_datetime('2017-07-25'),
-                   desc='营业收入TTM')
+factor_list.append(Factor('OPREV_TTM', get_TTM('OperatingRevenue', 'IS'), pd.to_datetime('2017-07-25'),
+                          desc='营业收入TTM'))
 # 营业利润TTM
-opprofit_ttm = Factor('OPPROFIT_TTM', get_TTM('OperatingProfit', 'IS'),
-                      pd.to_datetime('2017-07-25'), desc='营业利润TTM')
+factor_list.append(Factor('OPPROFIT_TTM', get_TTM('OperatingProfit', 'IS'),
+                          pd.to_datetime('2017-07-25'), desc='营业利润TTM'))
 # 销售费用TTM
-opexp_ttm = Factor('OPEXP_TTM', get_TTM('OperatingExpense', 'IS'), pd.to_datetime('2017-07-25'),
-                   desc='销售费用TTM')
+factor_list.append(Factor('OPEXP_TTM', get_TTM('OperatingExpense', 'IS'), pd.to_datetime('2017-07-25'),
+                          desc='销售费用TTM'))
 # 管理费用TTM
-adminexp_ttm = Factor('ADMINEXP_TTM', get_TTM('AdministrationExpense', 'IS'),
-                      pd.to_datetime('2017-07-25'), desc='管理费用TTM')
+factor_list.append(Factor('ADMINEXP_TTM', get_TTM('AdministrationExpense', 'IS'),
+                          pd.to_datetime('2017-07-25'), desc='管理费用TTM'))
 # 财务费用TTM
-fiexp_ttm = Factor('FIEXP_TTM', get_TTM('FinancialExpense', 'IS'), pd.to_datetime('2017-07-25'),
-                   desc='财务费用TTM')
+factor_list.append(Factor('FIEXP_TTM', get_TTM('FinancialExpense', 'IS'), pd.to_datetime('2017-07-25'),
+                          desc='财务费用TTM'))
 # 营业成本TTM
-opcost_ttm = Factor('OPCOST_TTM', get_TTM('OperatingCost', 'IS'), pd.to_datetime('2017-07-28'),
-                    desc='营业成本')
+factor_list.append(Factor('OPCOST_TTM', get_TTM('OperatingCost', 'IS'), pd.to_datetime('2017-07-28'),
+                          desc='营业成本'))
 # 经营活动中的现金流净额
-opnetcf_ttm = Factor('OPNETCF_TTM', get_TTM('NetOperateCashFlow', 'CFS'),
-                     pd.to_datetime('2017-07-25'), desc='经营活动中的现金流净额')
+factor_list.append(Factor('OPNETCF_TTM', get_TTM('NetOperateCashFlow', 'CFS'),
+                          pd.to_datetime('2017-07-25'), desc='经营活动中的现金流净额'))
 # --------------------------------------------------------------------------------------------------
 # 资产负债表最新数据
 
@@ -207,26 +210,26 @@ def get_BS_latest(fd_type):
 # 总资产
 
 
-TA = Factor('TA', get_BS_latest('TotalAssets'), pd.to_datetime('2017-07-25'),
-            desc='总资产')
+factor_list.append(Factor('TA', get_BS_latest('TotalAssets'), pd.to_datetime('2017-07-25'),
+                          desc='总资产'))
 # 非流动性负债
-TNCL = Factor('TNCL', get_BS_latest('TotalNonCurrentLiability'), pd.to_datetime('2017-07-25'),
-              desc='非流动性负债')
+factor_list.append(Factor('TNCL', get_BS_latest('TotalNonCurrentLiability'), pd.to_datetime('2017-07-25'),
+                          desc='非流动性负债'))
 # 流动性资产
-TCA = Factor('TCA', get_BS_latest('TotalCurrentAssets'), pd.to_datetime('2017-07-25'),
-             desc='流动性资产')
+factor_list.append(Factor('TCA', get_BS_latest('TotalCurrentAssets'), pd.to_datetime('2017-07-25'),
+                          desc='流动性资产'))
 # 流动负债
-TCL = Factor('TCL', get_BS_latest('TotalCurrentLiability'), pd.to_datetime('2017-07-25'),
-             desc='流动负债')
+factor_list.append(Factor('TCL', get_BS_latest('TotalCurrentLiability'), pd.to_datetime('2017-07-25'),
+                          desc='流动负债'))
 # 归属母公司权益
-equity = Factor('EQUITY', get_BS_latest('SEWithoutMI'), pd.to_datetime('2017-07-25'),
-                desc='归属母公司权益')
+factor_list.append(Factor('EQUITY', get_BS_latest('SEWithoutMI'), pd.to_datetime('2017-07-25'),
+                          desc='归属母公司权益'))
 # 现金
-cash = Factor('CASH', get_BS_latest('CashEquivalents'), pd.to_datetime('2017-07-25'),
-              desc='现金')
+factor_list.append(Factor('CASH', get_BS_latest('CashEquivalents'), pd.to_datetime('2017-07-25'),
+                          desc='现金'))
 # 优先股
-prefer_stock = Factor('PREFER_STOCK', get_BS_latest('EPreferStock'), pd.to_datetime('2017-10-27'),
-                      desc='优先股')
+factor_list.append(Factor('PREFER_STOCK', get_BS_latest('EPreferStock'), pd.to_datetime('2017-10-27'),
+                          desc='优先股'))
 # --------------------------------------------------------------------------------------------------
 # 特定时间季度数据（例如最新季度数据，往前推三个季度的数据等等）
 
@@ -291,17 +294,17 @@ def get_season_nshift(data_type, sql_type, n):
 
 
 # 最近季度归属母公司净利润
-ni_1s = Factor('NI_1S', get_season_nshift('NPFromParentCompanyOwners', 'IS', 1),
-               pd.to_datetime('2017-07-26'), desc='最近一个季度归属母公司净利润')
+factor_list.append(Factor('NI_1S', get_season_nshift('NPFromParentCompanyOwners', 'IS', 1),
+                          pd.to_datetime('2017-07-26'), desc='最近一个季度归属母公司净利润'))
 # 往前推4个季度的归属母公司的净利润（即如果最近季度为一季度，那么该因子指的是上个年度的一季度数据）
-ni_5s = Factor('NI_5S', get_season_nshift('NPFromParentCompanyOwners', 'IS', 5),
-               pd.to_datetime('2017-07-26'), desc='往前推四个季度归属母公司净利润')
+factor_list.append(Factor('NI_5S', get_season_nshift('NPFromParentCompanyOwners', 'IS', 5),
+                          pd.to_datetime('2017-07-26'), desc='往前推四个季度归属母公司净利润'))
 # 最近季度营业收入
-oprev_1s = Factor('OPREV_1S', get_season_nshift('OperatingRevenue', 'IS', 1),
-                  pd.to_datetime('2017-07-26'), desc='最近一个季度营业收入')
+factor_list.append(Factor('OPREV_1S', get_season_nshift('OperatingRevenue', 'IS', 1),
+                          pd.to_datetime('2017-07-26'), desc='最近一个季度营业收入'))
 # 往前推4个季度的营业收入
-oprev_5s = Factor('OPREV_5S', get_season_nshift('OperatingRevenue', 'IS', 5),
-                  pd.to_datetime('2017-07-26'), desc='往前推四个季度营业收入')
+factor_list.append(Factor('OPREV_5S', get_season_nshift('OperatingRevenue', 'IS', 5),
+                          pd.to_datetime('2017-07-26'), desc='往前推四个季度营业收入'))
 # --------------------------------------------------------------------------------------------------
 # 特定时间的年度数据（例如最新财年数据，上个财年的数据）
 
@@ -362,41 +365,38 @@ def get_year_nshift(data_type, sql_type, n):
 
 
 # 最近财年的归属母公司的净利润
-ni_1y = Factor('NI_1Y', get_year_nshift('NPParentCompanyOwners', 'IS', 1),
-               pd.to_datetime('2017-07-26'), desc='最近财年归属母公司的净利润')
+factor_list.append(Factor('NI_1Y', get_year_nshift('NPParentCompanyOwners', 'IS', 1),
+                          pd.to_datetime('2017-07-26'), desc='最近财年归属母公司的净利润'))
 # 往前推2个财年（上财年）的归属母公司净利润
-ni_2y = Factor('NI_2Y', get_year_nshift('NPParentCompanyOwners', 'IS', 2),
-               pd.to_datetime('2017-07-26'), desc='往前推2个财年的归属母公司净利润')
+factor_list.append(Factor('NI_2Y', get_year_nshift('NPParentCompanyOwners', 'IS', 2),
+                          pd.to_datetime('2017-07-26'), desc='往前推2个财年的归属母公司净利润'))
 # 往前推3个财年的归属母公司净利润
-ni_3y = Factor('NI_3Y', get_year_nshift('NPParentCompanyOwners', 'IS', 3),
-               pd.to_datetime('2017-07-26'), desc='往前推3个财年的归属母公司净利润')
+factor_list.append(Factor('NI_3Y', get_year_nshift('NPParentCompanyOwners', 'IS', 3),
+                          pd.to_datetime('2017-07-26'), desc='往前推3个财年的归属母公司净利润'))
 # 往前推4个财年的归属母公司净利润
-ni_4y = Factor('NI_4Y', get_year_nshift('NPParentCompanyOwners', 'IS', 4),
-               pd.to_datetime('2017-07-26'), desc='往前推4个财年的归属母公司净利润')
+factor_list.append(Factor('NI_4Y', get_year_nshift('NPParentCompanyOwners', 'IS', 4),
+                          pd.to_datetime('2017-07-26'), desc='往前推4个财年的归属母公司净利润'))
 # 往前推5个财年的归属母公司净利润
-ni_5y = Factor('NI_5Y', get_year_nshift('NPParentCompanyOwners', 'IS', 5),
-               pd.to_datetime('2017-07-26'), desc='往前推5个财年的归属母公司净利润')
+factor_list.append(Factor('NI_5Y', get_year_nshift('NPParentCompanyOwners', 'IS', 5),
+                          pd.to_datetime('2017-07-26'), desc='往前推5个财年的归属母公司净利润'))
 
 # 最近财年的营业收入
-oprev_1y = Factor('OPREV_1Y', get_year_nshift('OperatingRevenue', 'IS', 1),
-                  pd.to_datetime('2017-07-26'), desc='最近财年营业收入')
+factor_list.append(Factor('OPREV_1Y', get_year_nshift('OperatingRevenue', 'IS', 1),
+                          pd.to_datetime('2017-07-26'), desc='最近财年营业收入'))
 # 往前推2个财年（上财年）的营业收入
-oprev_2y = Factor('OPREV_2Y', get_year_nshift('OperatingRevenue', 'IS', 2),
-                  pd.to_datetime('2017-07-26'), desc='往前推2个财年的营业收入')
+factor_list.append(Factor('OPREV_2Y', get_year_nshift('OperatingRevenue', 'IS', 2),
+                          pd.to_datetime('2017-07-26'), desc='往前推2个财年的营业收入'))
 # 往前推3个财年的营业收入
-oprev_3y = Factor('OPREV_3Y', get_year_nshift('OperatingRevenue', 'IS', 3),
-                  pd.to_datetime('2017-07-26'), desc='往前推3个财年的营业收入')
+factor_list.append(Factor('OPREV_3Y', get_year_nshift('OperatingRevenue', 'IS', 3),
+                          pd.to_datetime('2017-07-26'), desc='往前推3个财年的营业收入'))
 # 往前推4个财年的营业收入
-oprev_4y = Factor('OPREV_4Y', get_year_nshift('OperatingRevenue', 'IS', 4),
-                  pd.to_datetime('2017-07-26'), desc='往前推4个财年的营业收入')
+factor_list.append(Factor('OPREV_4Y', get_year_nshift('OperatingRevenue', 'IS', 4),
+                          pd.to_datetime('2017-07-26'), desc='往前推4个财年的营业收入'))
 # 往前推5个财年的营业收入
-oprev_5y = Factor('OPREV_5Y', get_year_nshift('OperatingRevenue', 'IS', 5),
-                  pd.to_datetime('2017-07-26'), desc='往前推5个财年的营业收入')
+factor_list.append(Factor('OPREV_5Y', get_year_nshift('OperatingRevenue', 'IS', 5),
+                          pd.to_datetime('2017-07-26'), desc='往前推5个财年的营业收入'))
 
 # --------------------------------------------------------------------------------------------------
 
-factor_list = [ni_ttm, oprev_ttm, opprofit_ttm, opexp_ttm, adminexp_ttm, fiexp_ttm, opnetcf_ttm,
-               TA, TNCL, TCA, TCL, equity, cash, ni_1s, ni_5s, oprev_1s, oprev_5s, opcost_ttm,
-               ni_1y, ni_2y, ni_3y, ni_4y, ni_5y, oprev_1y, oprev_2y, oprev_3y, oprev_4y, oprev_5y,
-               prefer_stock]
+
 check_duplicate_factorname(factor_list, __name__)

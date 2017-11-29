@@ -28,6 +28,8 @@ def get_factor_dict():
         res[f.name] = {'rel_path': NAME + '\\' + f.name, 'factor': f}
     return res
 
+
+factor_list = []
 # --------------------------------------------------------------------------------------------------
 # 一致预期目标价因子
 
@@ -55,9 +57,9 @@ def get_ctargetprice(universe, start_time, end_time):
     return data
 
 
-target_price = Factor('TARGET_PRICE', get_ctargetprice, pd.to_datetime('2017-07-28'),
-                      desc='一致预期目标价')
+factor_list.append(Factor('TARGET_PRICE', get_ctargetprice, pd.to_datetime('2017-07-28'),
+                          desc='一致预期目标价'))
 # --------------------------------------------------------------------------------------------------
 
-factor_list = [target_price]
+
 check_duplicate_factorname(factor_list, __name__)

@@ -8,7 +8,6 @@ from fmanager.factors.basicfactors import financialdata
 from fmanager.factors.basicfactors import general
 from fmanager.factors.basicfactors import other
 from fmanager.factors.basicfactors import quote
-from fmanager.factors.basicfactors import test
 
 NAME = 'basicfactors'
 FACTOR_MODULES = [financialdata, general, quote, other]
