@@ -18,6 +18,7 @@ __version__ = '1.0.0'
 from collections import deque
 from fmanager.const import UNIVERSE_FILE_PATH, START_TIME, FACTOR_FILE_PATH
 from fmanager import database
+from fmanager.factors.deptree import dependency_order
 import datatoolkits
 import dateshandle
 import datetime as dt
@@ -243,11 +244,11 @@ def update_all_factors(factor_dict, max_iter=300, order=None, show_progress=Fals
     out: boolean
         如果成功更新所有因子，返回True，反之返回False
     '''
-    if order is not None:
-        raise NotImplementedError
+    # if order is not None:
+    #     raise NotImplementedError
     logger = logging.getLogger(__name__.split()[0])
     iter_num = 0
-    factor_queue = deque(sorted(factor_dict.keys()), maxlen=len(factor_dict))
+    factor_queue = deque(order[::-1], maxlen=len(factor_dict))
     universe = update_universe()
     while len(factor_queue):
         if iter_num > max_iter:
@@ -291,7 +292,9 @@ def auto_update_all(max_iter=200, show_progress=False):
     all_factors = get_factor_dict()
     gen_folders(all_factors)
     update_factordict()  # 每次更新前先更新因子字典
-    success = update_all_factors(all_factors, max_iter=max_iter, show_progress=show_progress)
+    order = [node.name for node in dependency_order()]
+    success = update_all_factors(all_factors, max_iter=max_iter, show_progress=show_progress,
+                                 order=order)
     if not success:
         print('Updating process FAILED')
         logger.info('Updating process FAILED')
