@@ -72,7 +72,7 @@ class PortfolioRefresher(object):
         生成器，根据给定的频率定时刷新数据，并返回，返回的数据包含时间和组合价值
         '''
         while True:
-            t = dt.datetime()
+            t = dt.datetime.now()
             data = self.refresh()
             self._data.append(RTData(time=t, data=data))
             yield t, data
@@ -97,7 +97,8 @@ class RestChecker(object, metaclass=ABCMeta):
         if periods is None:
             periods = [((9, 30), (11, 30)), ((13, 0), (15, 0))]
         today = dt.datetime.now().date()
-        format_time = lambda x: dt.datetime.combine(today, dt.time(*x))
+
+        def format_time(x): return dt.datetime.combine(today, dt.time(*x))
         self._periods = [(format_time(t[0]), format_time(t[1])) for t in periods]
         self._index = 0
 
@@ -156,6 +157,8 @@ class Displayer(object, metaclass=ABCMeta):
             数据更新频率，默认为2秒
         '''
         self._data_source = rt_data_source
+        if rest_checker is None:
+            rest_checker = RestChecker()
         self._rest_checker = rest_checker
         self._freq = freq
         self._id = rt_data_source.id_
@@ -177,7 +180,7 @@ class PrintDisplayer(Displayer):
         while True:
             try:
                 data_time, data = next(self._data_source())
-                print(data_time.strftime('%H:%M'), " ", self._id)
+                print(data_time.strftime('%H:%M:%S'), " ", self._id)
                 print('{:.2%}'.format(data - 1))
                 is_resting, to_time = self._rest_checker()
                 if is_resting:  # 当前处于休市时间
@@ -207,4 +210,6 @@ if __name__ == '__main__':
     from portmonitor import MonitorManager
     monitor = MonitorManager(show_progress=False)
     monitor.update_all()
-    refresher = PortfolioRefresher(monitor['SMALL_CAP'])
+    refresher = PortfolioRefresher(monitor['TEST'])
+    rtmonitor = PrintDisplayer(refresher)
+    rtmonitor.show()
