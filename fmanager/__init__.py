@@ -23,7 +23,8 @@ from fmanager.update import (auto_update_all,
 from fmanager.factors.deptree import (build_dependency_tree,
                                       dependency_order,
                                       has_dependency_on,
-                                      Node)
+                                      Node,
+                                      quick_remove)
 
 
 set_logger()

@@ -9,6 +9,9 @@
 该模块专门用于解析各个因子之间的依赖关系
 '''
 
+from os import remove
+from os.path import exists
+
 from fmanager.factors.dictionary import get_factor_dict
 
 
@@ -212,6 +215,34 @@ def has_dependency_on(onto, factor_dict=None):
     dep_tree = build_dependency_tree(factor_dict)
     out = [n.name for n in dep_tree if n.has_descendant_str(onto)]
     return out
+
+
+def quick_remove(factor, show_result=True):
+    '''
+    将给定因子和其依赖的因子数据一起删除
+
+    Parameter
+    ---------
+    factor: string
+        因子的名称
+    show_result: boolean
+        是否显示删除的结果（即，有哪些因子被成功删除，有哪些因子数据不存在而无法删除），默认为True
+    '''
+    fd = get_factor_dict()
+    tobe_removed = has_dependency_on(factor)
+    tobe_removed.append(factor)
+    remove_succeed = []
+    remove_failed = []
+    for f in tobe_removed:
+        f_path = fd[f]['abs_path']
+        if exists(f_path):
+            remove_succeed.append(f)
+            remove(f_path)
+        else:
+            remove_failed.append(f)
+    if show_result:
+        print('{} are removed succssfully!'.format(remove_succeed))
+        print('{} cannot be removed!'.format(remove_failed))
 
 
 if __name__ == '__main__':
