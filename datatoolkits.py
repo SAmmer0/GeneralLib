@@ -585,7 +585,8 @@ def rolling_apply(df, func, period, **kwargs):
     a = df.values
     s0, s1 = a.strides
     m, n = a.shape
-    rolling_splited = strided(a, shape=(m - period + 1, period, n), strides=(s0, s0, s1))
+    rolling_splited = strided(a, shape=(m - period + 1, period, n), strides=(s0, s0, s1),
+                              writeable=False)
     out = np.array([func(rs, **kwargs) for rs in rolling_splited])
     out = pd.Series(np.concatenate((np.full((period - 1,), np.nan), out)), index=df.index)
     return out
