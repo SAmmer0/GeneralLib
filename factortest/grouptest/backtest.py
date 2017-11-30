@@ -118,6 +118,8 @@ class Backtest(object):
         last_td: datetime or other compatible types
             持仓计算日的时间
         '''
+        if date == pd.to_datetime('2016-02-01') and port_id == 4:
+            pdb.set_trace()
         # 只买入今日能够交易的股票
         tradeable_stocks = self._config.tradedata_provider.get_csdata(date)
         tradeable_stocks = tradeable_stocks.loc[tradeable_stocks == 1].index.tolist()

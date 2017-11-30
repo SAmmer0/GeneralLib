@@ -146,7 +146,7 @@ def get_shares(share_type):
         WHERE M.CompanyCode = S.CompanyCode AND
             M.SecuMarket in (83, 90) AND
             M.SecuCategory = 1  AND
-            S.EndDate >= (SELECT TOP(1) S2.CHANGEDATE
+            S.InfoPublDate >= (SELECT TOP(1) S2.CHANGEDATE
                           FROM LC_ListStatus S2
                           WHERE
                               S2.INNERCODE = M.INNERCODE AND
