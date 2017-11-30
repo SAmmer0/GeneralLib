@@ -20,6 +20,7 @@ import numpy as np
 from numpy.linalg import linalg, LinAlgError
 import pandas as pd
 import pdb
+from scipy.stats import skew, kurtosis
 # from tqdm import tqdm
 from fmanager.const import START_TIME
 from fmanager.factors.utils import (Factor, check_indexorder, check_duplicate_factorname,
@@ -444,15 +445,18 @@ def gen_skfunc(days, func_name):
     days: int
         计算相关数据的交易日间隔
     func_name: str
-        计算的数据结果类型，只支持skew和kurt
+        计算的数据结果类型，只支持skew、kurt和std
     '''
+    func_category = {'skew': skew, 'kurt': kurtosis, 'std': np.std}
+    func = func_category[func_name]
+
     def _inner(universe, start_time, end_time):
         start_time = pd.to_datetime(start_time)
         shift_days = int(days / 20 * 31)
         new_start = start_time - pd.Timedelta('30 day') - pd.Timedelta('%d day' % shift_days)
         data = query('DAILY_RET', (new_start, end_time))
         rolling = data.rolling(days, min_periods=days)
-        data = getattr(rolling, func_name)()
+        data = rolling.apply(func)
         # data = data.dropna(how='all')
         mask = (data.index >= start_time) & (data.index <= end_time)
         data = data.loc[mask, sorted(universe)]
@@ -466,6 +470,8 @@ factor_list.append(Factor('SKEW_1M', gen_skfunc(20, 'skew'), pd.to_datetime('201
                           dependency=['DAILY_RET'], desc='过去20个交易日收益率的skew'))
 factor_list.append(Factor('KURTOSIS_1M', gen_skfunc(20, 'kurt'), pd.to_datetime('2017-08-02'),
                           dependency=['DAILY_RET'], desc='过去20个交易日收益率的kurtosis'))
+factor_list.append(Factor('VOL_1M', gen_skfunc(20, 'std'), pd.to_datetime('2017-11-30'),
+                          dependency=['DAILY_RET'], desc='过去20个交易日收益率的标准差'))
 # --------------------------------------------------------------------------------------------------
 # 一致预期价格距离因子
 

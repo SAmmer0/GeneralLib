@@ -396,12 +396,19 @@ factor_list.append(Factor('NLSIZE', get_nonlinearmktv, pd.to_datetime('2017-10-1
 # 指数行情
 
 
-def gen_indexquotegetter(index_code):
+def gen_indexquotegetter(index_code, price_type='ClosePrice'):
     '''
     母函数，用于生成获取指数行情数据的函数
+
+    Parameter
+    ---------
+    index_code: string
+        指数代码
+    price_type: string
+        行情类型
     '''
     sql_tmplate = '''
-            SELECT S.ClosePrice, S.TradingDay
+            SELECT S.price_type, S.TradingDay
             FROM QT_IndexQuote S, secuMain M
             WHERE
                 S.innerCode = M.innerCode AND
@@ -416,7 +423,7 @@ def gen_indexquotegetter(index_code):
         '''
         上证综指
         '''
-        sql = sql_tmplate.replace('code', index_code)
+        sql = sql_tmplate.replace('code', index_code).replace('price_type', price_type)
         data = fdgetter.get_db_data(sql, cols=('close', 'time'), start_time=start_time,
                                     end_time=end_time, add_stockcode=False)
         # pdb.set_trace()
@@ -431,18 +438,28 @@ def gen_indexquotegetter(index_code):
 # 上证综指
 factor_list.append(Factor('SSEC_CLOSE', gen_indexquotegetter('000001'), pd.to_datetime('2017-08-14'),
                           desc='上证综指收盘价'))
+factor_list.append(Factor('SSEC_OPEN', gen_indexquotegetter('000001', 'OpenPrice'),
+                          pd.to_datetime('2017-11-30'), desc='上证综指开盘价'))
 # 上证50
 factor_list.append(Factor('SSE50_CLOSE', gen_indexquotegetter('000016'), pd.to_datetime('2017-08-14'),
                           desc='上证50收盘价'))
+factor_list.append(Factor('SSE50_OPEN', gen_indexquotegetter('000016', 'OpenPrice'),
+                          pd.to_datetime('2017-11-30'), desc='上证50开盘价'))
 # 中证500
 factor_list.append(Factor('CS500_CLOSE', gen_indexquotegetter('000905'), pd.to_datetime('2017-08-14'),
                           desc='中证500收盘价'))
+factor_list.append(Factor('CS500_OPEN', gen_indexquotegetter('000905', 'OpenPrice'),
+                          pd.to_datetime('2017-11-30'), desc='中证500开盘价'))
 # 沪深300
 factor_list.append(Factor('SSZ300_CLOSE', gen_indexquotegetter('000300'), pd.to_datetime('2017-08-14'),
                           desc='沪深300收盘价'))
+factor_list.append(Factor('SSZ300_OPEN', gen_indexquotegetter('000300', 'OpenPrice'),
+                          pd.to_datetime('2017-11-30'), desc='沪深300开盘价'))
 # 中证全指
 factor_list.append(Factor('CSI985_CLOSE', gen_indexquotegetter('000985'), pd.to_datetime('2017-08-14'),
                           desc='中证全指收盘价'))
+factor_list.append(Factor('CSI985_OPEN', gen_indexquotegetter('000985', 'OpenPrice'),
+                          pd.to_datetime('2017-11-30'), desc='中证全指开盘价'))
 # --------------------------------------------------------------------------------------------------
 
 
