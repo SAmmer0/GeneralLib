@@ -15,12 +15,14 @@ from abc import ABCMeta, abstractclassmethod
 import datetime as dt
 
 import pandas as pd
-from tushare import get_realtime_quotes
+from tushare import get_realtime_quotes, get_today_all
 import numpy as np
 
 
 from datatoolkits import drop_suffix
 from portmonitor.const import CASH
+from dateshandle import tds_pshift
+from fmanager import query
 
 # --------------------------------------------------------------------------------------------------
 # 实时行情刷新类
@@ -31,6 +33,13 @@ class PortfolioRefresher(object):
     '''
     对tushare接口进行包装，提供接口返回给定组合的实时走势
     '''
+    # 实例的共享数据，包含ts_data, local_lastclose_data, adj_ratio
+    # 分别表示tushare当日数据，本地昨日的收盘数据和持仓调整系数
+    # 之所以这样设计是为了避免频繁从tushare中请求数据导致IP被封（尤其在请求大量当日行情数据时容易出问题）
+    _share_data = {}
+    # _ts_todayall_data = None    # tushare提供的昨收盘数据
+    # _local_lastclose_data = None  # 本地数据库提供的昨日的收盘数据
+    # _adj_ratio = None   # 持股调整比例
 
     def __init__(self, port_data, standardlize=True):
         '''
@@ -47,7 +56,43 @@ class PortfolioRefresher(object):
             self._port_basevalue = 1
         self._port_holding = pd.Series({drop_suffix(c): n for c, n in port_data.curholding.items()})
         self.id_ = port_data.id
+        today = dt.datetime.now()
+        self._last_td = tds_pshift(today, 2)
         self._data = []
+        # set_trace()
+
+        if 'ts_data' not in self._share_data:  # 在第一个实例初始化ts昨收盘数据
+            ts_data = get_today_all().set_index('code').settlement.apply(np.float)
+            self._share_data['ts_data'] = ts_data
+
+        if 'local_lastclose_data' not in self._share_data:  # 在第一个实例初始化本地昨日收盘数据
+            lastclose_data = query('CLOSE', self._last_td).iloc[0]
+            lastclose_data.index = lastclose_data.index.str.slice(stop=6)
+            self._share_data['local_lastclose_data'] = lastclose_data
+
+        if 'adj_ratio' not in self._share_data:  # 在第一个实例初始化持股调整比例
+            ts_data = self._share_data['ts_data']
+            lastclose_data = self._share_data['local_lastclose_data']
+            diff = np.round(ts_data - lastclose_data, 2)
+            ratio = lastclose_data / ts_data
+            # set_trace()
+            isclose2zero = diff == 0
+            # 对于当前没有数据的股票，直接将ratio设置为0，一般没有问题，因为这些股票一般是退市的股票
+            # 或者不在持仓中的股票
+            adj_ratio = pd.Series(np.where(isclose2zero, 1, ratio),
+                                  index=ratio.index).fillna(0)
+            adj_ratio[CASH] = 1
+            self._share_data['adj_ratio'] = adj_ratio
+
+        self._adj_rtnum()
+
+    def _adj_rtnum(self):
+        '''
+        对实时的持有数量进行调整，调整方法与manager.PortfolioMoniData._cal_holding_value相同，即，
+        调整系数=昨日的收盘价/昨收盘
+        '''
+        adj_ratio = self._share_data['adj_ratio']
+        self._port_holding = self._port_holding * adj_ratio[self._port_holding.index]
 
     def refresh(self):
         '''
@@ -59,7 +104,10 @@ class PortfolioRefresher(object):
             返回当前组合的最新价值（净值）
         '''
         quote = get_realtime_quotes(self._port_holding.index.tolist())
+        # set_trace()
         quote = quote.set_index('code').price.apply(np.float)
+        quote.loc[quote == 0] = np.nan
+        quote = quote.fillna(self._share_data['ts_data'])
         quote[CASH] = 1
         # set_trace()
         port_value = self._port_holding.dot(quote) / self._port_basevalue
