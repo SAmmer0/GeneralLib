@@ -1063,6 +1063,54 @@ def get_blev(universe, start_time, end_time):
 factor_list.append(Factor('BLEV', get_blev, pd.to_datetime('2017-10-27'),
                           dependency=['PREFER_STOCK', 'EQUITY', 'TNCL'], desc='BARRA BLEV因子'))
 # --------------------------------------------------------------------------------------------------
+# Composite Equity Issues
+
+
+def get_cei(universe, start_time, end_time):
+    '''
+    Composite Equity Issues因子，来源于Daniel和Titman(2006)的论文
+    相比于原论文有小幅度的改动
+    因子值 = (过去250个交易日总市值的变化率) - (过去250个交易日（复权后）收盘价变动)
+    '''
+    offset = 250
+    start_time = pd.to_datetime(start_time)
+    end_time = pd.to_datetime(end_time)
+    new_start = dateshandle.tds_shift(start_time, offset)
+    total_mktv = query('TOTAL_MKTVALUE', (new_start, end_time))
+    adj_close = query('ADJ_CLOSE', (new_start, end_time))
+    chg_tmktv = total_mktv.pct_change(offset)
+    chg_ac = adj_close.pct_change(offset)
+    data = chg_tmktv - chg_ac
+    data = data.loc[:, sorted(universe)]
+    assert check_indexorder(data), 'Error, data order is mixed!'
+    checkdata_completeness(data, start_time, end_time)
+    return data
+
+
+factor_list.append(Factor('CEI', get_cei, pd.to_datetime('2017-12-04'),
+                          dependency=['TOTAL_MKTVALUE', 'ADJ_CLOSE'],
+                          desc='Composite Equity Issues因子'))
+
+# --------------------------------------------------------------------------------------------------
+# 总资产增长率
+
+
+def get_ta_yoy(universe, start_time, end_time):
+    '''
+    Asset growth因子，来源于Cooper, Gulen和Schill(2008)的论文
+    '''
+    ta1 = query('TA', (start_time, end_time))
+    ta2 = query('TA_2Y', (start_time, end_time))
+    data = (ta1 - ta2) / np.abs(ta2)
+    data = data.loc[:, sorted(universe)]
+    assert check_indexorder(data), 'Error, data order is mixed!'
+    checkdata_completeness(data, start_time, end_time)
+    return data
+
+
+factor_list.append(Factor('TA_YOY', get_ta_yoy, pd.to_datetime('2017-12-04'),
+                          dependency=['TA', 'TA_2Y'], desc='总资产年度增长率（YOY）'))
+# --------------------------------------------------------------------------------------------------
 
 
 check_duplicate_factorname(factor_list, __name__)
