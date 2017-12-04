@@ -133,25 +133,30 @@ def get_TTM(fd_type, sql_type):
 
 
 # 净利润TTM
-factor_list.append(Factor('NI_TTM', get_TTM('NPFromParentCompanyOwners', 'IS'), pd.to_datetime('2017-07-25'),
+factor_list.append(Factor('NI_TTM', get_TTM('NPFromParentCompanyOwners', 'IS'),
+                          pd.to_datetime('2017-07-25'),
                           desc='净利润TTM'))
 # 营业收入TTM
-factor_list.append(Factor('OPREV_TTM', get_TTM('OperatingRevenue', 'IS'), pd.to_datetime('2017-07-25'),
+factor_list.append(Factor('OPREV_TTM', get_TTM('OperatingRevenue', 'IS'),
+                          pd.to_datetime('2017-07-25'),
                           desc='营业收入TTM'))
 # 营业利润TTM
 factor_list.append(Factor('OPPROFIT_TTM', get_TTM('OperatingProfit', 'IS'),
                           pd.to_datetime('2017-07-25'), desc='营业利润TTM'))
 # 销售费用TTM
-factor_list.append(Factor('OPEXP_TTM', get_TTM('OperatingExpense', 'IS'), pd.to_datetime('2017-07-25'),
+factor_list.append(Factor('OPEXP_TTM', get_TTM('OperatingExpense', 'IS'),
+                          pd.to_datetime('2017-07-25'),
                           desc='销售费用TTM'))
 # 管理费用TTM
 factor_list.append(Factor('ADMINEXP_TTM', get_TTM('AdministrationExpense', 'IS'),
                           pd.to_datetime('2017-07-25'), desc='管理费用TTM'))
 # 财务费用TTM
-factor_list.append(Factor('FIEXP_TTM', get_TTM('FinancialExpense', 'IS'), pd.to_datetime('2017-07-25'),
+factor_list.append(Factor('FIEXP_TTM', get_TTM('FinancialExpense', 'IS'),
+                          pd.to_datetime('2017-07-25'),
                           desc='财务费用TTM'))
 # 营业成本TTM
-factor_list.append(Factor('OPCOST_TTM', get_TTM('OperatingCost', 'IS'), pd.to_datetime('2017-07-28'),
+factor_list.append(Factor('OPCOST_TTM', get_TTM('OperatingCost', 'IS'),
+                          pd.to_datetime('2017-07-28'),
                           desc='营业成本'))
 # 经营活动中的现金流净额
 factor_list.append(Factor('OPNETCF_TTM', get_TTM('NetOperateCashFlow', 'CFS'),
@@ -160,9 +165,16 @@ factor_list.append(Factor('OPNETCF_TTM', get_TTM('NetOperateCashFlow', 'CFS'),
 # 资产负债表最新数据
 
 
-def get_BS_latest(fd_type):
+def get_BS_nshift(fd_type, n):
     '''
     母函数，用于生成获取最新资产负债表数据的函数
+
+    Parameter
+    ---------
+    fd_type: string
+        从数据库中获取对应数据的代码
+    n: int
+        往前推的期数，例如，n=1表明最近一个季度，n=2表明上个季度（相对最近季度而言）
     '''
     sql_template = '''
     SELECT S.InfoPublDate, S.EndDate, M.SecuCode, S.data_type
@@ -191,7 +203,7 @@ def get_BS_latest(fd_type):
         by_code = data.groupby('code')
         data = by_code.apply(fdmutils.get_observabel_data).reset_index(drop=True)
         by_cno = data.groupby(['code', 'obs_time'])
-        data = by_cno.apply(lambda x: x.loc[:, 'data'].iloc[-1]).rename('data')
+        data = by_cno.apply(fdmutils.cal_season, col_name='data', offset=n)
         data = data.reset_index().rename(columns={'obs_time': 'time'})
         tds = dateshandle.get_tds(start_time, end_time)
         data = data.groupby('code').apply(datatoolkits.map_data, days=tds,
@@ -210,26 +222,33 @@ def get_BS_latest(fd_type):
 # 总资产
 
 
-factor_list.append(Factor('TA', get_BS_latest('TotalAssets'), pd.to_datetime('2017-07-25'),
+factor_list.append(Factor('TA', get_BS_nshift('TotalAssets', 1), pd.to_datetime('2017-07-25'),
                           desc='总资产'))
+factor_list.append(Factor('TA_2Y', get_BS_nshift('TotalAssets', 5), pd.to_datetime('2017-12-04'),
+                          desc='往前推2个财年总资产，即次近财年的总资产'))
 # 非流动性负债
-factor_list.append(Factor('TNCL', get_BS_latest('TotalNonCurrentLiability'), pd.to_datetime('2017-07-25'),
+factor_list.append(Factor('TNCL', get_BS_nshift('TotalNonCurrentLiability', 1),
+                          pd.to_datetime('2017-07-25'),
                           desc='非流动性负债'))
 # 流动性资产
-factor_list.append(Factor('TCA', get_BS_latest('TotalCurrentAssets'), pd.to_datetime('2017-07-25'),
+factor_list.append(Factor('TCA', get_BS_nshift('TotalCurrentAssets', 1),
+                          pd.to_datetime('2017-07-25'),
                           desc='流动性资产'))
 # 流动负债
-factor_list.append(Factor('TCL', get_BS_latest('TotalCurrentLiability'), pd.to_datetime('2017-07-25'),
+factor_list.append(Factor('TCL', get_BS_nshift('TotalCurrentLiability', 1),
+                          pd.to_datetime('2017-07-25'),
                           desc='流动负债'))
 # 归属母公司权益
-factor_list.append(Factor('EQUITY', get_BS_latest('SEWithoutMI'), pd.to_datetime('2017-07-25'),
+factor_list.append(Factor('EQUITY', get_BS_nshift('SEWithoutMI', 1), pd.to_datetime('2017-07-25'),
                           desc='归属母公司权益'))
 # 现金
-factor_list.append(Factor('CASH', get_BS_latest('CashEquivalents'), pd.to_datetime('2017-07-25'),
+factor_list.append(Factor('CASH', get_BS_nshift('CashEquivalents', 1), pd.to_datetime('2017-07-25'),
                           desc='现金'))
 # 优先股
-factor_list.append(Factor('PREFER_STOCK', get_BS_latest('EPreferStock'), pd.to_datetime('2017-10-27'),
+factor_list.append(Factor('PREFER_STOCK', get_BS_nshift('EPreferStock', 1),
+                          pd.to_datetime('2017-10-27'),
                           desc='优先股'))
+
 # --------------------------------------------------------------------------------------------------
 # 特定时间季度数据（例如最新季度数据，往前推三个季度的数据等等）
 
