@@ -129,10 +129,9 @@ class PortfolioMoniData(object):
         out: datetime
         '''
         if self._reb_calculator is None:
-            today = datetime.now()
-            start_time = tds_shift(today, 40)
+            start_time = tds_shift(self._today, 40)
             self._reb_calculator = load_rebcalculator(self._port_config.rebalance_type, start_time,
-                                                      today)
+                                                      self._today)
         return self._reb_calculator.reb_points[-2]
 
     def _load_weight_calculator(self):
