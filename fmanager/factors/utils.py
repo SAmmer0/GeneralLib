@@ -49,7 +49,9 @@ class Factor(object):
             因子的名称，要求要在所有因子中具有唯一性
         calc_method: function
             因子的计算方法，要求function的格式为func(universe, start_time, end_time)，其中universe为
-            股票代码列表，start_time和end_time分别为计算的起始时间，要求为可被pd.to_datetime转化的格式
+            股票代码列表，start_time和end_time分别为计算的起始时间，要求为可被pd.to_datetime转化的格式，
+            而且func返回的结果为pd.DataFrame，index为日期时间，columns为股票代码，数据的时间要包含
+            start_time和end_time
         addtime: datetime or the like
             因子的添加时间，要求为静态时间
         dependency: list like, default None
