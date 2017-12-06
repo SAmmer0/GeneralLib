@@ -20,7 +20,10 @@ import numpy as np
 from numpy.linalg import linalg, LinAlgError
 import pandas as pd
 import pdb
+import warnings
 from scipy.stats import skew, kurtosis
+from statsmodels.tools import add_constant
+from statsmodels.regression.linear_model import OLS
 # from tqdm import tqdm
 from fmanager.const import START_TIME
 from fmanager.factors.utils import (Factor, check_indexorder, check_duplicate_factorname,
@@ -28,6 +31,7 @@ from fmanager.factors.utils import (Factor, check_indexorder, check_duplicate_fa
 from fmanager.factors.query import query
 import fdgetter
 import datatoolkits
+
 # from statsmodels.api import add_constant
 
 # --------------------------------------------------------------------------------------------------
@@ -1110,6 +1114,115 @@ def get_ta_yoy(universe, start_time, end_time):
 
 factor_list.append(Factor('TA_YOY', get_ta_yoy, pd.to_datetime('2017-12-04'),
                           dependency=['TA', 'TA_2Y'], desc='总资产年度增长率（YOY）'))
+# --------------------------------------------------------------------------------------------------
+# 均线因子，用于辅助计算多期限均线因子
+
+
+def gen_ma(offset):
+    '''
+    母函数，用于生成给定日期的均线数据
+    此处，均线定义为MA普通均线，然后通过当前日期的收盘价正则化
+
+    Parameter
+    ---------
+    offset: int
+        均线的长度
+    '''
+    def inner(universe, start_time, end_time):
+        new_start = dateshandle.tds_shift(start_time, offset)
+        close_data = query('ADJ_CLOSE', (new_start, end_time))
+        ma = close_data.rolling(offset, min_periods=offset).mean()
+        data = ma / close_data
+        mask = (data.index >= pd.to_datetime(start_time)) & (data.index <= pd.to_datetime(end_time))
+        data = data.loc[mask, sorted(universe)]
+        assert check_indexorder(data), 'Error, data order is mixed!'
+        checkdata_completeness(data, start_time, end_time)
+        return data
+    return inner
+
+
+for offset in [3, 5, 10, 20, 30, 60, 90, 120, 180, 240, 270, 300]:
+    factor_list.append(Factor('MA%d' % offset, gen_ma(offset), pd.to_datetime('2017-12-06'),
+                              dependency=['ADJ_CLOSE'],
+                              desc='经过收盘价正则化后的%d日均线' % offset))
+
+# --------------------------------------------------------------------------------------------------
+# 多期限均线因子
+# 来源：A trend factor: Any economic gains from using information over investment horizons
+
+
+def gen_multitrend_factor(trend_offsets):
+    '''
+    母函数，用于生成多趋势因子的计算方法
+    Parameter
+    ---------
+    trend_offsets: iterable
+        因子计算过程中所使用的均线，例如[10, 20, 30]表示在综合趋势的过程中使用10日、20日和30日的均线
+        目前可以使用的均线长度包含[3, 5, 10, 20, 30, 60, 90, 120, 180, 240, 270, 300]
+    '''
+    def inner(universe, start_time, end_time):
+        # 以20个交易日为一期，计算25期的系数平均值
+        period_length = 20
+        period_num = 25
+        # 数据请求超出了数据库的最早时间
+        if dateshandle.tds_count(START_TIME, start_time) < period_length * period_num:
+            new_start = START_TIME
+        else:
+            new_start = dateshandle.tds_shift(start_time, period_length * period_num)
+        # 加载均线数据
+        ma_datas = [query('MA%d' % offset, (new_start, end_time)) for offset in trend_offsets]
+        ma_datas = convert_data(ma_datas, ['MA%d' % offset for offset in trend_offsets])
+        # 加载收益率数据
+        close_data = query('ADJ_CLOSE', (new_start, end_time))
+        close_ret = close_data.pct_change(period_length)
+        data = {}
+        data_tds = sorted(ma_datas.index.get_level_values(0).unique().tolist())
+        start_idx = data_tds.index(dateshandle.tds_fshift(start_time, 1))  # 获取当前时间（或者往后最近交易日）的索引
+        reg_cache = {}  # 用于缓存中间OLS的结果，避免重复计算降低速度，尤其在初始化的时候比较重要
+        for idx in range(start_idx, len(data_tds)):
+            # idx可以同时记录有效数据的数量，即idx+1
+            # 每个循环处理一个交易日
+            if idx + 1 < period_num * (period_length + 1):    # 期间交易日数量不足，直接剔除，最终直接使用NA填充
+                continue
+            reg_tds = data_tds[:idx + 1][:-period_length * (period_num + 1):-period_length]
+            cur_td = data_tds[idx]
+            reg_coeff = None    # 存储回归的结果
+            for last_td, td in zip(reg_tds[:-1], reg_tds[1:]):  # 对过去period_num期做循环，每个循环进行回归
+                if td in reg_cache:  # 缓存中有相关结果，直接读取
+                    reg_res = reg_cache[td]
+                else:
+                    # 加载回归使用的数据
+                    tmp_madata = ma_datas.xs(last_td, level=0).T
+                    ret_data = close_ret.loc[td].reindex(tmp_madata.index)
+                    # 剔除NA值
+                    ma_na_mask = np.any(pd.isnull(tmp_madata), axis=1)
+                    ret_na_mask = pd.isnull(ret_data).values
+                    na_mask = ma_na_mask | ret_na_mask
+                    tmp_madata = tmp_madata.loc[~na_mask]
+                    ret_data = ret_data.loc[~na_mask]
+                    if len(ret_data) <= len(tmp_madata.columns) + 10:
+                        warnings.warn('回归使用的有效数据量过少，直接跳过', RuntimeWarning)
+                        continue
+                    # 回归分析
+                    reg_mod = OLS(ret_data, add_constant(tmp_madata))
+                    reg_res = reg_mod.fit().params.drop('const')
+                    reg_cache[td] = reg_res
+                if reg_coeff is None:
+                    reg_coeff = reg_res
+                else:
+                    reg_coeff += reg_res
+            reg_coeff = reg_coeff / len(reg_tds)
+            cur_madata = ma_datas.xs(cur_td, level=0)
+            predict = cur_madata.T.dot(reg_coeff)
+            data[cur_td] = predict
+        out = pd.DataFrame(data).T
+        return out
+    return inner
+
+
+# factor_list.append(Factor('MULTI_TREND', gen_multitrend_factor([3, 5, 10, 20, 30, 60, 90, 120, 180,
+#                                                                 240, 270, 300]),
+#                           pd.to_datetime('2017-12-06')))
 # --------------------------------------------------------------------------------------------------
 
 
