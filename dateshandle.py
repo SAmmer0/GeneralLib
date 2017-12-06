@@ -358,27 +358,33 @@ def tds_count(start_time, end_time):
 
 def tds_shift(date, offset):
     '''
-    将给定的交易日往前推，使得得到的结果到当前交易日这段时间（包含首尾）至少包含offset+1个交易日
+    将给定的交易日往前推或者往后推，使得得到的结果到当前交易日这段时间（包含首尾）至少包含offset+1个交易日
     Parameter
     ---------
     date: datetime like
         锚定的开始往前推的时间
     offset: int
-        期间至少需要包含的交易日的数量
-    
+        期间至少需要包含的交易日的数量，如果offset大于等于0表示往前推（过去），offset小于0表示往后推（未来）
+
     Return
     ------
     out: datetime like
         返回的时间使得这个时间与参数date之间至少包含offset个交易日
     '''
+    if offset < 0:
+        offset = - offset
+        sign = -1
+    else:
+        sign = 1
     shift_days = int(offset / 20 * 31)
     date = pd.to_datetime(date)
-    res = date - pd.Timedelta('30 day') - pd.Timedelta('%d day' % shift_days)
+    res = date - (pd.Timedelta('30 day') + pd.Timedelta('%d day' % shift_days)) * sign
     return res
+
 
 def tds_pshift(date, offset):
     '''
-    给定日期往前推移，使得返回的结果到当前这段时间内（包含首尾）一共包含offset个交易日，即如果收尾中有一个
+    给定日期往前推移（过去），使得返回的结果到当前这段时间内（包含首尾）一共包含offset个交易日，即如果首尾中有一个
     不需要包含进去，则长度为offset
 
     Parameter
@@ -386,16 +392,40 @@ def tds_pshift(date, offset):
     date: datetime like
         锚定的开始往前推的时间
     offset: int
-        期间需要包含的交易日数量
-    
+        期间需要包含的交易日数量，必须为正数
+
     Return
     ------
     out: datetime like
         返回的时间使得这个时间与参数date之间（包含首尾）恰好包含offset个交易日
     '''
+    assert offset > 0, "offset参数不合法，必须为正数，提供的参数为{}".format(offset)
     pre_date = tds_shift(date, offset)
     tds = get_tds(pre_date, date)
     return tds[-offset]
+
+
+def tds_fshift(date, offset):
+    '''
+    tds_pshift的互补版本，能够精确往后推（未来），使得返回的结果到当天这段时间（包含收尾）一共包含
+    offset个交易日
+    Parameter
+    ---------
+    date: datetime like
+        锚定的开始往前推的时间
+    offset: int
+        期间需要包含的交易日数量，必须为正数
+
+    Return
+    ------
+    out: datetime like
+        返回的时间使得这个时间与参数date之间（包含首尾）恰好包含offset个交易日
+    '''
+    assert offset > 0, 'offset参数不合法，必须为正数，提供的参数为{}'.format(offset)
+    forward_date = tds_shift(date, -offset)
+    tds = get_tds(date, forward_date)
+    return tds[offset - 1]
+
 
 if __name__ == '__main__':
     res = get_recent_td('2017-01-31')
