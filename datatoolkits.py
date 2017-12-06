@@ -238,6 +238,7 @@ def map_data(rawData, days, timeCols='time', fromNowOn=False, fillna=None):
     try:
         data = data.reindex(time_col, method='ffill')
     except ValueError as e:
+        # pdb.set_trace()
         print(rawData.code.iloc[0])
         raise e
     if not fromNowOn:

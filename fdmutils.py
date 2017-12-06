@@ -21,6 +21,8 @@ __version__ = 1.01
 '''
 __version__ = '1.01'
 
+
+from pdb import set_trace
 import datatoolkits
 import dateshandle
 # import datetime as dt
@@ -196,15 +198,22 @@ def cal_season(df, col_name, rpt_col='rpt_date', offset=1, rename=None):
         offset: 往前推的季度数
         rename: 重命名，默认为None，即不进行重命名，需要使用时，提供的格式为{old_name: new_name,...}
     '''
+
     if isinstance(col_name, str):
         col_name = [col_name]
-    ltst_rptdate = get_latest_rptdate(df['rpt_date'])
-    begin_rptdate = dateshandle.get_latest_report_dates(ltst_rptdate, offset)[-1]
-    data = df.loc[df[rpt_col] >= begin_rptdate, col_name]
-    if len(data) < offset:
+    if len(df) < offset:    # 数据量不够
         res = datatoolkits.gen_series(col_name)
     else:
-        res = data.head(1).iloc[0]   # 将df转换为Series
+        ltst_rptdate = get_latest_rptdate(df['rpt_date'])
+        if ltst_rptdate is None:
+            res = datatoolkits.gen_series(col_name)
+        else:
+            begin_rptdate = dateshandle.get_latest_report_dates(ltst_rptdate, offset)[-1]
+            data = df.loc[df[rpt_col] >= begin_rptdate, col_name]
+            if len(data) < offset:
+                res = datatoolkits.gen_series(col_name)
+            else:
+                res = data.head(1).iloc[0]   # 将df转换为Series
     if rename is not None:
         res = res.rename(rename)
     return res
