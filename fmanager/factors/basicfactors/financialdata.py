@@ -195,11 +195,13 @@ def get_BS_nshift(fd_type, n):
     '''.replace('data_type', fd_type)
 
     def _inner(universe, start_time, end_time):
-        new_start = pd.to_datetime(start_time) - pd.Timedelta('250 day')
+        offset = n * 100 + 250
+        new_start = pd.to_datetime(start_time) - pd.Timedelta('%d day' % offset)
         data = fdgetter.get_db_data(sql_template, start_time=new_start, end_time=end_time,
                                     cols=('update_time', 'rpt_date', 'code', 'data'),
                                     add_stockcode=False)
         data['code'] = data.code.apply(datatoolkits.add_suffix)
+        # pdb.set_trace()
         by_code = data.groupby('code')
         data = by_code.apply(fdmutils.get_observabel_data).reset_index(drop=True)
         by_cno = data.groupby(['code', 'obs_time'])
