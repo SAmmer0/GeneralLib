@@ -1147,7 +1147,7 @@ for offset in [3, 5, 10, 20, 30, 60, 90, 120, 180, 240, 270, 300]:
                               desc='经过收盘价正则化后的%d日均线' % offset))
 
 # --------------------------------------------------------------------------------------------------
-# 多期限均线因子
+# 多期限趋势因子
 # 来源：A trend factor: Any economic gains from using information over investment horizons
 
 
@@ -1179,15 +1179,15 @@ def gen_multitrend_factor(trend_offsets):
         data_tds = sorted(ma_datas.index.get_level_values(0).unique().tolist())
         start_idx = data_tds.index(dateshandle.tds_fshift(start_time, 1))  # 获取当前时间（或者往后最近交易日）的索引
         reg_cache = {}  # 用于缓存中间OLS的结果，避免重复计算降低速度，尤其在初始化的时候比较重要
-        tmp = {}
+        # tmp = {}
         for idx in range(start_idx, len(data_tds)):
             # idx可以同时记录有效数据的数量，即idx+1
             # 每个循环处理一个交易日
             if idx + 1 < (period_num + 1) * period_length:    # 期间交易日数量不足，直接剔除，最终直接使用NA填充
                 continue
             reg_tds = data_tds[:idx + 1][:-period_length * period_num:-period_length]
-            reg_last_tds = data_tds[:idx - period_length][:-
-                                                          period_length * period_num: -period_length]
+            reg_last_tds = data_tds[:idx - period_length][:-period_length * period_num:
+                                                          -period_length]
             cur_td = data_tds[idx]
             reg_coeff = 0    # 存储回归的结果
             for last_td, td in zip(reg_last_tds, reg_tds):  # 对过去period_num期做循环，每个循环进行回归
@@ -1216,7 +1216,7 @@ def gen_multitrend_factor(trend_offsets):
             reg_coeff = reg_coeff / len(reg_tds)
             cur_madata = ma_datas.xs(cur_td, level=0)
             predict = cur_madata.T.dot(reg_coeff)
-            tmp[cur_td] = reg_coeff
+            # tmp[cur_td] = reg_coeff
             data[cur_td] = predict
         data = pd.DataFrame(data).T.sort_index()
         data = data.loc[:, sorted(universe)]
@@ -1227,10 +1227,10 @@ def gen_multitrend_factor(trend_offsets):
         return data
     return inner
 
-
-factor_list.append(Factor('MULTI_TREND', gen_multitrend_factor([3, 5, 10, 20, 30, 60, 90, 120, 180,
-                                                                240, 270, 300]),
-                          pd.to_datetime('2017-12-06')))
+mas = [3, 5, 10, 20, 30, 60, 90, 120, 180, 240, 270, 300]
+factor_list.append(Factor('MULTI_TREND', gen_multitrend_factor(mas),
+                          pd.to_datetime('2017-12-06'), dependency=['MA%d' % m for m in mas],
+                          desc='多期限趋势因子'))
 # --------------------------------------------------------------------------------------------------
 
 
