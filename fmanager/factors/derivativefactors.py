@@ -1179,15 +1179,20 @@ def gen_multitrend_factor(trend_offsets):
         data_tds = sorted(ma_datas.index.get_level_values(0).unique().tolist())
         start_idx = data_tds.index(dateshandle.tds_fshift(start_time, 1))  # 获取当前时间（或者往后最近交易日）的索引
         reg_cache = {}  # 用于缓存中间OLS的结果，避免重复计算降低速度，尤其在初始化的时候比较重要
+        tmp = {}
         for idx in range(start_idx, len(data_tds)):
             # idx可以同时记录有效数据的数量，即idx+1
             # 每个循环处理一个交易日
-            if idx + 1 < period_num * (period_length + 1):    # 期间交易日数量不足，直接剔除，最终直接使用NA填充
+            if idx + 1 < (period_num + 1) * period_length:    # 期间交易日数量不足，直接剔除，最终直接使用NA填充
                 continue
-            reg_tds = data_tds[:idx + 1][:-period_length * (period_num + 1):-period_length]
+            reg_tds = data_tds[:idx + 1][:-period_length * period_num:-period_length]
+            reg_last_tds = data_tds[:idx - period_length][:-
+                                                          period_length * period_num: -period_length]
             cur_td = data_tds[idx]
-            reg_coeff = None    # 存储回归的结果
-            for last_td, td in zip(reg_tds[:-1], reg_tds[1:]):  # 对过去period_num期做循环，每个循环进行回归
+            reg_coeff = 0    # 存储回归的结果
+            for last_td, td in zip(reg_last_tds, reg_tds):  # 对过去period_num期做循环，每个循环进行回归
+                # if td > pd.to_datetime('2017-11-01'):
+                #     pdb.set_trace()
                 if td in reg_cache:  # 缓存中有相关结果，直接读取
                     reg_res = reg_cache[td]
                 else:
@@ -1207,22 +1212,25 @@ def gen_multitrend_factor(trend_offsets):
                     reg_mod = OLS(ret_data, add_constant(tmp_madata))
                     reg_res = reg_mod.fit().params.drop('const')
                     reg_cache[td] = reg_res
-                if reg_coeff is None:
-                    reg_coeff = reg_res
-                else:
-                    reg_coeff += reg_res
+                reg_coeff += reg_res
             reg_coeff = reg_coeff / len(reg_tds)
             cur_madata = ma_datas.xs(cur_td, level=0)
             predict = cur_madata.T.dot(reg_coeff)
+            tmp[cur_td] = reg_coeff
             data[cur_td] = predict
-        out = pd.DataFrame(data).T
-        return out
+        data = pd.DataFrame(data).T.sort_index()
+        data = data.loc[:, sorted(universe)]
+        assert check_indexorder(data), 'Error, data order is mixed!'
+        # 第一次更新从START_TIME开始，必然会有缺失数据
+        if pd.to_datetime(start_time) > pd.to_datetime(START_TIME):
+            checkdata_completeness(data, start_time, end_time)
+        return data
     return inner
 
 
-# factor_list.append(Factor('MULTI_TREND', gen_multitrend_factor([3, 5, 10, 20, 30, 60, 90, 120, 180,
-#                                                                 240, 270, 300]),
-#                           pd.to_datetime('2017-12-06')))
+factor_list.append(Factor('MULTI_TREND', gen_multitrend_factor([3, 5, 10, 20, 30, 60, 90, 120, 180,
+                                                                240, 270, 300]),
+                          pd.to_datetime('2017-12-06')))
 # --------------------------------------------------------------------------------------------------
 
 
