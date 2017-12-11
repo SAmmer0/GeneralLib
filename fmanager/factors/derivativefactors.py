@@ -1141,7 +1141,7 @@ def gen_ma(offset):
     return inner
 
 
-for offset in [3, 5, 10, 20, 30, 60, 90, 120, 180, 240, 270, 300]:
+for offset in [3, 5, 10, 20, 50, 100, 200]:
     factor_list.append(Factor('MA%d' % offset, gen_ma(offset), pd.to_datetime('2017-12-06'),
                               dependency=['ADJ_CLOSE'],
                               desc='经过收盘价正则化后的%d日均线' % offset))
@@ -1161,76 +1161,66 @@ def gen_multitrend_factor(trend_offsets):
         目前可以使用的均线长度包含[3, 5, 10, 20, 30, 60, 90, 120, 180, 240, 270, 300]
     '''
     def inner(universe, start_time, end_time):
-        # 以20个交易日为一期，计算25期的系数平均值
-        period_length = 20
-        period_num = 25
-        # 数据请求超出了数据库的最早时间
-        if dateshandle.tds_count(START_TIME, start_time) < period_length * period_num:
+        start_time = pd.to_datetime(start_time)
+        period_length = 12
+        new_start = start_time - pd.Timedelta('%d days' % ((period_length + 2) * 31))
+        if new_start < pd.to_datetime(START_TIME):
             new_start = START_TIME
-        else:
-            new_start = dateshandle.tds_shift(start_time, period_length * period_num)
-        # 加载均线数据
+        # 加载数据
         ma_datas = [query('MA%d' % offset, (new_start, end_time)) for offset in trend_offsets]
         ma_datas = convert_data(ma_datas, ['MA%d' % offset for offset in trend_offsets])
-        # 加载收益率数据
-        close_data = query('ADJ_CLOSE', (new_start, end_time))
-        close_ret = close_data.pct_change(period_length)
+        adj_close = query('ADJ_CLOSE', (new_start, end_time))
+        month_end = dateshandle.get_period_end(adj_close.index.tolist())
+        monthly_ret = adj_close.loc[month_end].pct_change()
+        reg_cache = {}
         data = {}
-        data_tds = sorted(ma_datas.index.get_level_values(0).unique().tolist())
-        start_idx = data_tds.index(dateshandle.tds_fshift(start_time, 1))  # 获取当前时间（或者往后最近交易日）的索引
-        reg_cache = {}  # 用于缓存中间OLS的结果，避免重复计算降低速度，尤其在初始化的时候比较重要
-        # tmp = {}
-        for idx in range(start_idx, len(data_tds)):
-            # idx可以同时记录有效数据的数量，即idx+1
-            # 每个循环处理一个交易日
-            if idx + 1 < (period_num + 1) * period_length:    # 期间交易日数量不足，直接剔除，最终直接使用NA填充
-                continue
-            reg_tds = data_tds[:idx + 1][:-period_length * period_num:-period_length]
-            reg_last_tds = data_tds[:idx - period_length][:-period_length * period_num:
-                                                          -period_length]
-            cur_td = data_tds[idx]
-            reg_coeff = 0    # 存储回归的结果
-            for last_td, td in zip(reg_last_tds, reg_tds):  # 对过去period_num期做循环，每个循环进行回归
-                # if td > pd.to_datetime('2017-11-01'):
-                #     pdb.set_trace()
-                if td in reg_cache:  # 缓存中有相关结果，直接读取
-                    reg_res = reg_cache[td]
+        for idx in range(12, len(month_end)):
+            reg_coeff = 0
+            reg_cnt = 0
+            for offset in range(12):
+                last_td = month_end[idx - offset - 1]
+                cur_td = month_end[idx - offset]
+                if cur_td in reg_cache:
+                    reg_res = reg_cache[cur_td]
                 else:
-                    # 加载回归使用的数据
+                    # 加载回归使用数据
                     tmp_madata = ma_datas.xs(last_td, level=0).T
-                    ret_data = close_ret.loc[td].reindex(tmp_madata.index)
-                    # 剔除NA值
+                    tmp_ret = monthly_ret.loc[cur_td].reindex(tmp_madata.index)
                     ma_na_mask = np.any(pd.isnull(tmp_madata), axis=1)
-                    ret_na_mask = pd.isnull(ret_data).values
+                    ret_na_mask = pd.isnull(tmp_ret).values
                     na_mask = ma_na_mask | ret_na_mask
                     tmp_madata = tmp_madata.loc[~na_mask]
-                    ret_data = ret_data.loc[~na_mask]
-                    if len(ret_data) <= len(tmp_madata.columns) + 10:
-                        warnings.warn('回归使用的有效数据量过少，直接跳过', RuntimeWarning)
+                    tmp_ret = tmp_ret.loc[~na_mask]
+                    n, m = tmp_madata.shape
+                    if n < m + 10:
+                        warnings.warn('回归使用的数据量过少，直接跳过', RuntimeWarning)
                         continue
-                    # 回归分析
-                    reg_mod = OLS(ret_data, add_constant(tmp_madata))
+                    reg_mod = OLS(tmp_ret, add_constant(tmp_madata))
                     reg_res = reg_mod.fit().params.drop('const')
-                    reg_cache[td] = reg_res
+                    reg_cache[cur_td] = reg_res
                 reg_coeff += reg_res
-            reg_coeff = reg_coeff / len(reg_tds)
-            cur_madata = ma_datas.xs(cur_td, level=0)
-            predict = cur_madata.T.dot(reg_coeff)
-            # tmp[cur_td] = reg_coeff
+                reg_cnt += 1
+            try:
+                reg_coeff = reg_coeff / reg_cnt
+            except ZeroDivisionError:
+                continue
+            cur_ma = ma_datas.xs(cur_td, level=0).T
+            predict = cur_ma.dot(reg_coeff)
             data[cur_td] = predict
-        data = pd.DataFrame(data).T.sort_index()
+        tds = dateshandle.get_tds(start_time, end_time)
+        data = pd.DataFrame(data).T.reindex(tds, method='ffill')
         data = data.loc[:, sorted(universe)]
         assert check_indexorder(data), 'Error, data order is mixed!'
-        # 第一次更新从START_TIME开始，必然会有缺失数据
-        if pd.to_datetime(start_time) > pd.to_datetime(START_TIME):
-            checkdata_completeness(data, start_time, end_time)
+        checkdata_completeness(data, start_time, end_time)
         return data
     return inner
 
-mas = [3, 5, 10, 20, 30, 60, 90, 120, 180, 240, 270, 300]
+
+mas = [3, 5, 10, 20, 50, 100, 200]
 factor_list.append(Factor('MULTI_TREND', gen_multitrend_factor(mas),
                           pd.to_datetime('2017-12-06'), dependency=['MA%d' % m for m in mas],
                           desc='多期限趋势因子'))
+
 # --------------------------------------------------------------------------------------------------
 
 
