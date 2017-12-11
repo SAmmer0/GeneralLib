@@ -53,6 +53,7 @@ from windwrapper import get_tds_wind
 
 import datetime as dt
 import pickle
+from itertools import groupby
 import pandas as pd
 import sysconfiglee
 
@@ -425,6 +426,36 @@ def tds_fshift(date, offset):
     forward_date = tds_shift(date, -offset)
     tds = get_tds(date, forward_date)
     return tds[offset - 1]
+
+
+def get_period_end(dates, fmt='%Y-%m'):
+    '''
+    对日期按照一定的规则进行分组，并返回每个分组的最后一个日期
+
+    Parameter
+    ---------
+    dates: iterable
+        元素为datetime类型或者其子类类型
+    fmt: string
+        将时间进行分组的方法，通过调用strftime来进行分组，默认分组模式为%Y-%m，即按照月度分组
+
+    Return
+    ------
+    out: list
+        元素与输入类型相同
+
+    Notes
+    -----
+    并不是所有的分组中都会产生有效的最后日期，例如，如果12月份的时间数据不足，最后一个数据为'2017-12-03'，
+    程序会通过自动判断来剔除这个数据，即结果中没有12月份的最后一个日期的数据
+    '''
+    by_freq = groupby(dates, lambda x: x.strftime(fmt))
+    out = []
+    for k, ds in by_freq:
+        tmp_max = max(ds)
+        if tmp_max.strftime(fmt) != (tmp_max + dt.timedelta(1)).strftime(fmt):    # 表明当前最大值并非为该分组下最后一日
+            out.append(tmp_max)
+    return out
 
 
 if __name__ == '__main__':
