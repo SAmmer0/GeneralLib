@@ -428,7 +428,7 @@ def tds_fshift(date, offset):
     return tds[offset - 1]
 
 
-def get_period_end(dates, fmt='%Y-%m'):
+def get_period_end(dates, fmt='%Y-%m', td_flag=True):
     '''
     对日期按照一定的规则进行分组，并返回每个分组的最后一个日期
 
@@ -438,11 +438,13 @@ def get_period_end(dates, fmt='%Y-%m'):
         元素为datetime类型或者其子类类型
     fmt: string
         将时间进行分组的方法，通过调用strftime来进行分组，默认分组模式为%Y-%m，即按照月度分组
+    td_flag: boolean
+        标识当前是否是仅限于交易日，True标识对于最后一日的判断是基于交易日而非自然日，默认为True
 
     Return
     ------
     out: list
-        元素与输入类型相同
+        元素与输入类型相同，按照升序排列
 
     Notes
     -----
@@ -450,12 +452,18 @@ def get_period_end(dates, fmt='%Y-%m'):
     程序会通过自动判断来剔除这个数据，即结果中没有12月份的最后一个日期的数据
     '''
     by_freq = groupby(dates, lambda x: x.strftime(fmt))
+    if td_flag:
+        def next_day_func(x):
+            return tds_fshift(x, 2)
+    else:
+        def next_day_func(x):
+            return x + dt.timedelta(1)
     out = []
     for k, ds in by_freq:
         tmp_max = max(ds)
-        if tmp_max.strftime(fmt) != (tmp_max + dt.timedelta(1)).strftime(fmt):    # 表明当前最大值并非为该分组下最后一日
+        if tmp_max.strftime(fmt) != next_day_func(tmp_max).strftime(fmt):    # 表明当前最大值并非为该分组下最后一日
             out.append(tmp_max)
-    return out
+    return sorted(out)
 
 
 if __name__ == '__main__':
