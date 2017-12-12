@@ -1162,7 +1162,7 @@ def gen_multitrend_factor(trend_offsets):
     '''
     def inner(universe, start_time, end_time):
         start_time = pd.to_datetime(start_time)
-        period_length = 12
+        period_length = 6
         new_start = start_time - pd.Timedelta('%d days' % ((period_length + 2) * 31))
         if new_start < pd.to_datetime(START_TIME):
             new_start = START_TIME
@@ -1174,10 +1174,10 @@ def gen_multitrend_factor(trend_offsets):
         monthly_ret = adj_close.loc[month_end].pct_change()
         reg_cache = {}
         data = {}
-        for idx in range(12, len(month_end)):
+        for idx in range(period_length, len(month_end)):
             reg_coeff = 0
             reg_cnt = 0
-            for offset in range(12):
+            for offset in range(period_length):
                 last_td = month_end[idx - offset - 1]
                 cur_td = month_end[idx - offset]
                 if cur_td in reg_cache:
@@ -1204,9 +1204,10 @@ def gen_multitrend_factor(trend_offsets):
                 reg_coeff = reg_coeff / reg_cnt
             except ZeroDivisionError:
                 continue
-            cur_ma = ma_datas.xs(cur_td, level=0).T
+            td = month_end[idx]
+            cur_ma = ma_datas.xs(td, level=0).T
             predict = cur_ma.dot(reg_coeff)
-            data[cur_td] = predict
+            data[td] = predict
         tds = dateshandle.get_tds(start_time, end_time)
         data = pd.DataFrame(data).T.reindex(tds, method='ffill')
         data = data.loc[:, sorted(universe)]
