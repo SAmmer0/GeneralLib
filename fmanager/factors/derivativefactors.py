@@ -435,6 +435,9 @@ factor_list.append(Factor('MOM_3M', get_momentum(60), pd.to_datetime('2017-07-31
 # 60个月动量
 factor_list.append(Factor('MOM_60M', get_momentum(1200), pd.to_datetime('2017-07-31'),
                           dependency=['ADJ_CLOSE']))
+# 12个月动量
+factor_list.append(Factor('MOM_12M', get_momentum(250), pd.to_datetime('2017-12-13'),
+                          dependency=['ADJ_CLOSE'], desc='12个月动量'))
 # --------------------------------------------------------------------------------------------------
 # 偏度峰度因子
 # 偏度
@@ -1146,81 +1149,6 @@ for offset in [3, 5, 10, 20, 50, 100, 200]:
                               dependency=['ADJ_CLOSE'],
                               desc='经过收盘价正则化后的%d日均线' % offset))
 
-# --------------------------------------------------------------------------------------------------
-# 多期限趋势因子
-# 来源：A trend factor: Any economic gains from using information over investment horizons
-
-
-def gen_multitrend_factor(trend_offsets):
-    '''
-    母函数，用于生成多趋势因子的计算方法
-    Parameter
-    ---------
-    trend_offsets: iterable
-        因子计算过程中所使用的均线，例如[10, 20, 30]表示在综合趋势的过程中使用10日、20日和30日的均线
-        目前可以使用的均线长度包含[3, 5, 10, 20, 30, 60, 90, 120, 180, 240, 270, 300]
-    '''
-    def inner(universe, start_time, end_time):
-        start_time = pd.to_datetime(start_time)
-        period_length = 6
-        new_start = start_time - pd.Timedelta('%d days' % ((period_length + 2) * 31))
-        if new_start < pd.to_datetime(START_TIME):
-            new_start = START_TIME
-        # 加载数据
-        ma_datas = [query('MA%d' % offset, (new_start, end_time)) for offset in trend_offsets]
-        ma_datas = convert_data(ma_datas, ['MA%d' % offset for offset in trend_offsets])
-        adj_close = query('ADJ_CLOSE', (new_start, end_time))
-        month_end = dateshandle.get_period_end(adj_close.index.tolist())
-        monthly_ret = adj_close.loc[month_end].pct_change()
-        reg_cache = {}
-        data = {}
-        for idx in range(period_length, len(month_end)):
-            reg_coeff = 0
-            reg_cnt = 0
-            for offset in range(period_length):
-                last_td = month_end[idx - offset - 1]
-                cur_td = month_end[idx - offset]
-                if cur_td in reg_cache:
-                    reg_res = reg_cache[cur_td]
-                else:
-                    # 加载回归使用数据
-                    tmp_madata = ma_datas.xs(last_td, level=0).T
-                    tmp_ret = monthly_ret.loc[cur_td].reindex(tmp_madata.index)
-                    ma_na_mask = np.any(pd.isnull(tmp_madata), axis=1)
-                    ret_na_mask = pd.isnull(tmp_ret).values
-                    na_mask = ma_na_mask | ret_na_mask
-                    tmp_madata = tmp_madata.loc[~na_mask]
-                    tmp_ret = tmp_ret.loc[~na_mask]
-                    n, m = tmp_madata.shape
-                    if n < m + 10:
-                        warnings.warn('回归使用的数据量过少，直接跳过', RuntimeWarning)
-                        continue
-                    reg_mod = OLS(tmp_ret, add_constant(tmp_madata))
-                    reg_res = reg_mod.fit().params.drop('const')
-                    reg_cache[cur_td] = reg_res
-                reg_coeff += reg_res
-                reg_cnt += 1
-            try:
-                reg_coeff = reg_coeff / reg_cnt
-            except ZeroDivisionError:
-                continue
-            td = month_end[idx]
-            cur_ma = ma_datas.xs(td, level=0).T
-            predict = cur_ma.dot(reg_coeff)
-            data[td] = predict
-        tds = dateshandle.get_tds(start_time, end_time)
-        data = pd.DataFrame(data).T.reindex(tds, method='ffill')
-        data = data.loc[:, sorted(universe)]
-        assert check_indexorder(data), 'Error, data order is mixed!'
-        checkdata_completeness(data, start_time, end_time)
-        return data
-    return inner
-
-
-mas = [3, 5, 10, 20, 50, 100, 200]
-factor_list.append(Factor('MULTI_TREND', gen_multitrend_factor(mas),
-                          pd.to_datetime('2017-12-06'), dependency=['MA%d' % m for m in mas],
-                          desc='多期限趋势因子'))
 
 # --------------------------------------------------------------------------------------------------
 
