@@ -8,99 +8,109 @@ Created on Thu Oct 13 11:26:14 2016
     输入要求为pandas.DataFrame的格式，必须有open, close, high, low数据列
     可以有时间数据（time）列
 """
-__version__ = 1.0
+__version__ = 2.0
+
+from itertools import groupby
+import pdb
+
 import matplotlib.pyplot as plt
 from matplotlib import finance
-#import matplotlib.dates as mpldates
+# import matplotlib.dates as mpldates
 from matplotlib import ticker
 
 
-def time_formatterSetting(ax, times, majorStep=20, majorOffset=0, timeFormat='%Y-%m-%d',
-                          minor=False, minorStep=5, minorOffset=0):
+def plot_candle(data, cols=None, time_index=True, time_col=None, major_loc_fmt='%Y',
+                enable_minor_loc=True, minor_loc_fmt='%Y-%m', rotation=0, stick_width=0.8, alpha=1):
     '''
-    设置横轴时间轴的格式，与FixedFormatter相配合
-    @param:
-        ax: 当前图对应的axes
-        times: 日期列表，要求可迭代，且列表中元素为对应的日期时间类型，原则上应该
-               为datetime.datetime类型，但是如果有strftime方法返回字符串也可
-        majorStep: 主刻度之间的下标间隔，e.g., 5可以表示为[0, 5, 10,...]
-        majorOffset: 根据该公式选择刻度，即(index-majorOffset)%majorStep==0，
-                     默认为1
-        timeFormat: 时间解析的形式，按照datetime要求的形式解析，默认为解析为
-                    yyyy-mm-dd的日期形式
-        minor: 是否设置次刻度，默认为False，即不设置
-        minorStep: 同majorStep，默认为5
-        minorOffset: 同majorOffset，默认为1
-    @return:
-        res: 按照给定形式解析后的时间字符串列表
-        同时设置刻度表示的日期形式
-    '''
-    strDates = list(map(lambda x: x.date().strftime(timeFormat), times))
-    majorDates = [strDates[i] for i in range(len(strDates))
-                  if (i-majorOffset) % majorStep == 0]
-    formatter = ticker.FixedFormatter(majorDates)
-    ax.xaxis.set_major_formatter(formatter)
-    if minor:
-        minorDates = [strDates[i] for i in range(len(strDates))
-                      if (i-minorOffset) % minorStep == 0]
-        minorFormatter = ticker.FixedFormatter(minorDates)
-        ax.xaxis.set_minor_formatter(minorFormatter)
-    return strDates
+    使用data提供的数据画k线图
 
-
-def plot(data, columnNames=None, timeColumnName=None,
-         majorLocatorStep=20, majorOffset=0, minorLocatorStep=5, minorOffset=0,
-         displayMinor=False, timeFormat='%Y-%m-%d', rotation=45,
-         stickWidth=0.6, alpha=1):
+    Parameter
+    ---------
+    data: pd.DataFrame or dict of Series
+        输入的原始数据
+    cols: iterable, default None
+        显式按照顺序说明'open', 'high', 'low', 'close'所在的列的列名，如果该参数为None，则默认各个列
+        名依次为'open', 'high', 'low', 'close'
+    time_index: boolean, default True
+        时间或者日期数据是否在DataFrame的Index中，默认为True。如果为False，则time_col不能为None，
+        要求时间的数据为datetime或者其子类
+    time_col: string, default None
+        时间或者日期数据所在的列，只有在time_index为False时调用
+    major_loc_fmt: string
+        两个功能，首先依据major_loc_fmt对时间进行分组，并以每个分组的最小日期作为位置，然后依照
+        major_loc_fmt所给的形式进行对坐标轴日期进行格式化
+    enable_minor_loc: boolean, default True
+        是否启用minor tick
+    minor_loc_fmt: string
+        若启用了minor tick，则提供与major_loc_fmt相同的定位和格式化功能
+    rotation: float, default 0
+        横轴标签的旋转角度
+    stick_width: float, default 0.6
+        每根k线的宽度
+    alpha: float, default 1
+        透明度
     '''
-    根据所给的数据，画出蜡烛图
-    @param:
-        data: 原始数据，要求为pandas.DataFrame的形式，默认的有open, close, high
-              low这四列，反之需要通过columnNames参数提供，依次的顺序为openName,
-              closeName, highName, lowName,若要画出时间轴，则需要数据中有date列，
-              否则则需要通过使用的时候通过timeFormat来提供
-        columnNames: 默认data中有open, close, high, low这些列，反之则需要自行提供
-        timeColumnName: 当需要画以时间为横轴的图时，需要提供时间列的列名
-        majorLocatorStep: 主刻度间隔，默认为间隔20个数据
-        minorLocatorStep: 副刻度间隔，默认为间隔5个数据
-        displayMinor: 是否在副刻度上也标明时间或者顺序下标，默认不标明
-        majorFormat: 解析时间列主刻度的方法，需按照datetime中的形式解析，默认为%Y-%m-%d
-        minorFormat: 解析时间列副刻度的方法，需按照datetime中的形式解析，默认为%Y-%m-%d
-        rotation: 横轴值旋转度数，默认旋转45度
-        stickWidth: 蜡烛图的宽度，默认为0.6
-        alpha: 蜡烛图颜色的深度，默认为1
-    '''
-    plt.style.use('seaborn-ticks')
-    fig, ax = plt.subplots()
-    if not columnNames is None:
-        openName, closeNames, highName, lowName = columnNames
+    # 预处理
+    if cols is None:
+        cols = ('open', 'high', 'low', 'close')
+    if time_index:
+        date_index = data.index.tolist()
     else:
-        openName, closeNames, highName, lowName = ('open', 'close', 'high', 'low')
-    opens, closes, highs, lows = data[openName].tolist(), data[closeNames].tolist(), data[
-        highName].tolist(), data[lowName].tolist()
-    fig.subplots_adjust(bottom=0.2)
-    majorLocator = ticker.IndexLocator(majorLocatorStep, majorOffset)
-    ax.xaxis.set_major_locator(majorLocator)
-    minorLocator = ticker.IndexLocator(minorLocatorStep, minorOffset)
-    ax.xaxis.set_minor_locator(minorLocator)
+        date_index = data[time_col].tolist()
 
-    if not timeColumnName is None:
-        times = data[timeColumnName].tolist()
-        time_formatterSetting(ax, times, majorLocatorStep, majorOffset, timeFormat,
-                              displayMinor, minorLocatorStep, minorOffset)
-    finance.candlestick2_ohlc(ax, opens, highs, lows, closes, width=stickWidth,
-                              colorup='r', colordown='g', alpha=alpha)
+    # locator定位函数，返回经过给定格式分类后生成的tick的位置和label
+    def locate_ticker(fmt):
+        by_fmt = groupby(date_index, lambda x: x.strftime(fmt))
+        idx = [date_index.index(min(g)) for _, g in by_fmt]
+        dates = [date_index[i].strftime(fmt) for i in idx]
+        return idx, dates
+
+    # 初始化图片
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+
+    # 计算并设置major tick
+    # 计算位置和相关格式
+    major_index, major_label = locate_ticker(major_loc_fmt)
+    major_loc = ticker.FixedLocator(major_index)
+    major_fmter = ticker.FixedFormatter(major_label)
+    # 设置到图片
+    ax.xaxis.set_major_locator(major_loc)
+    ax.xaxis.set_major_formatter(major_fmter)
+    # 计算minor tick
+    if enable_minor_loc:
+        minor_index, minor_label = locate_ticker(minor_loc_fmt)
+        minor_loc = ticker.FixedLocator(minor_index)
+        minor_fmter = ticker.FixedFormatter(minor_label)
+        ax.xaxis.set_minor_locator(minor_loc)
+        ax.xaxis.set_minor_formatter(minor_fmter)
+        # pdb.set_trace()
+    # 加载数据，画图
+    ochl_data = data.loc[:, cols].values.T
+    finance.candlestick2_ohlc(ax, *ochl_data, width=stick_width, colorup='red', colordown='green',
+                              alpha=alpha)
     plt.setp(ax.get_xticklabels(), rotation=rotation)
-    if displayMinor:
+    if enable_minor_loc:
         plt.setp(ax.xaxis.get_minorticklabels(), rotation=rotation)
-    xmin, xmax = plt.xlim()
-    plt.xlim(xmin=xmin-1)
-    plt.grid(True)
+        for xlabel in ax.xaxis.get_majorticklabels():   # 隐藏major tick
+            xlabel.set_visible(False)
+        for xlabel in ax.xaxis.get_minorticklabels():   # 显示minor tick
+            xlabel.set_visible(True)
+
+    xmin, _ = plt.xlim()
+    plt.xlim(xmin=xmin - 1)
     plt.show()
 
+
 if __name__ == '__main__':
-    import pickle
-    with open(r'F:\GeneralLib\test_sources\candleplot_testdata.pickle', 'rb') as f:
-        testData = pickle.load(f)
-    plot(testData, timeColumnName='time', majorLocatorStep=10,
-         minorLocatorStep=1, displayMinor=True, rotation=90)
+    import pandas as pd
+    import fmanager
+    start_time = '2016-01-01'
+    end_time = '2017-02-01'
+    open_data = fmanager.query('OPEN', (start_time, end_time)).iloc[:, 0]
+    close_data = fmanager.query('CLOSE', (start_time, end_time)).iloc[:, 0]
+    high_data = fmanager.query('HIGH', (start_time, end_time)).iloc[:, 0]
+    low_data = fmanager.query('LOW', (start_time, end_time)).iloc[:, 0]
+    data = pd.DataFrame({'open': open_data, 'close': close_data, 'high': high_data,
+                         'low': low_data})
+    plot_candle(data.reset_index(), time_col='index', time_index=False, rotation=45)
