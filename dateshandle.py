@@ -49,6 +49,8 @@ __version__ = 1.1.3
 '''
 __version__ = '1.1.2'
 
+
+import pdb
 from windwrapper import get_tds_wind
 
 import datetime as dt
@@ -175,7 +177,8 @@ def time2wind(date):
     @return:
         转换后的Wind格式时间
     '''
-    return date.replace(microsecond=5000)
+    # return date.replace(microsecond=5000)
+    return date.replace(hour=0, minute=0, second=0, microsecond=0)     # wind修改了交易日的格式，去除掉了微秒
 
 
 def get_nth_day(days, transFunc, nth, timeColName='time', to_df=True):
