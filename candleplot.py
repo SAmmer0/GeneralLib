@@ -21,7 +21,8 @@ from matplotlib import ticker
 
 def plot_candle(data, cols=None, time_index=True, time_col=None, major_group_fmt='%Y',
                 major_loc_fmt='%Y-%m', enable_minor_loc=True, minor_group_fmt='%Y-%m',
-                minor_loc_fmt='%m-%d', rotation=0, stick_width=0.8, alpha=1):
+                minor_loc_fmt='%m-%d', rotation=0, stick_width=0.8, alpha=1,
+                title=None):
     '''
     使用data提供的数据画k线图
 
@@ -54,6 +55,8 @@ def plot_candle(data, cols=None, time_index=True, time_col=None, major_group_fmt
         每根k线的宽度
     alpha: float, default 1
         透明度
+    title: string, default None
+        K线的标题，默认为None，表示不添加标题
     '''
     # 预处理
     if cols is None:
@@ -94,6 +97,8 @@ def plot_candle(data, cols=None, time_index=True, time_col=None, major_group_fmt
     ochl_data = data.loc[:, cols].values.T
     finance.candlestick2_ohlc(ax, *ochl_data, width=stick_width, colorup='red', colordown='green',
                               alpha=alpha)
+    if title is not None:
+        plt.title(title)
     plt.setp(ax.get_xticklabels(), rotation=rotation)
     if enable_minor_loc:
         # pdb.set_trace()
