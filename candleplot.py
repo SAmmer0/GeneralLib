@@ -19,8 +19,9 @@ from matplotlib import finance
 from matplotlib import ticker
 
 
-def plot_candle(data, cols=None, time_index=True, time_col=None, major_loc_fmt='%Y',
-                enable_minor_loc=True, minor_loc_fmt='%Y-%m', rotation=0, stick_width=0.8, alpha=1):
+def plot_candle(data, cols=None, time_index=True, time_col=None, major_group_fmt='%Y',
+                major_loc_fmt='%Y-%m', enable_minor_loc=True, minor_group_fmt='%Y-%m',
+                minor_loc_fmt='%m-%d', rotation=0, stick_width=0.8, alpha=1):
     '''
     使用data提供的数据画k线图
 
@@ -36,13 +37,17 @@ def plot_candle(data, cols=None, time_index=True, time_col=None, major_loc_fmt='
         要求时间的数据为datetime或者其子类
     time_col: string, default None
         时间或者日期数据所在的列，只有在time_index为False时调用
-    major_loc_fmt: string
-        两个功能，首先依据major_loc_fmt对时间进行分组，并以每个分组的最小日期作为位置，然后依照
-        major_loc_fmt所给的形式进行对坐标轴日期进行格式化
+    major_group_fmt: string, default '%Y'
+        依据major_group_fmt对日期进行分组，并以每个分组的最小日期作为位置，要求能被datetime.strftime
+        使用
+    major_loc_fmt: string, default '%Y-%m'
+        major tick格式化的方式，格式要求与major_group_fmt相同
     enable_minor_loc: boolean, default True
         是否启用minor tick
-    minor_loc_fmt: string
-        若启用了minor tick，则提供与major_loc_fmt相同的定位和格式化功能
+    minor_group_fmt: string, default '%Y-%m'
+        若启用了minor tick，则提供与major_group_fmt相同的定位功能
+    minor_loc_fmt: string, default '%Y-%m-%d'
+        若启用了minor tick, 则提供与major_loc_fmt相同的格式化功能
     rotation: float, default 0
         横轴标签的旋转角度
     stick_width: float, default 0.6
@@ -59,10 +64,10 @@ def plot_candle(data, cols=None, time_index=True, time_col=None, major_loc_fmt='
         date_index = data[time_col].tolist()
 
     # locator定位函数，返回经过给定格式分类后生成的tick的位置和label
-    def locate_ticker(fmt):
-        by_fmt = groupby(date_index, lambda x: x.strftime(fmt))
+    def locate_ticker(group_fmt, loc_fmt):
+        by_fmt = groupby(date_index, lambda x: x.strftime(group_fmt))
         idx = [date_index.index(min(g)) for _, g in by_fmt]
-        dates = [date_index[i].strftime(fmt) for i in idx]
+        dates = [date_index[i].strftime(loc_fmt) for i in idx]
         return idx, dates
 
     # 初始化图片
@@ -71,7 +76,7 @@ def plot_candle(data, cols=None, time_index=True, time_col=None, major_loc_fmt='
 
     # 计算并设置major tick
     # 计算位置和相关格式
-    major_index, major_label = locate_ticker(major_loc_fmt)
+    major_index, major_label = locate_ticker(major_group_fmt, major_loc_fmt)
     major_loc = ticker.FixedLocator(major_index)
     major_fmter = ticker.FixedFormatter(major_label)
     # 设置到图片
@@ -79,7 +84,7 @@ def plot_candle(data, cols=None, time_index=True, time_col=None, major_loc_fmt='
     ax.xaxis.set_major_formatter(major_fmter)
     # 计算minor tick
     if enable_minor_loc:
-        minor_index, minor_label = locate_ticker(minor_loc_fmt)
+        minor_index, minor_label = locate_ticker(minor_group_fmt, minor_loc_fmt)
         minor_loc = ticker.FixedLocator(minor_index)
         minor_fmter = ticker.FixedFormatter(minor_label)
         ax.xaxis.set_minor_locator(minor_loc)
@@ -91,6 +96,7 @@ def plot_candle(data, cols=None, time_index=True, time_col=None, major_loc_fmt='
                               alpha=alpha)
     plt.setp(ax.get_xticklabels(), rotation=rotation)
     if enable_minor_loc:
+        # pdb.set_trace()
         plt.setp(ax.xaxis.get_minorticklabels(), rotation=rotation)
         for xlabel in ax.xaxis.get_majorticklabels():   # 隐藏major tick
             xlabel.set_visible(False)
