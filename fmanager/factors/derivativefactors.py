@@ -782,10 +782,16 @@ factor_list.append(Factor('SPECIAL_VOL', gen_capm_factor(idiosyncratic_handler),
 
 
 # 系统风险占比因子（systemic risk ratio）
+np.seterr('raise')
+
 
 def srr_handler(y, x, beta):
     resid = y - np.dot(x, beta)
-    return 1 - np.var(resid) / np.var(y)
+    try:
+        out = 1 - np.var(resid) / np.var(y)  # 停牌的股票长期的波动为0，视为无效数据
+    except FloatingPointError:
+        out = np.nan
+    return out
 
 
 factor_list.append(Factor('SYSRISK_RATIO', gen_capm_factor(srr_handler),
