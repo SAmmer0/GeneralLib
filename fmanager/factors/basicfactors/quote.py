@@ -361,19 +361,20 @@ def get_lntotalmktv(universe, start_time, end_time):
 
 def get_nonlinearmktv(universe, start_time, end_time):
     '''
-    非线性市值
+    非线性市值，并不针对市值数据进行正交化
     '''
     lnmktv = query('LN_TMKV', (start_time, end_time))
 
-    def get_nlsize(df):
-        # 市值3次方然后通过OLS来获取与市值正交的残差
-        raw_index = df.index
-        df = df.dropna()
-        nonlsize = np.power(df, 3)
-        mod = OLS(nonlsize, add_constant(df))
-        mod_res = mod.fit()
-        return mod_res.resid.reindex(raw_index)
-    data = lnmktv.apply(get_nlsize, axis=1)
+    # def get_nlsize(df):
+    #     # 市值3次方然后通过OLS来获取与市值正交的残差
+    #     raw_index = df.index
+    #     df = df.dropna()
+    #     nonlsize = np.power(df, 3)
+    #     mod = OLS(nonlsize, add_constant(df))
+    #     mod_res = mod.fit()
+    #     return mod_res.resid.reindex(raw_index)
+    # data = lnmktv.apply(get_nlsize, axis=1)
+    data = np.power(lnmktv, 3)
     data = data.loc[:, sorted(universe)]
     assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
     return data
