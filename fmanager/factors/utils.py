@@ -7,8 +7,10 @@
 
 from collections import defaultdict
 import pdb
+from functools import wraps
 
 import pandas as pd
+import numpy as np
 
 import dateshandle
 import datatoolkits
@@ -191,3 +193,53 @@ def get_universe(path=UNIVERSE_FILE_PATH):
     '''
     universe = datatoolkits.load_pickle(path)[0]
     return sorted(universe)
+
+
+def get_valid_mask(start_time, end_time):
+    '''
+    获取给定期间内（包含起始时间）数据是否有效的掩码。
+
+    Parameter
+    ---------
+    start_time: datetime like
+        开始时间
+    end_time: datetime like
+        结束时间
+
+    Return
+    ------
+    out: pd.DataFrame
+        index为时间，columns为股票代码
+
+    Notes
+    -----
+    数据是否有效是根据当前股票是否退市或者终止上市来判断的，凡是LIST_STATUS为退市或者终止上市（3和4）
+    状态的股票均被视作为无效数据，即False
+    '''
+    from fmanager.factors.query import query
+    ls_status = query('LIST_STATUS', (start_time, end_time))
+    valid_mask = np.logical_or(ls_status == 1, ls_status == 2)
+    return valid_mask
+
+
+def drop_delist_data(func):
+    '''
+    装饰器函数，用于装饰获取数据的函数，将退市股票的相关数据设置为NA
+
+    Parameter
+    ---------
+    func: function(universe, start_time, end_time)
+        获取数据的函数
+
+    Return
+    ------
+    out_func: function(universe, start_time, end_time)
+        添加退市数据处理的函数
+    '''
+    @wraps(func)
+    def inner(universe, start_time, end_time):
+        data = func(universe, start_time, end_time)
+        mask = get_valid_mask(start_time, end_time)
+        data[~mask] = np.nan
+        return data
+    return inner
