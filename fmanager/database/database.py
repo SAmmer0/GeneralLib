@@ -185,42 +185,26 @@ class DBConnector(object):
         -----
         查询结果同时包含start_time和end_time的数据
         '''
-        def __find_index(start, end, source):
-            '''
-            辅助函数，用于查找对应起始日期在source的索引值，如果未查找到则返回None
-            '''
-            source = [pd.to_datetime(s.decode('utf8')) for s in source]
-            valid = list(filter(lambda x: x[1] >= start and x[1] <= end, enumerate(source)))
-            if len(valid) == 0:
-                return None, None
-            else:
-                min_idx = min(valid, key=lambda x: x[1])[0]
-                max_idx = max(valid, key=lambda x: x[1])[0]
-            return min_idx, max_idx
 
         out = None
         try:
             store = h5py.File(self.path, 'r')
             dset_dates = store['date']
-            start_idx, end_idx = __find_index(start_time, end_time, dset_dates)
-            if start_idx is None and end_idx is None:
-                pass
-            else:
-                codes = store['code']
-                code_len = store.attrs['#code']
-                codes = codes[:code_len]
-                codes = [c.decode('utf8') for c in codes]
-                date_slice = slice(start_idx, end_idx + 1, 1)
-                dset_data = store['data']
-                dset_dates = store['date']
-                data = dset_data[date_slice, :code_len]
-                data_type = store.attrs['data type']
-                if data_type[0].lower() == 's':  # 检查数据的格式，如果为字符串则进行类型转换
-                    new_data_type = 'U' + data_type[1:]
-                    data = data.astype(new_data_type)
-                dates = dset_dates[date_slice]
-                dates = [pd.to_datetime(d.decode('utf8')) for d in dates]
-                out = pd.DataFrame(data, index=dates, columns=codes)
+            codes = store['code']
+            code_len = store.attrs['#code']
+            codes = [c.decode('utf8') for c in codes[:code_len]]
+            dset_data = store['data']
+            dset_dates = store['date']
+            data = dset_data[:, :code_len]
+            data_type = store.attrs['data type']
+            if data_type[0].lower() == 's':  # 检查数据的格式，如果为字符串则进行类型转换
+                new_data_type = 'U' + data_type[1:]
+                data = data.astype(new_data_type)
+            dates = [pd.to_datetime(d.decode('utf8')) for d in dset_dates]
+            out = pd.DataFrame(data, index=dates, columns=codes)
+            out = out.loc[(out.index <= end_time) & (out.index >= start_time)]
+            if out.empty:
+                out = None
         finally:
             store.close()
         return out
@@ -374,4 +358,6 @@ if __name__ == '__main__':
     from fmanager import get_factor_detail
     cpath = get_factor_detail('ZX_IND')['abs_path']
     test_path = r'C:\Users\lenovo\Desktop\test\test_db.h5'
-    reshape_colsize(cpath, 5000, test_path)
+    db = DBConnector(cpath)
+    data = db.query(('2007-01-01', '2016-12-01'))
+    # reshape_colsize(cpath, 5000, test_path)
