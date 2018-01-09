@@ -21,7 +21,7 @@ from numpy.linalg import linalg, LinAlgError
 import pandas as pd
 import pdb
 import warnings
-from functools import wraps
+# from functools import wraps
 
 from scipy.stats import skew, kurtosis
 from statsmodels.tools import add_constant
@@ -29,7 +29,7 @@ from statsmodels.regression.linear_model import OLS
 from tqdm import tqdm
 from fmanager.const import START_TIME
 from fmanager.factors.utils import (Factor, check_indexorder, check_duplicate_factorname,
-                                    convert_data, checkdata_completeness)
+                                    convert_data, checkdata_completeness, drop_delist_data)
 from fmanager.factors.query import query
 import fdgetter
 import datatoolkits
@@ -54,6 +54,7 @@ factor_list = []
 # EP_TTM
 
 
+@drop_delist_data
 def get_ep(universe, start_time, end_time):
     '''
     EP为净利润与总市值的比
@@ -73,6 +74,7 @@ factor_list.append(Factor('EP_TTM', get_ep, pd.to_datetime('2017-07-27'),
 # BP_TTM
 
 
+@drop_delist_data
 def get_bp(universe, start_time, end_time):
     '''
     BP为归属母公司权益/总市值
@@ -92,6 +94,7 @@ factor_list.append(Factor('BP', get_bp, pd.to_datetime('2017-07-27'),
 # SP_TTM
 
 
+@drop_delist_data
 def get_sp(universe, start_time, end_time):
     '''
     SP为营业收入与总市值的比
@@ -111,6 +114,7 @@ factor_list.append(Factor('SP_TTM', get_sp, pd.to_datetime('2017-07-27'),
 # CFP_TTM
 
 
+@drop_delist_data
 def get_cfp(universe, start_time, end_time):
     '''
     CFP为经营活动产生的现金流量净额/总市值
@@ -130,6 +134,7 @@ factor_list.append(Factor('CFP_TTM', get_cfp, pd.to_datetime('2017-07-27'),
 # SALE2EV
 
 
+@drop_delist_data
 def get_sale2ev(universe, start_time, end_time):
     '''
     SALE2EV = 营业收入/(总市值+非流动负债合计-货币资金)
@@ -153,6 +158,7 @@ factor_list.append(Factor('SALE2EV', get_sale2ev, pd.to_datetime('2017-07-27'),
 # 单季度营业收入同比增长
 
 
+@drop_delist_data
 def get_oprev_yoy(universe, start_time, end_time):
     '''
     OPREV_YOY = (本季度营业收入-上年同季度营业收入)/abs(上年同季度营业收入)
@@ -172,6 +178,7 @@ factor_list.append(Factor('OPREV_YOY', get_oprev_yoy, pd.to_datetime('2017-07-27
 # 单季度净利润同比增长
 
 
+@drop_delist_data
 def get_ni_yoy(universe, start_time, end_time):
     '''
     NI_YOY = (本季度净利润-上年同季度净利润)/abs(上年同季度净利润)
@@ -215,6 +222,7 @@ def get_p5ygrowth(factor_type):
         res = res / np.abs(df_mean)
         return res
 
+    @drop_delist_data
     def _inner(universe, start_time, end_time):
         datas = list()
         for i in range(1, 6):
@@ -243,6 +251,7 @@ factor_list.append(Factor('OPREV_5YG', get_p5ygrowth('OPREV'), pd.to_datetime('2
 # ROE
 
 
+@drop_delist_data
 def get_roe(universe, start_time, end_time):
     '''
     ROE = 净利润TTM / 归属母公司权益
@@ -261,6 +270,7 @@ factor_list.append(Factor('ROE', get_roe, pd.to_datetime('2017-07-28'),
 # ROA
 
 
+@drop_delist_data
 def get_roa(universe, start_time, end_time):
     '''
     ROA = 净利润TTM / 总资产
@@ -280,6 +290,7 @@ factor_list.append(Factor('ROA', get_roa, pd.to_datetime('2017-07-28'),
 # 营业利润率
 
 
+@drop_delist_data
 def get_opprofitmargin(universe, start_time, end_time):
     '''
     营业利润率 = (营业收入-营业成本-销售费用-管理费用-财务费用) / abs(营业收入)
@@ -304,6 +315,7 @@ factor_list.append(Factor('OPPROFIT_MARGIN', get_opprofitmargin, pd.to_datetime(
 # 毛利率
 
 
+@drop_delist_data
 def get_grossmargin(universe, start_time, end_time):
     '''
     毛利率 = (营业收入 - 营业成本) / abs(营业收入)
@@ -324,6 +336,7 @@ factor_list.append(Factor('GROSS_MARGIN', get_grossmargin, pd.to_datetime('2017-
 # 资产周转率
 
 
+@drop_delist_data
 def get_tato(universe, start_time, end_time):
     '''
     资产周转率 = 营业收入TTM / 最新总资产
@@ -343,6 +356,7 @@ factor_list.append(Factor('TATO', get_tato, pd.to_datetime('2017-07-31'),
 # 流动比率
 
 
+@drop_delist_data
 def get_currentratio(universe, start_time, end_time):
     '''
     流动比率 = 流动资产 / 流动负债
@@ -362,6 +376,7 @@ factor_list.append(Factor('CURRENT_RATIO', get_currentratio, pd.to_datetime('201
 # 现金流净额与营业利润比
 
 
+@drop_delist_data
 def get_nopcf2opprofit(universe, start_time, end_time):
     '''
     ratio = 经营活动中产生的现金流净额TTM / 营业利润TTM
@@ -382,6 +397,7 @@ factor_list.append(Factor('OPNETCF2OPPROFIT', get_nopcf2opprofit, pd.to_datetime
 # 三费（财务费、管理费、销售费用）占销售比例
 
 
+@drop_delist_data
 def get_3fee2sale(universe, start_time, end_time):
     '''
     ratio = (销售费用TTM+管理费用TTM+财务费用TTM) / abs(营业收入)
@@ -413,6 +429,7 @@ def get_momentum(days):
     days: int
         计算动量的交易日间隔
     '''
+    @drop_delist_data
     def _inner(universe, start_time, end_time):
         start_time = pd.to_datetime(start_time)
         shift_days = int(days / 20 * 31)
@@ -459,6 +476,7 @@ def gen_skfunc(days, func_name):
     func_category = {'skew': skew, 'kurt': kurtosis, 'std': np.std}
     func = func_category[func_name]
 
+    @drop_delist_data
     def _inner(universe, start_time, end_time):
         start_time = pd.to_datetime(start_time)
         shift_days = int(days / 20 * 31)
@@ -485,6 +503,7 @@ factor_list.append(Factor('VOL_1M', gen_skfunc(20, 'std'), pd.to_datetime('2017-
 # 一致预期价格距离因子
 
 
+@drop_delist_data
 def get_conexpprice(universe, start_time, end_time):
     '''
     一致预期价格距离因子 = 一致预期目标价（在other因子模块中） / close - 1
@@ -505,6 +524,7 @@ factor_list.append(Factor('CONEXP_DIS', get_conexpprice, pd.to_datetime('2017-08
 # 前景理论因子
 
 
+@drop_delist_data
 def get_prospectfactor1w(universe, start_time, end_time):
     '''
     前景理论因子
@@ -587,6 +607,7 @@ def get_prospectfactor1w(universe, start_time, end_time):
     return data
 
 
+@drop_delist_data
 def get_prospectfactor1wer(universe, start_time, end_time):
     '''
     前景理论因子
@@ -689,6 +710,7 @@ def gen_capm_factor(handler):
         其中y为应变量是n*1的向量（n为滚动窗口的长度），x为自变量为n*2的矩阵，beta为2*1的向量
         （0的位置为截距项）
     '''
+    @drop_delist_data
     def inner(universe, start_time, end_time):
         def moving_ols(y, x, window):
             '''
@@ -829,6 +851,7 @@ def get_institutions_holding(data_category):
         ORDER BY M.SECUCODE ASC, S.ENDDATE ASC
         '''.replace('data_category', parameter_map[data_category])
 
+    @drop_delist_data
     def inner(universe, start_time, end_time):
         new_start = dateshandle.tds_shift(start_time, 120)
         data = fdgetter.get_db_data(sql, start_time=new_start, end_time=end_time,
@@ -873,6 +896,7 @@ factor_list.append(Factor('ALL_INSTIHOLDING_RATIO', get_institutions_holding('al
 # 相对强度
 
 
+@drop_delist_data
 def get_rstr(universe, start_time, end_time):
     '''
     BARRA RSTR因子
@@ -908,6 +932,7 @@ factor_list.append(Factor('RSTR', get_rstr, pd.to_datetime('2017-10-17'), depend
 # 日波动率
 
 
+@drop_delist_data
 def get_dstd(universe, start_time, end_time):
     '''
     BARRA DSTD
@@ -938,6 +963,7 @@ factor_list.append(Factor('DSTD', get_dstd, pd.to_datetime('2017-10-17'), depend
 # BARRA CMRA
 
 
+@drop_delist_data
 def get_cmra(universe, start_time, end_time):
     '''
     BARRA CMRA因子（累计波动幅度）
@@ -981,6 +1007,7 @@ factor_list.append(Factor('CMRA', get_cmra, pd.to_datetime('2017-10-19'),
 # BARRA LEVERAGE
 
 
+@drop_delist_data
 def get_mlev(universe, start_time, end_time):
     '''
     BARRA MLEV因子，不考虑优先股，因为金融行业TNCL是NA值，因此同样金融行业该因子也是NA值
@@ -1001,6 +1028,7 @@ factor_list.append(Factor('MLEV', get_mlev, pd.to_datetime('2017-10-27'),
                           dependency=['TOTAL_MKTVALUE', 'TNCL', 'PREFER_STOCK'], desc='BARRA MLEV因子'))
 
 
+@drop_delist_data
 def get_dtoa(universe, start_time, end_time):
     '''
     BARRA DTOA因子
@@ -1020,6 +1048,7 @@ factor_list.append(Factor('DTOA', get_dtoa, pd.to_datetime('2017-10-27'),
                           dependency=['TA', 'TNCL', 'TCL'], desc='BARRA DTOA因子'))
 
 
+@drop_delist_data
 def get_blev(universe, start_time, end_time):
     '''
     BARRA BLEV因子
@@ -1042,6 +1071,7 @@ factor_list.append(Factor('BLEV', get_blev, pd.to_datetime('2017-10-27'),
 # Composite Equity Issues
 
 
+@drop_delist_data
 def get_cei(universe, start_time, end_time):
     '''
     Composite Equity Issues因子，来源于Daniel和Titman(2006)的论文
@@ -1071,6 +1101,7 @@ factor_list.append(Factor('CEI', get_cei, pd.to_datetime('2017-12-04'),
 # 总资产增长率
 
 
+@drop_delist_data
 def get_ta_yoy(universe, start_time, end_time):
     '''
     Asset growth因子，来源于Cooper, Gulen和Schill(2008)的论文
@@ -1100,6 +1131,7 @@ def gen_ma(offset):
     offset: int
         均线的长度
     '''
+    @drop_delist_data
     def inner(universe, start_time, end_time):
         new_start = dateshandle.tds_shift(start_time, offset)
         close_data = query('ADJ_CLOSE', (new_start, end_time))

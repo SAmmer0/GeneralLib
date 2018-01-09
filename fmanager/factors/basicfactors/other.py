@@ -16,7 +16,7 @@ import pandas as pd
 import pdb
 
 from fmanager.factors.utils import (Factor, check_duplicate_factorname, check_indexorder,
-                                    checkdata_completeness)
+                                    checkdata_completeness, drop_delist_data)
 # --------------------------------------------------------------------------------------------------
 # 常量和功能函数
 NAME = 'other'
@@ -34,6 +34,7 @@ factor_list = []
 # 一致预期目标价因子
 
 
+@drop_delist_data
 def get_ctargetprice(universe, start_time, end_time):
     '''
     获取一致预期目标价数据

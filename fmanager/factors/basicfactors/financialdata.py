@@ -19,7 +19,7 @@ import fdgetter
 import fdmutils
 import pandas as pd
 from fmanager.factors.utils import (Factor, check_indexorder, check_duplicate_factorname,
-                                    checkdata_completeness)
+                                    checkdata_completeness, drop_delist_data)
 # from ..query import query
 
 # --------------------------------------------------------------------------------------------------
@@ -107,6 +107,7 @@ def get_TTM(fd_type, sql_type):
     ORDER BY M.SecuCode ASC, S.InfoPublDate ASC
         '''.replace('data', fd_type).replace('sql_type', sql_type)
 
+    @drop_delist_data
     def _inner(universe, start_time, end_time):
         new_start = pd.to_datetime(start_time) - pd.Timedelta('540 day')
         data = fdgetter.get_db_data(sql_template, start_time=new_start, end_time=end_time,
@@ -194,6 +195,7 @@ def get_BS_nshift(fd_type, n):
     ORDER BY M.SecuCode ASC, S.InfoPublDate ASC
     '''.replace('data_type', fd_type)
 
+    @drop_delist_data
     def _inner(universe, start_time, end_time):
         offset = n * 100 + 250
         new_start = pd.to_datetime(start_time) - pd.Timedelta('%d day' % offset)
@@ -289,6 +291,7 @@ def get_season_nshift(data_type, sql_type, n):
     '''
     sql = sql_template.replace('data', data_type).replace('sql_type', sql_type)
 
+    @drop_delist_data
     def _inner(universe, start_time, end_time):
         offset = 100 * n + 250
         new_start = pd.to_datetime(start_time) - pd.Timedelta('%d day' % offset)
@@ -367,6 +370,7 @@ def get_year_nshift(data_type, sql_type, n):
     '''
     sql = sql_template.replace('data', data_type).replace('sql_type', sql_type)
 
+    @drop_delist_data
     def _inner(universe, start_time, end_time):
         offset = 366 * n + 180
         # pdb.set_trace()
