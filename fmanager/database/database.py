@@ -356,7 +356,7 @@ def reshape_colsize(file_path, new_size, destination_path=None):
 
 if __name__ == '__main__':
     from fmanager import get_factor_detail
-    cpath = get_factor_detail('ZX_IND')['abs_path']
+    cpath = get_factor_detail('TOTAL_MKTVALUE')['abs_path']
     test_path = r'C:\Users\lenovo\Desktop\test\test_db.h5'
     db = DBConnector(cpath)
     data = db.query(('2007-01-01', '2016-12-01'))
