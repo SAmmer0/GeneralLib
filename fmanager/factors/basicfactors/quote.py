@@ -23,7 +23,7 @@ from statsmodels.api import OLS, add_constant
 import pdb
 from fmanager.const import START_TIME
 from fmanager.factors.utils import (check_indexorder, Factor, check_duplicate_factorname,
-                                    checkdata_completeness, drop_delist_data)
+                                    checkdata_completeness)
 from fmanager.factors.query import query
 # --------------------------------------------------------------------------------------------------
 # 常量和功能函数
@@ -68,7 +68,6 @@ def get_quote(data_type):
         transed_sql = sql.replace('data_type', 'S.PrevClosePrice, S.' + data_type)
         cols = ('time', 'prevclose', 'data', 'code')
 
-    @drop_delist_data
     def _inner(universe, start_time, end_time):
         data = fdgetter.get_db_data(transed_sql, cols=cols, start_time=start_time,
                                     end_time=end_time, add_stockcode=False)
@@ -105,7 +104,6 @@ factor_list.append(Factor('PREV_CLOSE', get_quote('PrevClosePrice'), pd.to_datet
 # 复权因子
 
 
-@drop_delist_data
 def get_adjfactor(universe, start_time, end_time):
     '''
     股票的复权因子
@@ -151,7 +149,6 @@ def get_shares(share_type):
         '''
     transed_sql = sql.replace('share_type', share_type)
 
-    @drop_delist_data
     def _inner(universe, start_time, end_time):
         data = fdgetter.get_db_data(transed_sql, cols=('data', 'time', 'code'),
                                     add_stockcode=False)
@@ -183,7 +180,6 @@ def get_mktvalue(share_factor_name):
     '''
     母函数，用于生成计算市值因子的函数
     '''
-    @drop_delist_data
     def _inner(universe, start_time, end_time):
         share_data = query(share_factor_name, (start_time, end_time))
         close_data = query('CLOSE', (start_time, end_time))
@@ -220,7 +216,6 @@ def gen_adjprice(price_type):
         ValueError('Invalid price type, valid types are {vld}, you provide {yp}'.
                    format(vld=valids, yp=price_type))
 
-    @drop_delist_data
     def inner(universe, start_time, end_time):
         adj_factor = query('ADJ_FACTOR', (start_time, end_time))
         data = query(price_type, (start_time, end_time))
@@ -241,7 +236,6 @@ factor_list.append(Factor('ADJ_CLOSE', gen_adjprice('CLOSE'), pd.to_datetime('20
 # 日收益率
 
 
-@drop_delist_data
 def get_dailyret(universe, start_time, end_time):
     '''
     获取日收益率，使用后复权收盘价计算
@@ -261,7 +255,6 @@ factor_list.append(Factor('DAILY_RET', get_dailyret, pd.to_datetime('2017-07-24'
 # 换手率
 
 
-@drop_delist_data
 def get_torate(universe, start_time, end_time):
     '''
     获取换手率，使用当天交易量/流通股数来计算
@@ -279,7 +272,6 @@ factor_list.append(Factor('TO_RATE', get_torate, pd.to_datetime('2017-07-24'),
 
 
 # 过去一个月日均换手率
-@drop_delist_data
 def get_avgtorate(universe, start_time, end_time):
     '''
     指过去20个交易日平均换手率
@@ -317,7 +309,6 @@ def get_sto(category):
     month_num = month_num_map[category]
     offset = month_days * month_num
 
-    @drop_delist_data
     def inner(universe, start_time, end_time):
         start_time = pd.to_datetime(start_time)
         threshold = 10e-6
@@ -346,7 +337,6 @@ factor_list.append(Factor('STOA', get_sto('STOA'), pd.to_datetime('2017-10-27'),
 # 对数市值
 
 
-@drop_delist_data
 def get_lnfloatmktv(universe, start_time, end_time):
     '''
     对数流通市值
@@ -358,7 +348,6 @@ def get_lnfloatmktv(universe, start_time, end_time):
     return data
 
 
-@drop_delist_data
 def get_lntotalmktv(universe, start_time, end_time):
     '''
     对数总市值
@@ -370,7 +359,6 @@ def get_lntotalmktv(universe, start_time, end_time):
     return data
 
 
-@drop_delist_data
 def get_nonlinearmktv(universe, start_time, end_time):
     '''
     非线性市值，并不针对市值数据进行正交化
@@ -425,7 +413,6 @@ def gen_indexquotegetter(index_code, price_type='ClosePrice'):
             ORDER BY S.TradingDay ASC
         '''
 
-    @drop_delist_data
     def _inner(universe, start_time, end_time):
         '''
         上证综指
