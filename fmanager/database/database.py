@@ -13,6 +13,7 @@ __version__ = 1.0.0
 '''
 __version__ = "1.0.0"
 # import datatoolkits
+import time
 import dateshandle
 import numpy as np
 import pandas as pd
@@ -194,13 +195,15 @@ class DBConnector(object):
             code_len = store.attrs['#code']
             codes = [c.decode('utf8') for c in codes[:code_len]]
             dset_data = store['data']
-            dset_dates = store['date']
+            dset_dates = store['date'][...]
             data = dset_data[:, :code_len]
             data_type = store.attrs['data type']
             if data_type[0].lower() == 's':  # 检查数据的格式，如果为字符串则进行类型转换
                 new_data_type = 'U' + data_type[1:]
                 data = data.astype(new_data_type)
-            dates = [pd.to_datetime(d.decode('utf8')) for d in dset_dates]
+            # dates = [pd.to_datetime(d.decode('utf8')) for d in dset_dates]  # 性能主要损耗点
+            dates = [s.decode('utf8') for s in dset_dates]
+            dates = pd.to_datetime(dates)
             out = pd.DataFrame(data, index=dates, columns=codes)
             out = out.loc[(out.index <= end_time) & (out.index >= start_time)]
             if out.empty:
@@ -356,7 +359,7 @@ def reshape_colsize(file_path, new_size, destination_path=None):
 
 if __name__ == '__main__':
     from fmanager import get_factor_detail
-    cpath = get_factor_detail('TOTAL_MKTVALUE')['abs_path']
+    cpath = get_factor_detail('ZX_IND')['abs_path']
     test_path = r'C:\Users\lenovo\Desktop\test\test_db.h5'
     db = DBConnector(cpath)
     data = db.query(('2007-01-01', '2016-12-01'))
