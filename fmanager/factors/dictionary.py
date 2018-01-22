@@ -18,12 +18,13 @@ import pdb
 from datatoolkits import dump_pickle, load_pickle
 from fmanager.factors import basicfactors
 from fmanager.factors import derivativefactors
+from fmanager.factors import barra
 from fmanager.const import FACTOR_FILE_PATH, SUFFIX, FACTOR_DICT_FILE_PATH
 
 
 # --------------------------------------------------------------------------------------------------
 # 常量
-FACTOR_MODULES = [derivativefactors, basicfactors]
+FACTOR_MODULES = [derivativefactors, basicfactors, barra]
 
 
 # --------------------------------------------------------------------------------------------------
