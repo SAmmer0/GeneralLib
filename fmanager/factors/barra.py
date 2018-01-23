@@ -12,6 +12,8 @@
 所有因子必须以BARRA_开头，名称与CNE5的名称一致
 '''
 
+import pdb
+
 import pandas as pd
 import numpy as np
 import statsmodels.robust as robust_mad
@@ -19,7 +21,7 @@ from statsmodels.stats.stattools import medcouple
 
 from fmanager.factors.query import query
 from fmanager.factors.utils import (check_indexorder, checkdata_completeness, Factor,
-                                    check_duplicate_factorname)
+                                    check_duplicate_factorname, convert_data)
 from dateshandle import tds_shift
 from fmanager.database.const import NaS
 
@@ -108,7 +110,7 @@ def error_detection_mbp(ts):
     return out
 
 
-def winsorize(ts, multiple=3):
+def winsorize(ts, nan_mask=None, multiple=3):
     '''
     使用标准差方法对数据进行Winsorize处理，即对于数值在mean+(-)multiple*std的数据拉回到边界上，
     在使用winsorize之前，最好对数据进行异常值剔除处理，避免异常值对标准差的影响过大
@@ -117,6 +119,8 @@ def winsorize(ts, multiple=3):
     ---------
     ts: pd.Series
         需要进行处理的数据序列
+    nan_mask: pd.Series, default None
+        是否为NA值的布尔序列
     multiple: float, default 3
         确定上下界的波动率乘数
 
@@ -125,8 +129,10 @@ def winsorize(ts, multiple=3):
     out: pd.Series
         经过winsorize处理后的结果，index与原数据相同
     '''
-    mean = ts.mean()
-    std = ts.std()
+    if nan_mask is None:
+        nan_mask = pd.Series(True, index=ts.index)
+    mean = np.mean(ts.loc[nan_mask])
+    std = np.std(ts.loc[nan_mask])
     upper = mean + multiple * std
     lower = mean - multiple * std
     out = ts.copy()
@@ -136,16 +142,17 @@ def winsorize(ts, multiple=3):
 
 
 # --------------------------------------------------------------------------------------------------
-# 有效数据因子：指上市时间超过半年(125个交易日)且有有效中信行业的股票
+# 有效数据因子：指上市时间超过半年(125个交易日)，当前未退市且有有效中信行业的股票
 # BARRA_VSF(valid stock flag)
 def get_vsf(universe, start_time, end_time):
     start_time = pd.to_datetime(start_time)
     end_time = pd.to_datetime(end_time)
     offset = 125
     forward_start = tds_shift(start_time, offset)
-    ls_status = query('LIST_STATUS', (forward_start, end_time)).shift(offset)
-    ls_status = ls_status.loc[ls_status.index >= start_time]
-    valid_stock = ls_status == 1
+    ls_status = query('LIST_STATUS', (forward_start, end_time))
+    ls_status_shift = ls_status.shift(offset)
+    ls_status_shift = ls_status_shift.loc[ls_status_shift.index >= start_time]
+    valid_stock = (ls_status_shift == 1) & (ls_status == 1)
     ind_data = query('ZX_IND', (start_time, end_time))
     ind_flag = ind_data != NaS
     valid_stock = valid_stock & ind_flag
@@ -159,5 +166,61 @@ def get_vsf(universe, start_time, end_time):
 factor_list.append(Factor('BARRA_VSF', get_vsf, pd.to_datetime('2018-01-22'),
                           dependency=['LIST_STATUS', 'ZX_IND'],
                           desc='有效数据因子，指上市时间超过125个交易日且有有效中信行业的股票'))
+
+
+# 计算模板，工厂类函数
+def barradata_factory(factor_name):
+    '''
+    工厂函数，用于返回计算BARRA因子的函数
+
+    Parameter
+    ---------
+    factor_name: string
+        原始因子数据的名称
+
+    Return
+    ------
+    func: function(universe, start_time, end_time)
+        计算因子值的函数
+    '''
+    def inner(universe, start_time, end_time):
+        universe = sorted(universe)
+        factor_data = query(factor_name, (start_time, end_time))
+        vf_data = query('BARRA_VSF', (start_time, end_time))
+        ind_data = query('ZX_IND', (start_time, end_time))
+        mktv_data = query('TOTAL_MKTVALUE', (start_time, end_time))
+        mktv_data = mktv_data.T.transform(lambda x: x / x.sum()).T
+        data = convert_data([factor_data, vf_data, ind_data, mktv_data],
+                            ['factor', 'valid_stock', 'industry', 'mktv'])
+        # pdb.set_trace()
+
+        def calcbydate(df):
+            '''
+            每个交易日对数据进行相关处理，返回pd.Series(data, index=sorted(universe))
+            '''
+            df = df.reset_index(level=0, drop=True).T\
+                .astype({'factor': np.float64, 'valid_stock': np.bool, 'mktv': np.float64})
+            # df = df.T.astype({'factor': np.float64, 'valid_stock': np.bool, 'mktv': np.float64})
+            df = df.loc[df['valid_stock']]
+            # 极端值处理
+            err_flag = error_detection_mbp(df['factor'])
+            df.loc[err_flag, 'factor'] = np.nan
+            # 异常值处理
+            df['factor'] = winsorize(df['factor'], pd.isnull(df['factor']))
+            # pdb.set_trace()
+            ind_mean = df.groupby('industry')['factor'].transform('mean')
+            out = df['factor'].fillna(ind_mean)
+            # pdb.set_trace()
+            wmean = out.dot(df.loc[out.index, 'mktv'])
+            std = np.std(out)
+            out = (out - wmean) / std
+            out = out.reindex(universe)
+            return out
+        out = data.groupby(level=0, group_keys=False).apply(calcbydate)
+        # test = data.xs('2017-12-25', level=0)
+        # out = calcbydate(test)
+        return out
+    return inner
+
 
 check_duplicate_factorname(factor_list, __name__)
