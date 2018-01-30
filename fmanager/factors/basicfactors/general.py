@@ -257,14 +257,14 @@ def get_constitution_weight(index_code):
         data = fdgetter.get_db_data(sql, code=index_code, cols=('code', 'weight', 'time'),
                                     add_stockcode=False, start_time=new_start, end_time=end_time)
         data.code = data.code.apply(datatoolkits.add_suffix)
-        pdb.set_trace()
+        # pdb.set_trace()
         data = data.pivot_table('weight', index='time', columns='code')
         tds = dateshandle.get_tds(new_start, end_time)
         data = datatoolkits.map_data(data.reset_index(), days=tds, fromNowOn=True)
         data = data.set_index('time')
         data_tds = dateshandle.get_tds(start_time, end_time)
         data = data.reindex(data_tds)
-        data = data.loc[:, sorted(universe)]
+        data = data.loc[:, sorted(universe)] / 100
         assert check_indexorder(data), "Mixed index order"
         return data
     return inner
