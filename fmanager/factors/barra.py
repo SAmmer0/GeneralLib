@@ -165,7 +165,7 @@ def get_vsf(universe, start_time, end_time):
 
 factor_list.append(Factor('BARRA_VSF', get_vsf, pd.to_datetime('2018-01-22'),
                           dependency=['LIST_STATUS', 'ZX_IND'],
-                          desc='有效数据因子，指上市时间超过125个交易日且有有效中信行业的股票，其中1.0表示有效，0.表示无效，NA表示无数据'))
+                          desc='BARRA有效数据因子，指上市时间超过125个交易日且有有效中信行业的股票，其中1.0表示有效，0.表示无效，NA表示无数据'))
 
 
 # 计算模板，工厂类函数
@@ -208,23 +208,25 @@ def barradata_factory(factor_name):
                 .astype({'factor': np.float64, 'valid_stock': np.float64, 'mktv': np.float64})
             # df = df.T.astype({'factor': np.float64, 'valid_stock': np.bool, 'mktv': np.float64})
             df = df.loc[df['valid_stock'] == 1.0]
-            # 极端值处理
-            if np.all(pd.isnull(df['factor'])): # 避免全NA数据dropna之后没有数据
+            if len(df) == 0 or pd.isnull(df['factor']).sum() / len(df) > 0.995:  # 剔除NA数据占比过高的情况
                 return pd.Series(np.nan, index=universe)
+            # 极端值处理
+            # pdb.set_trace()
             err_flag = error_detection_mbp(df['factor'])
             df.loc[err_flag, 'factor'] = np.nan
             # 异常值处理
             df['factor'] = winsorize(df['factor'], pd.isnull(df['factor']))
             # pdb.set_trace()
             ind_mean = df.groupby('industry')['factor'].transform('mean')
+            if pd.isnull(ind_mean).sum() / len(ind_mean) > 0.1:     # 缺失行业均值的股票数量超过10%
+                return pd.Series(np.nan, index=universe)
+            else:   # 行业均值缺失情况在阈值之下，使用市场均值进行填充
+                ind_mean = ind_mean.fillna(df['factor'].mean())
             out = df['factor'].fillna(ind_mean)
-            # pdb.set_trace()
             wmean = out.dot(df.loc[out.index, 'mktv'])
             std = np.std(out)
             out = (out - wmean) / std
             out = out.reindex(universe)
-            if np.all(pd.isnull(out)):
-                raise ValueError('All data is NA value')
             return out
         out = data.groupby(level=0, group_keys=False).apply(calcbydate)
         # test = data.xs('2017-12-25', level=0)

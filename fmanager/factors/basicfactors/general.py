@@ -22,8 +22,9 @@ import pdb
 
 from fmanager.database import NaS
 from fmanager.factors.utils import (Factor, ZXIND_TRANS_DICT, check_duplicate_factorname,
-                                    checkdata_completeness)
+                                    checkdata_completeness, check_indexorder)
 from fmanager.const import START_TIME
+from dateshandle import tds_shift
 
 # --------------------------------------------------------------------------------------------------
 # 常量和功能函数
@@ -222,5 +223,60 @@ factor_list.append(Factor('IH_CONS', get_IH_constituents, pd.to_datetime('2017-0
 factor_list.append(Factor('IC_CONS', get_IC_constituents, pd.to_datetime('2017-07-18')))
 factor_list.append(Factor('IF_CONS', get_IF_constituents, pd.to_datetime('2017-07-18')))
 # --------------------------------------------------------------------------------------------------
+# 获取指数的成分股权重
+
+
+def get_constitution_weight(index_code):
+    '''
+    工厂函数，用于生成获取指数成分股权重的函数
+
+    Parameter
+    ---------
+    index_code: string
+        指数代码，与聚源数据库中SecuCode字段一致
+
+    Return
+    ------
+    func: function(universe, start_time, end_time)
+        获取数据的函数
+    '''
+    sql = '''
+    SELECT  M2.SecuCode, S.weight, S.EndDate
+    FROM SecuMain M, LC_IndexComponentsWeight S, SecuMain M2
+    WHERE
+        M.InnerCode = S.IndexCode AND
+        M2.InnerCode = S.InnerCode AND
+        M.SecuCode = \'{code}\' AND
+        M.SecuCategory = 4 AND
+        S.EndDate >= CAST(\'{start_time}\' AS datetime) AND
+        S.EndDate <= CAST(\'{end_time}\' AS datetime)
+    '''
+
+    def inner(universe, start_time, end_time):
+        new_start = tds_shift(start_time, 130)
+        data = fdgetter.get_db_data(sql, code=index_code, cols=('code', 'weight', 'time'),
+                                    add_stockcode=False, start_time=new_start, end_time=end_time)
+        data.code = data.code.apply(datatoolkits.add_suffix)
+        pdb.set_trace()
+        data = data.pivot_table('weight', index='time', columns='code')
+        tds = dateshandle.get_tds(new_start, end_time)
+        data = datatoolkits.map_data(data.reset_index(), days=tds, fromNowOn=True)
+        data = data.set_index('time')
+        data_tds = dateshandle.get_tds(start_time, end_time)
+        data = data.reindex(data_tds)
+        data = data.loc[:, sorted(universe)]
+        assert check_indexorder(data), "Mixed index order"
+        return data
+    return inner
+
+
+factor_list.append(Factor('IH_WEIGHTS', get_constitution_weight('000016'),
+                          pd.to_datetime('2018-01-30')))
+factor_list .append(Factor('IF_WEIGHTS', get_constitution_weight('000300'),
+                           pd.to_datetime('2018-01-30')))
+factor_list.append(Factor('IC_WEIGHTS', get_constitution_weight('000905'),
+                          pd.to_datetime('2018-01-30')))
+# --------------------------------------------------------------------------------------------------
+
 
 check_duplicate_factorname(factor_list, __name__)
