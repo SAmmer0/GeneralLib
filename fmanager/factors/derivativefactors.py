@@ -457,6 +457,49 @@ factor_list.append(Factor('MOM_60M', get_momentum(1200), pd.to_datetime('2017-07
 # 12个月动量
 factor_list.append(Factor('MOM_12M', get_momentum(250), pd.to_datetime('2017-12-13'),
                           dependency=['ADJ_CLOSE'], desc='12个月动量'))
+
+# --------------------------------------------------------------------------------------------------
+# 市值中性化后因子
+
+
+def get_mkvneu_factor(factor_name):
+    '''
+    母函数，用于生成计算市值中性化(相对LN_TMKV)后的动量的函数
+
+    Parameter
+    ---------
+    factor_name: string
+        需要中性化的因子的名称
+    '''
+    @drop_delist_data
+    def _inner(universe, start_time, end_time):
+        factor_data = query(factor_name, (start_time, end_time))
+        # 市值因子肯定有数据，因此以其他因子的时间为准
+        ln_cap = query('LN_TMKV', (start_time, end_time)).reindex(factor_data.index)
+        # pdb.set_trace()
+        data = convert_data([factor_data, ln_cap], ['factor', 'size'])
+
+        def ols_neutralize(df):
+            df = df.reset_index(0, drop=True).T
+            raw_index = df.index
+            mask = (~pd.isnull(df['factor'])) & (~pd.isnull(df['size']))
+            if mask.sum() <= 200:   # 有效的数据量过少，直接返回nan
+                return pd.Series(np.NaN, index=raw_index)
+            y_data = df.loc[mask, 'factor']
+            x_data = add_constant(df.loc[mask, 'size'])
+            result = OLS(y_data, x_data).fit().resid
+            return pd.Series(result, index=raw_index)
+
+        by_date = data.groupby(level=0)
+        result = by_date.apply(ols_neutralize)
+        result = result.loc[:, sorted(universe)]
+        # pdb.set_trace()
+        return result
+    return _inner
+
+
+factor_list.append(Factor('MOM_1M_MKVNEU', get_mkvneu_factor('MOM_1M'), pd.to_datetime('2018-03-09'),
+                          dependency=['MOM_1M', 'LN_TMKV'], desc='(对数)市值中性化后的动量因子'))
 # --------------------------------------------------------------------------------------------------
 # 偏度峰度因子
 # 偏度
