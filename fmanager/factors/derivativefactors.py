@@ -451,6 +451,8 @@ factor_list.append(Factor('MOM_1M', get_momentum(20), pd.to_datetime('2017-07-31
 # 3月动量
 factor_list.append(Factor('MOM_3M', get_momentum(60), pd.to_datetime('2017-07-31'),
                           dependency=['ADJ_CLOSE']))
+factor_list.append(Factor('MOM_6M', get_momentum(120), pd.to_datetime('2018-03-15'),
+                          dependency=['ADJ_CLOSE']))
 # 60个月动量
 factor_list.append(Factor('MOM_60M', get_momentum(1200), pd.to_datetime('2017-07-31'),
                           dependency=['ADJ_CLOSE']))
