@@ -1197,6 +1197,35 @@ for offset in [3, 5, 10, 20, 50, 100, 200]:
 
 
 # --------------------------------------------------------------------------------------------------
+# ILLIQ因子
+def get_illiq(universe, start_time, end_time):
+    '''
+    获取ILLIQ因子，来源于论文：Time-Varying Liquidity and Momentum Profits
+    修改后具体计算方法为：
+    1/n * sum(r_close_t/volume_value_t)
+    '''
+    lag = 22
+    new_start = dateshandle.tds_shift(start_time, lag)
+    end_time = pd.to_datetime(end_time)
+    start_time = pd.to_datetime(start_time)
+    close_data = query('ADJ_CLOSE', (new_start, end_time))
+    volume_data = query('TO_VALUE', (new_start, end_time))
+    multiple = 10 ** 9
+    ret_data = np.abs(close_data.pct_change() * multiple)
+    data = ret_data / volume_data
+    data = data.rolling(lag, min_periods=lag).mean()
+    mask = (data.index >= start_time) & (data.index <= end_time)
+    data = data.loc[mask].reindex(columns=sorted(universe))
+    assert check_indexorder(data), 'Error, data order is mixed!'
+    checkdata_completeness(data, start_time, end_time)
+    return data
+
+
+factor_list.append(Factor('ILLIQ', get_illiq, pd.to_datetime('2018-03-26'),
+                          dependency=['ADJ_CLOSE', 'TO_VALUE'], desc='非流动性因子'))
+
+
+# --------------------------------------------------------------------------------------------------
 
 
 check_duplicate_factorname(factor_list, __name__)

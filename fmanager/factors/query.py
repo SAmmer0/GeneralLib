@@ -17,6 +17,7 @@ __version__ = 1.0.0
     给query函数添加fillna参数选项
 '''
 __version__ = '1.0.0'
+import pdb
 # 第三方库
 import numpy as np
 # 本地库
@@ -51,6 +52,7 @@ def query(factor_name, time, codes=None, fillna=None):
     out: pd.DataFrame
         查询结果数据，index为时间，columns为股票代码，如果未查询到符合要求的数据，则返回None
     '''
+    # 若更换了机器，需要先更新因子字典
     factor_dict = load_pickle(FACTOR_DICT_FILE_PATH)
     if factor_dict is None:
         raise ValueError('Dictionary file needs initialization...')
