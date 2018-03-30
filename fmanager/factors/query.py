@@ -73,3 +73,21 @@ def query(factor_name, time, codes=None, fillna=None):
             fillna = fillna.decode('utf8')
     data = data.fillna(fillna)
     return data
+
+
+def generate_getter(factor_name):
+    '''
+    母函数，用于生成获取因子数据的函数，供DataView初始化
+
+    Parameter
+    ---------
+    factor_name: string
+        因子名字
+
+    Return
+    ------
+    func: function(start_time, end_time)->pandas.DataFrame
+    '''
+    def getter(start_time, end_time):
+        return query(factor_name, (start_time, end_time))
+    return getter
