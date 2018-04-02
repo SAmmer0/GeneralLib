@@ -18,6 +18,9 @@ import pandas as pd
 import numpy as np
 import statsmodels.robust as robust_mad
 from statsmodels.stats.stattools import medcouple
+from statsmodels.regression.linear_model import WLS
+from statsmodels.tools import add_constant
+from tqdm import tqdm
 
 from fmanager.factors.query import query
 from fmanager.factors.utils import (check_indexorder, checkdata_completeness, Factor,
@@ -255,6 +258,114 @@ def generate_factor(raw_name, barra_name, add_time):
     return factor
 
 
+# --------------------------------------------------------------------------------------------------
+# BARRA风险因子，即使用描述因子合成风险因子
+
+
+def barra_rf_factory(weights, tobe_orthogonalized=None):
+    '''
+    母函数，用于生成计算风险因子的函数
+
+    Parameter
+    ---------
+    weights: dict
+        格式为{descriptor_name: weight}
+    tobe_orthogonalized: list
+        正交化对象风险因子，None表示当前不需要正交化
+
+    Return
+    ------
+    func: function(universe, start_time, end_time)->pandas.DataFrame
+    '''
+    def inner(universe, start_time, end_time):
+        descriptor = sorted(weights.keys())
+        if tobe_orthogonalized is not None:
+            descriptor += tobe_orthogonalized
+        descriptor += ['BARRA_VSF', 'TOTAL_MKTVALUE']    # 用于识别当前理论上应当有效的数据量
+        # pdb.set_trace()
+        datas = [query(desc, (start_time, end_time)) for desc in descriptor]
+        datas = convert_data(datas, descriptor)
+        desc_weights = pd.Series(weights)
+        desc_weights = pd.DataFrame(np.repeat(desc_weights.values.reshape((-1, 1)), len(datas.columns),
+                                              axis=1), index=desc_weights.index, columns=datas.columns)
+
+        def calc_rf_bydate(df):
+            # 计算每个时间点的风险因子数据
+            # 正交化处理也必须放在每个交易日数据计算中，因为涉及到NA值的处理
+            df = df.reset_index(level=0, drop=True)
+            descrpitor_data = df.loc[desc_weights.index, :]
+            na_mask = pd.isnull(descrpitor_data)
+            # 采用smart weight，即对于NA值，给予的权重为0，并且将其他权重重新计算
+            if len(weights) > 1:
+                tmp_weight = desc_weights.copy()
+                tmp_weight[na_mask] = np.nan
+                tmp_weight = tmp_weight.div(tmp_weight.sum(axis=0), axis=1)
+                res = (tmp_weight * descrpitor_data).sum(axis=0)
+                res[np.all(na_mask, axis=0)] = np.nan   # 所有数据都为NA时，避免pandas将其计算为0
+            else:
+                res = descrpitor_data.iloc[0, :]
+            if (df.loc['BARRA_VSF'].sum() == 0 or
+                    res[df.loc['BARRA_VSF'] == 1].count() / df.loc['BARRA_VSF'].sum() < 0.5):  # 有效数据占VSF的比例不足50%，则数据无效，设置为NA
+                res.loc[:] = np.nan
+                return res
+
+            valid_mask = df.loc['BARRA_VSF'] == 1
+            if np.any(pd.isnull(res.loc[valid_mask])):
+                res.loc[:] = np.nan
+                return res
+            if tobe_orthogonalized is not None:  # 需要进行正交化操作
+                orth_data = df.loc[tobe_orthogonalized, valid_mask].T
+                if np.any(np.any(pd.isnull(orth_data), axis=0)):    # 当前正交数据中有缺失
+                    res.loc[:] = np.nan
+                    return res
+                res = res.loc[valid_mask]
+                ols_weight = np.sqrt(df.loc['TOTAL_MKTVALUE', valid_mask])
+                ols_weight = ols_weight / ols_weight.sum()
+                res = WLS(res, add_constant(orth_data), weights=ols_weight).fit().resid
+            else:
+                res = res.loc[valid_mask]
+            mkt_weight = df.loc['TOTAL_MKTVALUE', res.index]
+            mkt_weight = mkt_weight / mkt_weight.sum()
+            res = (res - (res * mkt_weight).sum()) / np.std(res)
+            return res.reindex(df.columns)
+        # tqdm.pandas()
+        # rf_data = datas.groupby(level=0).progress_apply(calc_rf_bydate)
+        rf_data = datas.groupby(level=0).apply(calc_rf_bydate)
+        return rf_data
+    return inner
+
+
+def generate_rf_factor(factor_name, weights, tobe_orthogonalized, add_time):
+    '''
+    辅助函数，用于自动化生成风险因子
+
+    Parameter
+    ---------
+    factor_name: string
+        新因子的名称
+    weights: dict
+        描述子的权重
+    tobe_orghogonalized: list
+        正交对象风险因子列表，若没有需要正交的对象，该参数应该为None
+    add_time: datetime like
+        因子添加时间
+
+    Return
+    ------
+    factor: Factor
+        风险因子对象
+    '''
+    calcu_method = barra_rf_factory(weights, tobe_orthogonalized)
+    dep = ['BARRA_VSF', 'TOTAL_MKTVALUE'] + list(weights.keys())
+    if tobe_orthogonalized is not None:
+        dep += tobe_orthogonalized
+    desc = '{}风险因子'.format(factor_name)
+    factor = Factor(factor_name, calcu_method, pd.to_datetime(add_time), dependency=dep, desc=desc)
+    return factor
+
+# --------------------------------------------------------------------------------------------------
+
+
 BARRA_FACTORS = [('LN_TMKV', 'BARRA_LNCAP', '2018-01-24'), ('BETA', 'BARRA_BETA', '2018-01-24'),
                  ('RSTR', 'BARRA_RSTR', '2018-01-24'), ('DSTD', 'BARRA_DASTD', '2018-01-24'),
                  ('CMRA', 'BARRA_CMRA', '2018-01-24'), ('SPECIAL_VOL', 'BARRA_HSIGMA', '2018-01-24'),
@@ -267,4 +378,24 @@ BARRA_FACTORS = [('LN_TMKV', 'BARRA_LNCAP', '2018-01-24'), ('BETA', 'BARRA_BETA'
 
 for factor_cfg in BARRA_FACTORS:
     factor_list.append(generate_factor(*factor_cfg))
+
+
+BARRA_RF_FACTORS = [('BARRA_RF_SIZE', {'BARRA_LNCAP': 1}, None, '2018-03-31'),
+                    ('BARRA_RF_BETA', {'BARRA_BETA': 1}, None, '2018-03-31'),
+                    ('BARRA_RF_MOM', {'BARRA_RSTR': 1}, None, '2018-03-31'),
+                    ('BARRA_RF_RESIDUAL_VOL', {'BARRA_DASTD': 0.74, 'BARRA_CMRA': 0.16,
+                                               'BARRA_HSIGMA': 0.1},
+                     ['BARRA_RF_BETA', 'BARRA_RF_SIZE'], '2018-03-31'),
+                    ('BARRA_RF_NLSIZE', {'BARRA_NLSIZE': 1}, ['BARRA_RF_SIZE'], '2018-03-31'),
+                    ('BARRA_RF_BP', {'BARRA_BTOP': 1}, None, '2018-03-31'),
+                    ('BARRA_RF_LIQUIDITY', {'BARRA_STOA': 0.3, 'BARRA_STOM': 0.35,
+                                            'BARRA_STOQ': 0.35}, ['BARRA_RF_SIZE'], '2018-03-31'),
+                    ('BARRA_RF_EARNINGS_YIELD', {'BARRA_CETOP': 0.67, 'BARRA_ETOP': 0.33}, None,
+                        '2018-03-31'),
+                    ('BARRA_RF_GROWTH', {'BARRA_EGRO': 0.33, 'BARRA_SGRO': 0.67}, None,
+                        '2018-03-31'),
+                    ('BARRA_RF_LEVERAGE', {'BARRA_MLEV': 0.38, 'BARRA_DTOA': 0.35,
+                                           'BARRA_BLEV': 0.27}, None, '2018-03-31')]
+for rf_cfg in BARRA_RF_FACTORS:
+    factor_list.append(generate_rf_factor(*rf_cfg))
 check_duplicate_factorname(factor_list, __name__)

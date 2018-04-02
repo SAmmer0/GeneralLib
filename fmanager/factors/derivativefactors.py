@@ -33,6 +33,7 @@ from fmanager.factors.utils import (Factor, check_indexorder, check_duplicate_fa
 from fmanager.factors.query import query
 import fdgetter
 import datatoolkits
+from fmanager.factors.utils import convert_data
 
 # from statsmodels.api import add_constant
 

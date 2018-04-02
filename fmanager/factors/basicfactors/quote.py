@@ -467,6 +467,11 @@ factor_list.append(Factor('CSI985_CLOSE', gen_indexquotegetter('000985'), pd.to_
                           desc='中证全指收盘价'))
 factor_list.append(Factor('CSI985_OPEN', gen_indexquotegetter('000985', 'OpenPrice'),
                           pd.to_datetime('2017-11-30'), desc='中证全指开盘价'))
+# 深证成指
+factor_list.append(Factor('SZCI_CLOSE', gen_indexquotegetter('399001', 'ClosePrice'),
+                          pd.to_datetime('2018-04-02'), desc='深证成指收盘价'))
+factor_list.append(Factor('SZCI_OPEN', gen_indexquotegetter('399001', 'OpenPrice'),
+                          pd.to_datetime('2018-04-02'), desc='深证成指开盘价'))
 # --------------------------------------------------------------------------------------------------
 
 
