@@ -119,7 +119,6 @@ def get_TTM(fd_type, sql_type):
         by_cno = data.groupby(['code', 'obs_time'])
         data = by_cno.apply(fdmutils.cal_ttm, col_name='data').reset_index()\
             .rename(columns={'obs_time': 'time'})
-
         tds = dateshandle.get_tds(start_time, end_time)
         # pdb.set_trace()
         data = data.groupby('code').apply(datatoolkits.map_data, days=tds,

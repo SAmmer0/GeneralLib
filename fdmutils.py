@@ -145,7 +145,7 @@ def cal_ttm(df, col_name, rpt_col='rpt_date', nperiod=4, rename=None):
     # 将其转换为列表
     if isinstance(col_name, str):
         col_name = [col_name]
-    ltst_rptdate = get_latest_rptdate(df['rpt_date'])
+    ltst_rptdate = get_latest_rptdate(df[rpt_col])
     if ltst_rptdate is None:
         res = datatoolkits.gen_series(col_name)
     else:
@@ -204,7 +204,7 @@ def cal_season(df, col_name, rpt_col='rpt_date', offset=1, rename=None):
     if len(df) < offset:    # 数据量不够
         res = datatoolkits.gen_series(col_name)
     else:
-        ltst_rptdate = get_latest_rptdate(df['rpt_date'])
+        ltst_rptdate = get_latest_rptdate(df[rpt_col])
         if ltst_rptdate is None:
             res = datatoolkits.gen_series(col_name)
         else:
