@@ -63,6 +63,7 @@ class PortfolioRefresher(object):
 
         if 'ts_data' not in self._share_data:  # 在第一个实例初始化ts昨收盘数据
             ts_data = get_today_all().set_index('code').settlement.apply(np.float)
+            ts_data = ts_data.loc[~ts_data.index.duplicated()]  # 删除索引中的重复项
             self._share_data['ts_data'] = ts_data
 
         if 'local_lastclose_data' not in self._share_data:  # 在第一个实例初始化本地昨日收盘数据
@@ -83,7 +84,6 @@ class PortfolioRefresher(object):
                                   index=ratio.index).fillna(0)
             adj_ratio[CASH] = 1
             self._share_data['adj_ratio'] = adj_ratio
-
         self._adj_rtnum()
 
     def _adj_rtnum(self):
