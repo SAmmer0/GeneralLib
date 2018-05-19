@@ -222,6 +222,7 @@ get_IF_constituents = get_iconstituents('000300')
 factor_list.append(Factor('IH_CONS', get_IH_constituents, pd.to_datetime('2017-07-18')))
 factor_list.append(Factor('IC_CONS', get_IC_constituents, pd.to_datetime('2017-07-18')))
 factor_list.append(Factor('IF_CONS', get_IF_constituents, pd.to_datetime('2017-07-18')))
+factor_list.append(Factor('SSEC_CONS', get_iconstituents('000001'), pd.to_datetime('2018-05-18')))
 # --------------------------------------------------------------------------------------------------
 # 获取指数的成分股权重
 
@@ -276,6 +277,8 @@ factor_list .append(Factor('IF_WEIGHTS', get_constitution_weight('000300'),
                            pd.to_datetime('2018-01-30')))
 factor_list.append(Factor('IC_WEIGHTS', get_constitution_weight('000905'),
                           pd.to_datetime('2018-01-30')))
+factor_list.append(Factor('SSEC_WEIGHTS', get_constitution_weight('000001'),
+                          pd.to_datetime('2018-05-18')))
 # --------------------------------------------------------------------------------------------------
 
 
