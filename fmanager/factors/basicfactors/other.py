@@ -59,7 +59,7 @@ def get_ctargetprice(universe, start_time, end_time):
 
 
 factor_list.append(Factor('TARGET_PRICE', get_ctargetprice, pd.to_datetime('2017-07-28'),
-                          desc='一致预期目标价'), dep=['LIST_STATUS'])
+                          desc='一致预期目标价', dependency=['LIST_STATUS']))
 # --------------------------------------------------------------------------------------------------
 
 
