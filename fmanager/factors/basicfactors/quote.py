@@ -85,21 +85,26 @@ def get_quote(data_type):
 
 
 # 收盘价
-factor_list.append(Factor('CLOSE', get_quote('ClosePrice'), pd.to_datetime('2017-07-20')))
+factor_list.append(Factor('CLOSE', get_quote('ClosePrice'), pd.to_datetime('2017-07-20'),
+                          dep=['LIST_STATUS']))
 # 开盘价
-factor_list.append(Factor('OPEN', get_quote('OpenPrice'), pd.to_datetime('2017-07-20')))
+factor_list.append(Factor('OPEN', get_quote('OpenPrice'), pd.to_datetime('2017-07-20'),
+                          dep=['LIST_STATUS']))
 # 最高价
-factor_list.append(Factor('HIGH', get_quote('HighPrice'), pd.to_datetime('2017-07-20')))
+factor_list.append(Factor('HIGH', get_quote('HighPrice'), pd.to_datetime('2017-07-20'),
+                          dep=['LIST_STATUS']))
 # 最低价
-factor_list.append(Factor('LOW', get_quote('LowPrice'), pd.to_datetime('2017-07-20')))
+factor_list.append(Factor('LOW', get_quote('LowPrice'), pd.to_datetime('2017-07-20'),
+                          dep=['LIST_STATUS']))
 # 成交量
 factor_list.append(Factor('TO_VOLUME', get_quote('TurnoverVolume'), pd.to_datetime('2017-07-20'),
-                          desc='单位为股'))
+                          desc='单位为股', dep=['LIST_STATUS']))
 # 成交额
 factor_list.append(Factor('TO_VALUE', get_quote('TurnoverValue'), pd.to_datetime('2017-07-20'),
-                          desc='单位为元'))
+                          desc='单位为元', dep=['LIST_STATUS']))
 
-factor_list.append(Factor('PREV_CLOSE', get_quote('PrevClosePrice'), pd.to_datetime('2017-10-19')))
+factor_list.append(Factor('PREV_CLOSE', get_quote('PrevClosePrice'), pd.to_datetime('2017-10-19'),
+                          dep=['LIST_STATUS']))
 
 # --------------------------------------------------------------------------------------------------
 # 复权因子
@@ -133,7 +138,8 @@ def get_adjfactor(universe, start_time, end_time):
     return data
 
 
-factor_list.append(Factor('ADJ_FACTOR', get_adjfactor, pd.to_datetime('2017-07-21')))
+factor_list.append(Factor('ADJ_FACTOR', get_adjfactor, pd.to_datetime('2017-07-21'),
+                          dep=['LIST_STATUS']))
 # --------------------------------------------------------------------------------------------------
 # 股本
 
@@ -172,9 +178,11 @@ def get_shares(share_type):
 
 # 流通股本
 factor_list.append(Factor('FLOAT_SHARE', get_shares('NonResiSharesJY'),
-                          pd.to_datetime('2017-07-21')))
+                          pd.to_datetime('2017-07-21'),
+                          dep=['LIST_STATUS']))
 # 总股本
-factor_list.append(Factor('TOTAL_SHARE', get_shares('TotalShares'), pd.to_datetime('2017-07-21')))
+factor_list.append(Factor('TOTAL_SHARE', get_shares('TotalShares'), pd.to_datetime('2017-07-21'),
+                          dep=['LIST_STATUS']))
 # --------------------------------------------------------------------------------------------------
 # 股票市值：包含总市值和流通市值
 
@@ -198,9 +206,9 @@ def get_mktvalue(share_factor_name):
 
 
 factor_list.append(Factor('TOTAL_MKTVALUE', get_mktvalue('TOTAL_SHARE'), pd.to_datetime('2017-07-24'),
-                          desc="使用收盘价计算", dependency=['TOTAL_SHARE', 'CLOSE']))
+                          desc="使用收盘价计算", dependency=['TOTAL_SHARE', 'CLOSE', 'LIST_STATUS']))
 factor_list.append(Factor('FLOAT_MKTVALUE', get_mktvalue('FLOAT_SHARE'), pd.to_datetime('2017-07-24'),
-                          desc="使用收盘价计算", dependency=['FLOAT_SHARE', 'CLOSE']))
+                          desc="使用收盘价计算", dependency=['FLOAT_SHARE', 'CLOSE', 'LIST_STATUS']))
 
 # --------------------------------------------------------------------------------------------------
 # 后复权价格
@@ -235,7 +243,7 @@ def gen_adjprice(price_type):
 
 
 factor_list.append(Factor('ADJ_CLOSE', gen_adjprice('CLOSE'), pd.to_datetime('2017-07-24'),
-                          dependency=['CLOSE', 'ADJ_FACTOR']))
+                          dependency=['CLOSE', 'ADJ_FACTOR', 'LIST_STATUS']))
 
 # --------------------------------------------------------------------------------------------------
 # 日收益率
@@ -256,7 +264,7 @@ def get_dailyret(universe, start_time, end_time):
 
 
 factor_list.append(Factor('DAILY_RET', get_dailyret, pd.to_datetime('2017-07-24'),
-                          dependency=['ADJ_CLOSE']))
+                          dependency=['ADJ_CLOSE', 'LIST_STATUS']))
 # --------------------------------------------------------------------------------------------------
 # 换手率
 
@@ -275,7 +283,7 @@ def get_torate(universe, start_time, end_time):
 
 
 factor_list.append(Factor('TO_RATE', get_torate, pd.to_datetime('2017-07-24'),
-                          dependency=['TO_VOLUME', 'FLOAT_SHARE']))
+                          dependency=['TO_VOLUME', 'FLOAT_SHARE', 'LIST_STATUS']))
 
 
 # 过去一个月日均换手率
@@ -296,7 +304,7 @@ def get_avgtorate(universe, start_time, end_time):
 
 
 factor_list.append(Factor('TOAVG_1M', get_avgtorate, pd.to_datetime('2017-08-02'),
-                          dependency=['TO_RATE'], desc='过去一个月（20交易日）日均换手率'))
+                          dependency=['TO_RATE', 'LIST_STATUS'], desc='过去一个月（20交易日）日均换手率'))
 
 
 def get_sto(category):
@@ -336,11 +344,11 @@ def get_sto(category):
 
 
 factor_list.append(Factor('STOM', get_sto('STOM'), pd.to_datetime('2017-10-27'),
-                          dependency=['TO_RATE'], desc='BARRA STOM月换手率因子'))
+                          dependency=['TO_RATE', 'LIST_STATUS'], desc='BARRA STOM月换手率因子'))
 factor_list.append(Factor('STOQ', get_sto('STOQ'), pd.to_datetime('2017-10-27'),
-                          dependency=['TO_RATE'], desc='BARRA STOQ季度换手率因子'))
+                          dependency=['TO_RATE', 'LIST_STATUS'], desc='BARRA STOQ季度换手率因子'))
 factor_list.append(Factor('STOA', get_sto('STOA'), pd.to_datetime('2017-10-27'),
-                          dependency=['TO_RATE'], desc='BARRA STOA年度换手率因子'))
+                          dependency=['TO_RATE', 'LIST_STATUS'], desc='BARRA STOA年度换手率因子'))
 
 # --------------------------------------------------------------------------------------------------
 # 对数市值
@@ -393,11 +401,11 @@ def get_nonlinearmktv(universe, start_time, end_time):
 
 
 factor_list.append(Factor('LN_FMKV', get_lnfloatmktv, pd.to_datetime('2017-08-02'),
-                          dependency=['FLOAT_MKTVALUE'], desc='对数流通市值'))
+                          dependency=['FLOAT_MKTVALUE', 'LIST_STATUS'], desc='对数流通市值'))
 factor_list.append(Factor('LN_TMKV', get_lntotalmktv, pd.to_datetime('2017-10-17'),
-                          dependency=['TOTAL_MKTVALUE'], desc='对数总市值'))
+                          dependency=['TOTAL_MKTVALUE', 'LIST_STATUS'], desc='对数总市值'))
 factor_list.append(Factor('NLSIZE', get_nonlinearmktv, pd.to_datetime('2017-10-19'),
-                          dependency=['LN_TMKV'], desc='非线性市值'))
+                          dependency=['LN_TMKV', 'LIST_STATUS'], desc='非线性市值'))
 # --------------------------------------------------------------------------------------------------
 # 指数行情
 
@@ -444,34 +452,46 @@ def gen_indexquotegetter(index_code, price_type='ClosePrice'):
 
 # 上证综指
 factor_list.append(Factor('SSEC_CLOSE', gen_indexquotegetter('000001'), pd.to_datetime('2017-08-14'),
-                          desc='上证综指收盘价'))
+                          desc='上证综指收盘价',
+                          dep=['LIST_STATUS']))
 factor_list.append(Factor('SSEC_OPEN', gen_indexquotegetter('000001', 'OpenPrice'),
-                          pd.to_datetime('2017-11-30'), desc='上证综指开盘价'))
+                          pd.to_datetime('2017-11-30'), desc='上证综指开盘价',
+                          dep=['LIST_STATUS']))
 # 上证50
 factor_list.append(Factor('SSE50_CLOSE', gen_indexquotegetter('000016'), pd.to_datetime('2017-08-14'),
-                          desc='上证50收盘价'))
+                          desc='上证50收盘价',
+                          dep=['LIST_STATUS']))
 factor_list.append(Factor('SSE50_OPEN', gen_indexquotegetter('000016', 'OpenPrice'),
-                          pd.to_datetime('2017-11-30'), desc='上证50开盘价'))
+                          pd.to_datetime('2017-11-30'), desc='上证50开盘价',
+                          dep=['LIST_STATUS']))
 # 中证500
 factor_list.append(Factor('CS500_CLOSE', gen_indexquotegetter('000905'), pd.to_datetime('2017-08-14'),
-                          desc='中证500收盘价'))
+                          desc='中证500收盘价',
+                          dep=['LIST_STATUS']))
 factor_list.append(Factor('CS500_OPEN', gen_indexquotegetter('000905', 'OpenPrice'),
-                          pd.to_datetime('2017-11-30'), desc='中证500开盘价'))
+                          pd.to_datetime('2017-11-30'), desc='中证500开盘价',
+                          dep=['LIST_STATUS']))
 # 沪深300
 factor_list.append(Factor('SSZ300_CLOSE', gen_indexquotegetter('000300'), pd.to_datetime('2017-08-14'),
-                          desc='沪深300收盘价'))
+                          desc='沪深300收盘价',
+                          dep=['LIST_STATUS']))
 factor_list.append(Factor('SSZ300_OPEN', gen_indexquotegetter('000300', 'OpenPrice'),
-                          pd.to_datetime('2017-11-30'), desc='沪深300开盘价'))
+                          pd.to_datetime('2017-11-30'), desc='沪深300开盘价',
+                          dep=['LIST_STATUS']))
 # 中证全指
 factor_list.append(Factor('CSI985_CLOSE', gen_indexquotegetter('000985'), pd.to_datetime('2017-08-14'),
-                          desc='中证全指收盘价'))
+                          desc='中证全指收盘价',
+                          dep=['LIST_STATUS']))
 factor_list.append(Factor('CSI985_OPEN', gen_indexquotegetter('000985', 'OpenPrice'),
-                          pd.to_datetime('2017-11-30'), desc='中证全指开盘价'))
+                          pd.to_datetime('2017-11-30'), desc='中证全指开盘价',
+                          dep=['LIST_STATUS']))
 # 深证成指
 factor_list.append(Factor('SZCI_CLOSE', gen_indexquotegetter('399001', 'ClosePrice'),
-                          pd.to_datetime('2018-04-02'), desc='深证成指收盘价'))
+                          pd.to_datetime('2018-04-02'), desc='深证成指收盘价',
+                          dep=['LIST_STATUS']))
 factor_list.append(Factor('SZCI_OPEN', gen_indexquotegetter('399001', 'OpenPrice'),
-                          pd.to_datetime('2018-04-02'), desc='深证成指开盘价'))
+                          pd.to_datetime('2018-04-02'), desc='深证成指开盘价',
+                          dep=['LIST_STATUS']))
 # --------------------------------------------------------------------------------------------------
 
 
