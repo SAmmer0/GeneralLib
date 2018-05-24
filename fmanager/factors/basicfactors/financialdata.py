@@ -227,6 +227,7 @@ def get_BS_nshift(fd_type, n):
 
 factor_list.append(Factor('TA', get_BS_nshift('TotalAssets', 1), pd.to_datetime('2017-07-25'),
                           desc='总资产', dependency=['LIST_STATUS']))
+# 该指标计算错误
 factor_list.append(Factor('TA_2Y', get_BS_nshift('TotalAssets', 5), pd.to_datetime('2017-12-04'),
                           desc='往前推2个财年总资产，即次近财年的总资产', dependency=['LIST_STATUS']))
 # 非流动性负债
