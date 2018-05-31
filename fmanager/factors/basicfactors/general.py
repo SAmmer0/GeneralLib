@@ -281,6 +281,10 @@ factor_list.append(Factor('SSEC_WEIGHTS', get_constitution_weight('000001'),
                           pd.to_datetime('2018-05-18')))
 factor_list.append(Factor('CSI1000_WEIGHTS', get_constitution_weight('000852'),
                           pd.to_datetime('2018-05-25')))
+factor_list.append(Factor('GEI_WEIGHTS', get_constitution_weight('399006'),
+                          pd.to_datetime('2018-05-31')))                       
+factor_list.append(Factor('CSI100_WEIGHTS', get_constitution_weight('000903'),
+                          pd.to_datetime('2018-05-31')))
 # --------------------------------------------------------------------------------------------------
 
 
