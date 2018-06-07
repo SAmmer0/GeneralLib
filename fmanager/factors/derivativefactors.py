@@ -166,7 +166,7 @@ def get_oprev_yoy(universe, start_time, end_time):
     '''
     oprev_lq = query('OPREV_1S', (start_time, end_time))
     oprev_lyq = query('OPREV_5S', (start_time, end_time))
-    data = (oprev_lq - oprev_lyq) / np.abs(oprev_lyq) - 1
+    data = (oprev_lq - oprev_lyq) / np.abs(oprev_lyq) - 1   # 这个地方有错误，不应该减1，下同
     data = data.loc[:, sorted(universe)]
     assert check_indexorder(data), 'Error, data order is mixed!'
     assert checkdata_completeness(data, start_time, end_time), "Error, data missed!"
@@ -865,6 +865,112 @@ def srr_handler(y, x, beta):
 factor_list.append(Factor('SYSRISK_RATIO', gen_capm_factor(srr_handler),
                           pd.to_datetime('2017-12-21'), dependency=['ADJ_CLOSE', 'SSEC_CLOSE'],
                           desc='系统风险占比因子'))
+
+# --------------------------------------------------------------------------------------------------
+# 修正后的与CAPM相关的因子
+def gen_capm_factor_ffi(handler):
+    '''
+    母函数，用于生成与滚动的CAPM模型相关的一些指标，比如说滚动的beta，滚动的特异波动率等
+
+    Parameter
+    ---------
+    handler: function
+        用于在每次滚动回归的时候，计算所需要的数据。函数的格式为handler(y, x, beta)-> float
+        其中y为应变量是n*1的向量（n为滚动窗口的长度），x为自变量为n*2的矩阵，beta为2*1的向量
+        （0的位置为截距项）
+    '''
+    @drop_delist_data
+    def inner(universe, start_time, end_time):
+        def moving_ols(y, x, window):
+            '''
+            滚动快速计算OLS
+            '''
+            # 添加截距项
+            x = pd.DataFrame({'constant': [1] * len(x), 'x': x}, columns=['constant', 'x'])
+            # pdb.set_trace()
+            # 计算累计的xx和xy
+            K = len(x.columns)
+            N = len(x)
+            last_xx = np.zeros((K, K))
+            last_xy = np.zeros(K)
+            cum_xx = []
+            cum_xy = []
+            for i in range(N):
+                data_x = x.values[i: i + 1]
+                data_y = y.values[i: i + 1]
+                xy = np.dot(data_x.T, data_y)
+                xx = np.dot(data_x.T, data_x)
+                # 如果只有部分数据是NA，则也会导致后面无法算出beat从而产生BUG
+                # 但是考虑到x一般是基准指数，不太会在中途出现NA值，而y是当前股票收益，也不太会中途出现NA值
+                # 而且如果y为NA值，则xy全部都为NA值，因而不需要担心上述可能的BUG
+                if np.all(np.isnan(last_xx)) and not np.all(np.isnan(xx)):  # 识别第一个有效X'X，并用其重置last_xx
+                    last_xx = xx
+                else:
+                    last_xx = last_xx + np.dot(data_x.T, data_x)
+                if np.all(np.isnan(last_xy)) and not np.all(np.isnan(xx)):
+                    last_xy = xy
+                else:
+                    last_xy = last_xy + np.dot(data_x.T, data_y)
+                cum_xy.append(last_xy)
+                cum_xx.append(last_xx)
+            # pdb.set_trace()
+            # 计算滚动beta
+            out = np.empty(N, dtype=float)
+            out[:] = np.NaN
+            for i in range(N):
+                if i < window or np.any(pd.isnull(x.iloc[i])):
+                    continue
+                xx = cum_xx[i] - cum_xx[i - window]
+                xy = cum_xy[i] - cum_xy[i - window]
+                try:
+                    beta = linalg.solve(xx, xy)
+                    tmp_x = x.values[i + 1 - window: i + 1]
+                    tmp_y = y.values[i + 1 - window: i + 1]
+                    out[i] = handler(tmp_y, tmp_x, beta)
+
+                except LinAlgError as e:    # 因为停牌等因素，股价一直都不变，此时的beta没有意义
+                    continue
+            # pdb.set_trace()
+            return pd.Series(out, index=x.index)
+
+        days = 252
+        start_time = pd.to_datetime(start_time)
+        end_time = pd.to_datetime(end_time)
+        new_start = dateshandle.tds_shift(start_time, days)
+        stock_data = query('ADJ_CLOSE', (new_start, end_time))
+        benchmark_data = query('CSIFFI_CLOSE', (new_start, end_time))
+        stock_data = stock_data.pct_change().dropna(how='all').dropna(how='all', axis=1)
+        benchmark_data = benchmark_data.iloc[:, 0].pct_change().dropna()
+        # pdb.set_trace()
+        # tqdm.pandas()
+        data = stock_data.apply(lambda x: moving_ols(x, benchmark_data, days))
+        mask = (data.index >= start_time) & (data.index <= end_time)
+        data = data.loc[mask, sorted(universe)]
+        if start_time > pd.to_datetime(START_TIME):     # 第一次更新从START_TIME开始，必然会有缺失数据
+            checkdata_completeness(data, start_time, end_time)
+        return data
+    return inner
+
+# beta因子
+def beta_handler(y, x, beta):
+    return beta[1]
+
+
+factor_list.append(Factor('BETA_FFI', gen_capm_factor_ffi(beta_handler), pd.to_datetime('2018-06-07'),
+                          dependency=['ADJ_CLOSE', 'CSIFFI_CLOSE'], desc='252交易日滚动beta系数，使用中证流通指数计算'))
+
+
+# 特质波动率因子
+def idiosyncratic_handler(y, x, beta):
+    resid = y - np.dot(x, beta)
+    return np.std(resid)
+
+
+factor_list.append(Factor('SPECIAL_VOL_FFI', gen_capm_factor_ffi(idiosyncratic_handler),
+                          pd.to_datetime('2018-06-07'), dependency=['ADJ_CLOSE', 'CSIFFI_CLOSE'],
+                          desc='特质波动率，使用中证流通指数计算'))
+
+
 # --------------------------------------------------------------------------------------------------
 # 机构持有比例
 
