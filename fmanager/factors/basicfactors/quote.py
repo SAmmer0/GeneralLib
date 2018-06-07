@@ -492,6 +492,12 @@ factor_list.append(Factor('SZCI_CLOSE', gen_indexquotegetter('399001', 'ClosePri
 factor_list.append(Factor('SZCI_OPEN', gen_indexquotegetter('399001', 'OpenPrice'),
                           pd.to_datetime('2018-04-02'), desc='深证成指开盘价',
                           dependency=['LIST_STATUS']))
+
+# 中证流通
+factor_list.append(Factor('CSIFFI_CLOSE', gen_indexquotegetter('000902', 'ClosePrice'),
+                          pd.to_datetime('2018-06-07'), desc='中证流通指数收盘价',
+                          dependency=['LIST_STATUS']))
+
 # --------------------------------------------------------------------------------------------------
 
 
