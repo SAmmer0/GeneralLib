@@ -951,19 +951,9 @@ def gen_capm_factor_ffi(handler):
         return data
     return inner
 
-# beta因子
-def beta_handler(y, x, beta):
-    return beta[1]
-
 
 factor_list.append(Factor('BETA_FFI', gen_capm_factor_ffi(beta_handler), pd.to_datetime('2018-06-07'),
                           dependency=['ADJ_CLOSE', 'CSIFFI_CLOSE'], desc='252交易日滚动beta系数，使用中证流通指数计算'))
-
-
-# 特质波动率因子
-def idiosyncratic_handler(y, x, beta):
-    resid = y - np.dot(x, beta)
-    return np.std(resid)
 
 
 factor_list.append(Factor('SPECIAL_VOL_FFI', gen_capm_factor_ffi(idiosyncratic_handler),
