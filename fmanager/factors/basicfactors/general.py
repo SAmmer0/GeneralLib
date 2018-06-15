@@ -285,6 +285,9 @@ factor_list.append(Factor('GEI_WEIGHTS', get_constitution_weight('399006'),
                           pd.to_datetime('2018-05-31')))                       
 factor_list.append(Factor('CSI100_WEIGHTS', get_constitution_weight('000903'),
                           pd.to_datetime('2018-05-31')))
+factor_list.append(Factor('CNI100_WEIGHTS', get_constitution_weight('399313'),
+                          pd.to_datetime('2018-06-15'), desc='巨潮100成分权重'))
+
 # --------------------------------------------------------------------------------------------------
 
 
