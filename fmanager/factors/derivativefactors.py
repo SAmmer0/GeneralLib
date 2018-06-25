@@ -868,7 +868,7 @@ factor_list.append(Factor('SYSRISK_RATIO', gen_capm_factor(srr_handler),
 
 # --------------------------------------------------------------------------------------------------
 # 修正后的与CAPM相关的因子
-def gen_capm_factor_ffi(handler):
+def gen_capm_factor_ffi(handler, cycle=252):
     '''
     母函数，用于生成与滚动的CAPM模型相关的一些指标，比如说滚动的beta，滚动的特异波动率等
 
@@ -933,7 +933,7 @@ def gen_capm_factor_ffi(handler):
             # pdb.set_trace()
             return pd.Series(out, index=x.index)
 
-        days = 252
+        days = cycle
         start_time = pd.to_datetime(start_time)
         end_time = pd.to_datetime(end_time)
         new_start = dateshandle.tds_shift(start_time, days)
@@ -959,6 +959,16 @@ factor_list.append(Factor('BETA_FFI', gen_capm_factor_ffi(beta_handler), pd.to_d
 factor_list.append(Factor('SPECIAL_VOL_FFI', gen_capm_factor_ffi(idiosyncratic_handler),
                           pd.to_datetime('2018-06-07'), dependency=['ADJ_CLOSE', 'CSIFFI_CLOSE'],
                           desc='特质波动率，使用中证流通指数计算'))
+factor_list.append(Factor('SPECIAL_VOL_FFI_120', gen_capm_factor_ffi(idiosyncratic_handler, 120),
+                          pd.to_datetime('2018-06-25'), dependency=['ADJ_CLOSE', 'CSIFFI_CLOSE'],
+                          desc='特质波动率，使用中证流通指数计算，计算时间周期为120个交易日'))
+factor_list.append(Factor('SPECIAL_VOL_FFI_60', gen_capm_factor_ffi(idiosyncratic_handler, 60),
+                          pd.to_datetime('2018-06-25'), dependency=['ADJ_CLOSE', 'CSIFFI_CLOSE'],
+                          desc='特质波动率，使用中证流通指数计算，计算时间周期为60个交易日'))
+factor_list.append(Factor('SPECIAL_VOL_FFI_30', gen_capm_factor_ffi(idiosyncratic_handler, 30),
+                          pd.to_datetime('2018-06-25'), dependency=['ADJ_CLOSE', 'CSIFFI_CLOSE'],
+                          desc='特质波动率，使用中证流通指数计算，计算时间周期为30个交易日'))
+
 
 
 # --------------------------------------------------------------------------------------------------
