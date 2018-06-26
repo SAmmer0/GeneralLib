@@ -34,6 +34,7 @@ from fmanager.factors.query import query
 import fdgetter
 import datatoolkits
 from fmanager.factors.utils import convert_data
+from tdtools import get_calendar
 
 # from statsmodels.api import add_constant
 
@@ -1331,6 +1332,57 @@ def get_illiq(universe, start_time, end_time):
 factor_list.append(Factor('ILLIQ', get_illiq, pd.to_datetime('2018-03-26'),
                           dependency=['ADJ_CLOSE', 'TO_VALUE'], desc='非流动性因子'))
 
+
+# --------------------------------------------------------------------------------------------------
+# FF因子组合收益率
+def get_smb(universe, start_time, end_time):
+    '''
+    SMB因子收益率，按月换仓
+    每个月根据最后一个交易日的数据计算出低20%和高20%的组合，然后分别计算组合的净值，
+    利用净值计算组合收益率，SMB因子的收益率为低20%减去高20%，收益以总市值加权计算
+    '''
+    calendar = get_calendar('stock.sse')
+    new_start_time = calendar.shift_tradingdays(start_time, -30)
+    adj_close = query('ADJ_CLOSE', (new_start_time, end_time))
+    mkv = query('TOTAL_MKTVALUE', (new_start_time, end_time))
+    reb_dates = calendar.get_cycle_targets(new_start_time, end_time)
+    mkv = mkv.reindex(reb_dates)
+    low_rets = []
+    high_rets = []
+    # pdb.set_trace()
+    for i, date in enumerate(reb_dates):
+        tmp_mkv = mkv.loc[date].dropna()
+        if len(tmp_mkv) == 0:
+            continue
+        high_mkv = tmp_mkv[tmp_mkv > tmp_mkv.quantile(0.8)]
+        low_mkv = tmp_mkv[tmp_mkv < tmp_mkv.quantile(0.2)]
+        if i < len(reb_dates) - 1:
+            tmp_end = reb_dates[i+1]
+        else:
+            tmp_end = None
+        tmp_close = adj_close[date: tmp_end]
+        tmp_close = (tmp_close / tmp_close.iloc[0]).fillna(method='ffill')
+        high_mkv = high_mkv / high_mkv.sum()
+        low_mkv = low_mkv / low_mkv.sum()
+        high_nav = tmp_close.loc[:, high_mkv.index].multiply(high_mkv).sum(axis=1)
+        low_nav = tmp_close.loc[:, low_mkv.index].multiply(low_mkv).sum(axis=1)
+        high_ret = high_nav.pct_change().dropna()
+        low_ret = low_nav.pct_change().dropna()
+        low_rets.append(low_ret)
+        high_rets.append(high_ret)
+    low_rets = pd.concat(low_rets, axis=0).sort_index()
+    high_rets = pd.concat(high_rets, axis=0).sort_index()
+    rets = low_rets - high_rets
+    rets = rets.loc[(rets.index >= pd.to_datetime(start_time)) & (rets.index <= pd.to_datetime(end_time))]
+    rets = pd.DataFrame(np.repeat([rets.values], len(universe), axis=0).T,
+                        index=rets.index, columns=sorted(universe))
+    if pd.to_datetime(start_time) > pd.to_datetime(START_TIME):
+        assert check_indexorder(rets), 'Error, data order is mixed!'
+        checkdata_completeness(rets, start_time, end_time)
+    return rets
+
+factor_list.append(Factor('FF_SMB', get_smb, pd.to_datetime('2018-06-26'), ['ADJ_CLOSE', 'TOTAL_MKTVALUE'],
+                          'FF三因子模型SMB因子收益'))
 
 # --------------------------------------------------------------------------------------------------
 

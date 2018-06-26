@@ -103,3 +103,6 @@ sysconfiglee.py
 CONST_DATAS/
 test_sources/
 *.out
+
+*.wpr
+*.wpu
