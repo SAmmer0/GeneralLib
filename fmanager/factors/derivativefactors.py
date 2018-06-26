@@ -1384,6 +1384,57 @@ def get_smb(universe, start_time, end_time):
 factor_list.append(Factor('FF_SMB', get_smb, pd.to_datetime('2018-06-26'), ['ADJ_CLOSE', 'TOTAL_MKTVALUE'],
                           'FF三因子模型SMB因子收益'))
 
+def get_hml(universe, start_time, end_time):
+    '''
+    HML因子收益率，按月换仓
+    每个月最后一个交易日，首先根据市值分为高于50%和低于50%两组，在每组内，分别计算出BP高20%和低20%
+    组合，分别计算这些组合的净值，然后计算收益率，HML因子的收益率为组内高20%减低20%，然后组间平均
+    '''
+    calendar = get_calendar('stock.sse')
+    new_start_time = calendar.shift_tradingdays(start_time, -30)
+    reb_dates = calendar.get_cycle_targets(new_start_time, end_time)
+    adj_close = query('ADJ_CLOSE', (new_start_time, end_time))
+    bp = query('BP', (new_start_time, end_time))
+    mkv = query('TOTAL_MKTVALUE', (new_start_time, end_time))
+    bp = bp.reindex(reb_dates)
+    mkv = mkv.reindex(reb_dates)
+    rets = {'big_high': [], 'small_high': [], 'big_low': [], 'small_low': []}
+    group_map = {'big_high': [1, 4], 'small_high': [0, 4], 'big_low': [1, 0], 'small_low': [0, 0]}
+    for i, date in enumerate(reb_dates):
+        tmp_mkv = mkv.loc[date].dropna()
+        tmp_bp = bp.loc[date].dropna()
+        data = pd.DataFrame({'mkv': tmp_mkv, 'bp': tmp_bp}).dropna(axis=0)
+        if len(data) == 0:
+            continue
+        if i < len(reb_dates) - 1:
+            tmp_end = reb_dates[i+1]
+        else:
+            tmp_end = None
+        data = data.assign(mkv_group=pd.qcut(data.mkv, 2, range(2)))
+        data = data.assign(bp_group=data.groupby('mkv_group').bp.transform(lambda x: pd.qcut(x, 5, range(5))))
+        for group in group_map:
+            pos_map = group_map[group]
+            group_mkv = data.loc[(data.mkv_group==pos_map[0])&(data.bp_group==pos_map[1]), 'mkv']
+            group_mkv = group_mkv / group_mkv.sum()
+            tmp_close = adj_close.loc[date: tmp_end].fillna(method='ffill')
+            tmp_close = tmp_close / tmp_close.iloc[0]
+            tmp_nav = tmp_close.loc[:, group_mkv.index].multiply(group_mkv).sum(axis=1)
+            tmp_ret = tmp_nav.pct_change().dropna()
+            rets[group].append(tmp_ret)
+    rets = {g: pd.concat(rets[g], axis=0).sort_index() for g in rets}
+    data = (rets['big_high'] - rets['big_low']) * 0.5 + (rets['small_high'] - rets['small_low']) * 0.5
+    data = data.loc[(data.index >= pd.to_datetime(start_time)) & (data.index <= pd.to_datetime(end_time))]
+    data = pd.DataFrame(np.repeat([data.values], len(universe), axis=0).T,
+                        index=data.index, columns=sorted(universe))
+    if pd.to_datetime(start_time) > pd.to_datetime(START_TIME):
+        assert check_indexorder(data), 'Error, data order is mixed!'
+        checkdata_completeness(data, start_time, end_time)
+    return data
+
+factor_list.append(Factor('FF_HML', get_hml, pd.to_datetime('2018-06-26'), ['BP', 'ADJ_CLOSE', 'TOTAL_MKTVALUE'],
+                          'FF三因子模型HML因子收益'))
+
+
 # --------------------------------------------------------------------------------------------------
 
 
