@@ -1335,6 +1335,7 @@ factor_list.append(Factor('ILLIQ', get_illiq, pd.to_datetime('2018-03-26'),
 
 # --------------------------------------------------------------------------------------------------
 # FF因子组合收益率
+@drop_delist_data
 def get_smb(universe, start_time, end_time):
     '''
     SMB因子收益率，按月换仓
@@ -1381,9 +1382,10 @@ def get_smb(universe, start_time, end_time):
         checkdata_completeness(rets, start_time, end_time)
     return rets
 
-factor_list.append(Factor('FF_SMB', get_smb, pd.to_datetime('2018-06-26'), ['ADJ_CLOSE', 'TOTAL_MKTVALUE'],
+factor_list.append(Factor('FF_SMB', get_smb, pd.to_datetime('2018-06-26'), ['ADJ_CLOSE', 'TOTAL_MKTVALUE', 'LIST_STATUS'],
                           'FF三因子模型SMB因子收益'))
 
+@drop_delist_data
 def get_hml(universe, start_time, end_time):
     '''
     HML因子收益率，按月换仓
@@ -1431,9 +1433,93 @@ def get_hml(universe, start_time, end_time):
         checkdata_completeness(data, start_time, end_time)
     return data
 
-factor_list.append(Factor('FF_HML', get_hml, pd.to_datetime('2018-06-26'), ['BP', 'ADJ_CLOSE', 'TOTAL_MKTVALUE'],
+factor_list.append(Factor('FF_HML', get_hml, pd.to_datetime('2018-06-26'), ['BP', 'ADJ_CLOSE', 'TOTAL_MKTVALUE', 'LIST_STATUS'],
                           'FF三因子模型HML因子收益'))
 
+# --------------------------------------------------------------------------------------------------
+# FF特异波动率
+def get_ff_idio(cycle=252):
+    '''
+    使用FF三因素模型计算特异波动率
+    '''
+    @drop_delist_data
+    def inner(universe, start_time, end_time):
+        def moving_ols(y, x, hml, smb, window):
+            '''
+            滚动快速计算OLS
+            '''
+            # 添加截距项
+            x = pd.DataFrame({'constant': [1] * len(x), 'x': x, 'hml': hml, 'smb': smb}, columns=['constant', 'x'])
+            # pdb.set_trace()
+            # 计算累计的xx和xy
+            K = len(x.columns)
+            N = len(x)
+            last_xx = np.zeros((K, K))
+            last_xy = np.zeros(K)
+            cum_xx = []
+            cum_xy = []
+            for i in range(N):
+                data_x = x.values[i: i + 1]
+                data_y = y.values[i: i + 1]
+                xy = np.dot(data_x.T, data_y)
+                xx = np.dot(data_x.T, data_x)
+                # 如果只有部分数据是NA，则也会导致后面无法算出beat从而产生BUG
+                # 但是考虑到x一般是基准指数，不太会在中途出现NA值，而y是当前股票收益，也不太会中途出现NA值
+                # 而且如果y为NA值，则xy全部都为NA值，因而不需要担心上述可能的BUG
+                if np.all(np.isnan(last_xx)) and not np.all(np.isnan(xx)):  # 识别第一个有效X'X，并用其重置last_xx
+                    last_xx = xx
+                else:
+                    last_xx = last_xx + np.dot(data_x.T, data_x)
+                if np.all(np.isnan(last_xy)) and not np.all(np.isnan(xx)):
+                    last_xy = xy
+                else:
+                    last_xy = last_xy + np.dot(data_x.T, data_y)
+                cum_xy.append(last_xy)
+                cum_xx.append(last_xx)
+            # pdb.set_trace()
+            # 计算滚动beta
+            out = np.empty(N, dtype=float)
+            out[:] = np.NaN
+            for i in range(N):
+                if i < window or np.any(pd.isnull(x.iloc[i])):
+                    continue
+                xx = cum_xx[i] - cum_xx[i - window]
+                xy = cum_xy[i] - cum_xy[i - window]
+                try:
+                    beta = linalg.solve(xx, xy)
+                    tmp_x = x.values[i + 1 - window: i + 1]
+                    tmp_y = y.values[i + 1 - window: i + 1]
+                    if np.all(np.isclose(beta, 0)):    # 因为周期过短会导致计算出的系数为0，因而特异波动率也会为0
+                        continue
+                    out[i] = np.std(tmp_y - np.dot(tmp_x, beta))
+                except LinAlgError as e:    # 因为停牌等因素，股价一直都不变，此时的beta没有意义
+                    continue
+            # pdb.set_trace()
+            return pd.Series(out, index=x.index)
+
+        days = cycle
+        start_time = pd.to_datetime(start_time)
+        end_time = pd.to_datetime(end_time)
+        new_start = dateshandle.tds_shift(start_time, days)
+        stock_data = query('ADJ_CLOSE', (new_start, end_time))
+        benchmark_data = query('CSIFFI_CLOSE', (new_start, end_time))
+        stock_data = stock_data.pct_change().dropna(how='all').dropna(how='all', axis=1)
+        benchmark_data = benchmark_data.iloc[:, 0].pct_change().dropna()
+        hml_data = query('FF_HML', (new_start, end_time)).loc[stock_data.index[0]:, '000001.SZ']
+        smb_data = query('FF_SMB', (new_start, end_time)).loc[stock_data.index[0]:, '000001.SZ']
+        # pdb.set_trace()
+#         tqdm.pandas()
+        data = stock_data.apply(lambda x: moving_ols(x, benchmark_data, hml_data, smb_data, days))
+#         data = stock_data.progress_apply(lambda x: moving_ols(x, benchmark_data, hml_data, smb_data, days))
+        mask = (data.index >= start_time) & (data.index <= end_time)
+        data = data.loc[mask, sorted(universe)]
+        if start_time > pd.to_datetime(START_TIME):     # 第一次更新从START_TIME开始，必然会有缺失数据
+            checkdata_completeness(data, start_time, end_time)
+        return data
+    return inner
+factor_list.append(Factor('FF_SPECIAL_VOL_30', get_ff_idio(30), pd.to_datetime('2018-06-26'),
+                          ['ADJ_CLOSE', 'CSIFFI_CLOSE', 'FF_HML', 'FF_SMB', 'LIST_STATUS'],
+                          '使用FF三因子模型计算的特异波动率'))
 
 # --------------------------------------------------------------------------------------------------
 
