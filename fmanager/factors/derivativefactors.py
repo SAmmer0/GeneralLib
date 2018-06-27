@@ -1449,13 +1449,15 @@ def get_ff_idio(cycle=252):
             滚动快速计算OLS
             '''
             # 添加截距项
-            x = pd.DataFrame({'constant': [1] * len(x), 'x': x, 'hml': hml, 'smb': smb}, columns=['constant', 'x'])
+            x = pd.DataFrame({'constant': [1] * len(x), 'x': x, 'hml': hml, 'smb': smb}, columns=['constant', 'x', 'hml', 'smb'])
             # pdb.set_trace()
             # 计算累计的xx和xy
             K = len(x.columns)
             N = len(x)
-            last_xx = np.zeros((K, K))
-            last_xy = np.zeros(K)
+            last_xx = np.empty((K, K))
+            last_xy = np.empty(K)
+            last_xx[:] = np.nan
+            last_xy[:] = np.nan
             cum_xx = []
             cum_xy = []
             for i in range(N):
@@ -1463,16 +1465,16 @@ def get_ff_idio(cycle=252):
                 data_y = y.values[i: i + 1]
                 xy = np.dot(data_x.T, data_y)
                 xx = np.dot(data_x.T, data_x)
+                # pdb.set_trace()
                 # 如果只有部分数据是NA，则也会导致后面无法算出beat从而产生BUG
                 # 但是考虑到x一般是基准指数，不太会在中途出现NA值，而y是当前股票收益，也不太会中途出现NA值
                 # 而且如果y为NA值，则xy全部都为NA值，因而不需要担心上述可能的BUG
-                if np.all(np.isnan(last_xx)) and not np.all(np.isnan(xx)):  # 识别第一个有效X'X，并用其重置last_xx
+                if (np.any(np.isnan(last_xx)) and not np.any(np.isnan(xx))) or\
+                   (np.any(np.isnan(last_xy)) and not np.any(np.isnan(xx))):    # 识别第一个没有任何NA值的xx和xy对
                     last_xx = xx
-                else:
-                    last_xx = last_xx + np.dot(data_x.T, data_x)
-                if np.all(np.isnan(last_xy)) and not np.all(np.isnan(xx)):
                     last_xy = xy
                 else:
+                    last_xx = last_xx + np.dot(data_x.T, data_x)
                     last_xy = last_xy + np.dot(data_x.T, data_y)
                 cum_xy.append(last_xy)
                 cum_xx.append(last_xx)
@@ -1487,6 +1489,7 @@ def get_ff_idio(cycle=252):
                 xy = cum_xy[i] - cum_xy[i - window]
                 try:
                     beta = linalg.solve(xx, xy)
+                    # pdb.set_trace()
                     tmp_x = x.values[i + 1 - window: i + 1]
                     tmp_y = y.values[i + 1 - window: i + 1]
                     if np.all(np.isclose(beta, 0)):    # 因为周期过短会导致计算出的系数为0，因而特异波动率也会为0
@@ -1522,7 +1525,50 @@ factor_list.append(Factor('FF_SPECIAL_VOL_30', get_ff_idio(30), pd.to_datetime('
                           '使用FF三因子模型计算的特异波动率'))
 
 # --------------------------------------------------------------------------------------------------
+# BAC论文，改进的SMAX因子
+def gen_smax(lookback_period, ret_freq, max_cnt):
+    '''
+    母函数，用于生成BAC论文中的SMAX因子，该因子主要用于捕捉股票在剔除波动率后的彩票效应，或者说偏度相关的效应，
+    因子值=过去一段时间最大的max_cnt个收益率的平均值/过去一段时间收益的波动率
 
+    Parameter
+    ---------
+    lookback_period: int
+        计算因子所使用的历史数据的长度
+    ret_freq: int
+        因为国内涨停规则的限制，导致一个交易日最大的收益限制在10%，因此需要多几日的收益来反映该偏度效应，该参数
+        即为计算收益所使用的天数
+    max_cnt: int
+        计算最大收益率的平均值所使用的数据的数量
+
+    Return
+    ------
+    func: function(universe, start_time, end_time)->pandas.DataFrame
+
+    Notes
+    -----
+    该因子采用滚动计算的方式，即收益为以ret_freq为周期的滚动，波动为由收益计算而来，因此考虑到重叠带来的相关性，
+    这种计算方式会导致波动相对于单日计算出的波动存在膨胀效应
+    '''
+    def inner(universe, start_time, end_time):
+        new_start_time = get_calendar('stock.sse').shift_tradingdays(start_time, -(lookback_period+2*ret_freq))
+        adj_close = query('ADJ_CLOSE', (new_start_time, end_time))
+        rets = adj_close.pct_change(ret_freq)
+        vol = rets.rolling(lookback_period, min_periods=lookback_period).std()
+        mask = ~np.isclose(vol, 0, atol=1.e-6)
+        vol = vol.where(mask, np.nan)
+        avg_nlargest_rets = rets.rolling(lookback_period, min_periods=lookback_period).\
+                            apply(lambda x: np.mean(np.sort(x)[-max_cnt:]))
+        data = avg_nlargest_rets / vol
+        data = data.loc[(data.index >= pd.to_datetime(start_time)) & (data.index <= pd.to_datetime(end_time)), sorted(universe)]
+        checkdata_completeness(data, start_time, end_time)
+        return data
+    return inner
+
+factor_list.append(Factor('SMAX_M', gen_smax(30, 3, 5), pd.to_datetime('2018-06-27'), ['ADJ_CLOSE'], '按月度数据计算的SMAX因子'))
+factor_list.append(Factor('SMAX_MD', gen_smax(30, 1, 5), pd.to_datetime('2018-06-27'), ['ADJ_CLOSE'], '按月度数据计算的SMAX因子，使用日收益率数据'))
+
+# --------------------------------------------------------------------------------------------------
 
 check_duplicate_factorname(factor_list, __name__)
 
