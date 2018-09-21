@@ -34,7 +34,8 @@ from fmanager.factors.query import query
 import fdgetter
 import datatoolkits
 from fmanager.factors.utils import convert_data
-from tdtools import get_calendar
+from tdtools import get_calendar, trans_date
+from datatoolkits import rolling_apply
 
 # from statsmodels.api import add_constant
 
@@ -1567,6 +1568,51 @@ def gen_smax(lookback_period, ret_freq, max_cnt):
 
 factor_list.append(Factor('SMAX_M', gen_smax(30, 3, 5), pd.to_datetime('2018-06-27'), ['ADJ_CLOSE'], '按月度数据计算的SMAX因子'))
 factor_list.append(Factor('SMAX_MD', gen_smax(30, 1, 5), pd.to_datetime('2018-06-27'), ['ADJ_CLOSE'], '按月度数据计算的SMAX因子，使用日收益率数据'))
+
+# --------------------------------------------------------------------------------------------------
+#  计算指数成分与指数的相关性
+def gen_cons_corr(index_quote_name, window):
+    '''
+    母函数，用于生成计算股票与某个指数之间的相关性
+
+    Parameter
+    ---------
+    index_quote_name: string
+        指数行情的内部名称
+    window: int
+        计算相关性的时间窗口的长度
+    
+    Return
+    ------
+    func: function(universe, start_time, end_time)->pandas.DataFrame
+    '''
+    def inner(universe, start_time, end_time):
+        start_time, end_time = trans_date(start_time, end_time)
+        shifted_start_time = get_calendar('stock.sse').shift_tradingdays(start_time, -window - 1)
+        index_ret = query(index_quote_name, (shifted_start_time, end_time)).iloc[:, 0].pct_change().dropna()
+        quotes = query('ADJ_CLOSE', (shifted_start_time, end_time))
+        rets = quotes.pct_change().dropna(axis=0, how='all')
+        def calc_corr(data):
+            # 计算当前股票与给定指数收益的相关性
+            tmp_data = pd.DataFrame({'data': data, 'index': index_ret}, columns=['data', 'index'])
+            # pdb.set_trace()
+            def corr_func(x):
+                if np.std(x[:, 0]) == 0:
+                    return np.nan
+                return np.corrcoef(x[:, 0], x[:, 1])[0, 1]
+            res = rolling_apply(tmp_data, corr_func, window)
+            return res
+        # tqdm.pandas()
+        # res = rets.progress_apply(calc_corr, axis=0)
+        res = rets.apply(calc_corr, axis=0)
+        mask = (res.index >= start_time) & (res.index <= end_time)
+        res = res.loc[mask, sorted(universe)]
+        checkdata_completeness(res, start_time, end_time)
+        return res
+    return inner
+
+factor_list.append(Factor('SSEC_CORR60', gen_cons_corr('SSEC_CLOSE', 60), pd.to_datetime('2018-09-20'), ['SSEC_CLOSE', 'ADJ_CLOSE'], '股票与上证综指的相关系数'))
+
 
 # --------------------------------------------------------------------------------------------------
 
