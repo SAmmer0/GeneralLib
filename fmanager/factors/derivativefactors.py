@@ -1597,7 +1597,8 @@ def gen_cons_corr(index_quote_name, window):
             tmp_data = pd.DataFrame({'data': data, 'index': index_ret}, columns=['data', 'index'])
             # pdb.set_trace()
             def corr_func(x):
-                if np.std(x[:, 0]) == 0:
+                # pdb.set_trace()
+                if np.sum(x[:, 0] == 0) / x.shape[0] > 0.5: # 有效收益率数据占比低于50%的股票直接被记作NA，简单处理只是权宜之计，更好的处理是使用结构化模型进行数据填充
                     return np.nan
                 return np.corrcoef(x[:, 0], x[:, 1])[0, 1]
             res = rolling_apply(tmp_data, corr_func, window)
@@ -1612,8 +1613,7 @@ def gen_cons_corr(index_quote_name, window):
     return inner
 
 factor_list.append(Factor('SSEC_CORR60', gen_cons_corr('SSEC_CLOSE', 60), pd.to_datetime('2018-09-20'), ['SSEC_CLOSE', 'ADJ_CLOSE'], '股票与上证综指的相关系数'))
-
-
+factor_list.append(Factor('CS500_CORR60', gen_cons_corr('CS500_CLOSE', 60), pd.to_datetime('2018-09-20'), ['CS500_CLOSE', 'ADJ_CLOSE'], '股票与中证500的相关系数'))
 # --------------------------------------------------------------------------------------------------
 
 check_duplicate_factorname(factor_list, __name__)

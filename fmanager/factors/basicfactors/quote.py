@@ -498,6 +498,11 @@ factor_list.append(Factor('CSIFFI_CLOSE', gen_indexquotegetter('000902', 'CloseP
                           pd.to_datetime('2018-06-07'), desc='中证流通指数收盘价',
                           dependency=['LIST_STATUS']))
 
+# 中证1000
+factor_list.append(Factor('CS1000_CLOSE', gen_indexquotegetter('000852', 'ClosePrice'),
+                          pd.to_datetime('2018-09-21'), desc='中证1000收盘价',
+                          dependency=['LIST_STATUS']))
+
 # --------------------------------------------------------------------------------------------------
 
 
